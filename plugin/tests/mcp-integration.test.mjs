@@ -2,7 +2,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -113,12 +119,12 @@ test("iteration hooks: before runs before benchmark, after after logging, steer 
   });
 });
 
-test("iteration hooks: failing or missing hook does not block the loop", async () => {
+test("iteration hooks: failing hook surfaces an error steer but never blocks the loop", async () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
   writeFileSync(
     join(cwd, ".auto", "hooks", "before.sh"),
-    "#!/usr/bin/env bash\nexit 1\n",
+    '#!/usr/bin/env bash\ncat > /dev/null\necho "hook exploded" >&2\nexit 3\n',
   );
   execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "before.sh")]);
 
@@ -129,7 +135,96 @@ test("iteration hooks: failing or missing hook does not block the loop", async (
     });
     assert.equal(run.ok, true);
     assert.equal(run.metric, 42);
-    assert.equal(run.before_steer, undefined); // failed hook => no steer
+    assert.match(run.before_steer, /^\[before hook exited 3\]/);
+    assert.match(run.before_steer, /hook exploded/);
+  });
+});
+
+test("iteration hooks: payload carries asi (last_run and run_entry)", async () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
+  // before hook echoes the previous run's asi.hypothesis (node, no jq)
+  writeFileSync(
+    join(cwd, ".auto", "hooks", "before.sh"),
+    '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));if(p.last_run&&p.last_run.asi)console.log("hyp:"+p.last_run.asi.hypothesis)\'\n',
+  );
+  writeFileSync(
+    join(cwd, ".auto", "hooks", "after.sh"),
+    '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));if(p.run_entry&&p.run_entry.asi)console.log("next:"+p.run_entry.asi.next_action_hint)\'\n',
+  );
+  execFileSync("chmod", [
+    "+x",
+    join(cwd, ".auto", "hooks", "before.sh"),
+    join(cwd, ".auto", "hooks", "after.sh"),
+  ]);
+
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // first run: no asi anywhere yet — hooks stay silent (last_run null)
+    await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "baseline",
+      asi: {
+        hypothesis: "cache the sort key",
+        next_action_hint: "try memoize",
+      },
+    });
+    // second run: last_run now carries asi → before hook must see it
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run.before_steer, "hyp:cache the sort key");
+    const log = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 42,
+      description: "second",
+      asi: { hypothesis: "h2", next_action_hint: "try lazy init" },
+    });
+    assert.equal(log.after_steer, "next:try lazy init");
+  });
+});
+
+test("iteration hooks: every fire appends a type:hook ledger entry", async () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".auto", "hooks", "before.sh"),
+    "#!/usr/bin/env bash\ncat > /dev/null\nexit 2\n",
+  );
+  execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "before.sh")]);
+
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "x",
+    });
+    const raw = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8");
+    const entries = raw
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    const hooks = entries.filter((e) => e.type === "hook");
+    assert.equal(hooks.length, 1);
+    assert.equal(hooks[0].stage, "before");
+    assert.equal(hooks[0].exit_code, 2);
+    assert.equal(typeof hooks[0].duration_ms, "number");
+    assert.equal(hooks[0].timed_out, false);
+    // ledger stays replayable: rebuildState is unaffected by hook entries
+    const run2 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run2.ok, true);
+    const log2 = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 42,
+      description: "y",
+    });
+    assert.equal(log2.ok, true);
   });
 });
 

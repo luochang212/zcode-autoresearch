@@ -9,15 +9,17 @@ The loop runs `before` (each benchmark) and `after` (each `log_experiment`) hook
 
 ## Contract
 
-|                       | before.sh                                                                                    | after.sh                                   |
-| --------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
-| when                  | before each benchmark                                                                        | after each `log_experiment`                |
-| stdin (one JSON line) | `{event:"before", cwd, next_run, last_run, session}`                                         | `{event:"after", cwd, run_entry, session}` |
-| stdout                | returned to the agent as `before_steer` (advisory)                                           | returned as `after_steer` (advisory)       |
-| constraints           | exit within 30s (killed otherwise); stdout ≤8KB; **fail-open** (errors never block the loop) | same                                       |
+|                       | before.sh                                                                                                                                                                                              | after.sh                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| when                  | before each benchmark                                                                                                                                                                                  | after each `log_experiment`                |
+| stdin (one JSON line) | `{event:"before", cwd, next_run, last_run, session}`                                                                                                                                                   | `{event:"after", cwd, run_entry, session}` |
+| stdout                | returned to the agent as `before_steer` (advisory)                                                                                                                                                     | returned as `after_steer` (advisory)       |
+| constraints           | exit within 30s (killed otherwise); stdout ≤8KB; **fail-open** (errors never block the loop, but failures surface as `*_steer`, e.g. `[before hook exited 3] …` / `[before hook timed out after 30s]`) | same                                       |
 
 `session` = `{metric_name, direction, baseline_metric, best_metric, run_count}`.
-`last_run` (before) = previous run or `null`; `run_entry` (after) = the run just logged: `{run, status, metric, description, commit, asi?}`.
+`last_run` (before) = previous run or `null`: `{run, status, metric, description, asi}`. `run_entry` (after) = the run just logged: `{run, status, metric, description, commit, asi}`. `asi` carries the Actionable Side Information the agent recorded (`hypothesis`, `next_action_hint`, `rollback`, …) — mine it, don't require it.
+
+Every fire (success or failure) appends a `{type:"hook", stage, exit_code, duration_ms, stdout_bytes, timed_out}` entry to `.auto/log.jsonl` for observability.
 
 Rules of thumb:
 
@@ -58,4 +60,4 @@ Ask: does this hook **remind** (before, produce steer) or **do work** (after, si
 - Steer is **advisory** — the agent may ignore it; keep messages short and actionable.
 - Hooks run **every** iteration: no interactive prompts, no long work (30s cap).
 - The hook directory lives in `.auto/`, which is exempt from discard rollback — hook state survives.
-- If a hook is broken, the loop continues (fail-open); check the hook's stderr.
+- If a hook is broken, the loop continues (fail-open) and the failure comes back as a `*_steer` like `[before hook exited 3] <stderr>` — fix the hook; the stderr tail is included.

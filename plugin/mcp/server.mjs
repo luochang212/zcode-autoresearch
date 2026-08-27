@@ -268,34 +268,84 @@ function checkBenchmarkDrift() {
 
 /**
  * Run an iteration hook: bash <script>, JSON payload on stdin, 30s timeout,
- * stdout capped at 8KB. Fail-open: any error yields null.
+ * stdout capped at 8KB. Returns the raw outcome; the loop stays fail-open
+ * (errors surface as steer text, never block).
  */
-function runHook(scriptPath, payload) {
+function runHookRaw(scriptPath, payload) {
   return new Promise((resolve) => {
+    const started = Date.now();
     const proc = spawn("bash", [scriptPath], { cwd });
     const chunks = [];
     let total = 0;
+    let stderrTail = "";
     proc.stdout.on("data", (d) => {
       if (total < HOOK_MAX_BYTES)
         chunks.push(d.subarray(0, HOOK_MAX_BYTES - total));
       total += d.length;
     });
+    proc.stderr.on("data", (d) => {
+      if (stderrTail.length < 1024)
+        stderrTail += d.toString("utf8").slice(0, 1024 - stderrTail.length);
+    });
+    let didTimeout = false;
     const timer = setTimeout(() => {
+      didTimeout = true;
       try {
         proc.kill("SIGKILL");
       } catch {
         /* gone */
       }
     }, HOOK_TIMEOUT_MS);
-    proc.on("close", () => {
+    proc.on("close", (code) => {
       clearTimeout(timer);
-      const text = Buffer.concat(chunks).toString("utf8").trim();
-      resolve(text ? { steer: text } : null);
+      resolve({
+        exitCode: code,
+        timedOut: didTimeout,
+        stdout: Buffer.concat(chunks).toString("utf8"),
+        stderr: stderrTail,
+        durationMs: Date.now() - started,
+      });
     });
-    proc.on("error", () => resolve(null));
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      resolve({
+        exitCode: null,
+        timedOut: false,
+        stdout: "",
+        stderr: "",
+        durationMs: Date.now() - started,
+        spawnError: err.message,
+      });
+    });
     proc.stdin.on("error", () => {});
     proc.stdin.write(JSON.stringify(payload) + "\n");
     proc.stdin.end();
+  });
+}
+
+// pi-style steer formatting: failures are steered back to the agent as text;
+// a healthy silent hook stays silent.
+function steerFor(stage, r) {
+  if (r.spawnError) return `[${stage} hook failed to start: ${r.spawnError}]`;
+  if (r.timedOut)
+    return `[${stage} hook timed out after ${HOOK_TIMEOUT_MS / 1000}s]`;
+  if (r.exitCode !== 0) {
+    const parts = [`[${stage} hook exited ${r.exitCode}]`];
+    if (r.stderr.trim()) parts.push(r.stderr.trim());
+    return parts.join("\n");
+  }
+  const text = r.stdout.trim();
+  return text || null;
+}
+
+function logHookEntry(stage, r) {
+  appendLedgerEntry(cwd, {
+    type: "hook",
+    stage,
+    exit_code: r.exitCode,
+    duration_ms: r.durationMs,
+    stdout_bytes: Buffer.byteLength(r.stdout, "utf8"),
+    timed_out: r.timedOut === true,
   });
 }
 
@@ -318,21 +368,25 @@ async function runBeforeHook(state, nextRun) {
         status: state.lastRun.status,
         metric: state.lastRun.metric,
         description: state.lastRun.description ?? null,
+        asi: state.lastRun.asi ?? null,
       }
     : null;
-  return runHook(hook, {
+  const r = await runHookRaw(hook, {
     event: "before",
     cwd,
     next_run: nextRun,
     last_run: last,
     session: hookSessionPayload(state),
   });
+  logHookEntry("before", r);
+  const steer = steerFor("before", r);
+  return steer ? { steer } : null;
 }
 
 async function runAfterHook(runEntry) {
   const hook = join(cwd, ".auto", "hooks", "after.sh");
   if (!isExecutable(hook)) return null;
-  return runHook(hook, {
+  const r = await runHookRaw(hook, {
     event: "after",
     cwd,
     run_entry: {
@@ -341,9 +395,13 @@ async function runAfterHook(runEntry) {
       metric: runEntry.metric,
       description: runEntry.description ?? null,
       commit: runEntry.commit ?? null,
+      asi: runEntry.asi ?? null,
     },
     session: hookSessionPayload(sessionState()),
   });
+  logHookEntry("after", r);
+  const steer = steerFor("after", r);
+  return steer ? { steer } : null;
 }
 
 // ---------------------------------------------------------------------------
