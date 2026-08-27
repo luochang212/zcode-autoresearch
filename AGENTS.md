@@ -18,6 +18,7 @@
 
 - 改插件**行为** → openspec change 流程，主规范在 `openspec/specs/`
 - 查插件清单/市场字段 → `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`；契约从仓库文件推导，不从记忆
+- 查插件使用细节（MCP 工具参数、`.auto/` 会话状态、护栏机制）→ `plugin/README.md`
 - 懂设计取舍与已否决方向 → `adr/decisions/`
 - 背景研究 → `docs/research/`
 
