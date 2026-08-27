@@ -13,7 +13,9 @@
 
 ## 1. 残留差距清单(按严重度)
 
-### G1 契约不一致(bug 级,建议立即修)
+### G1 契约不一致(bug 级,建议立即修)——**已修复**(change `fix-hook-contract`,2026-08-27)
+
+> G1.1/G1.2 连同 G2.1 已由 `fix-hook-contract` 修复并回归测试(60/60):payload 补 `asi`、失败/超时以 `*_steer` 返回 `[<stage> hook exited N]` 提示(fail-open 不变)、每次 fire 追加 `{type:"hook"}` 观测条目。原审计复现场景闭环复验通过(`hypothesis-reflection.sh` 不再误报)。以下为原始审计记录。
 
 **G1.1 hook payload 缺 `asi` 字段 —— 示例脚本永久误报** ✅已实测坐实(2026-08-27 E2E)
 
@@ -31,7 +33,7 @@
 
 ### G2 观测缺口(中优先级)
 
-**G2.1 hook fire 不写 `{"type":"hook"}` 条目到 log.jsonl** ✅已实测坐实(2026-08-27 E2E)
+**G2.1 hook fire 不写 `{"type":"hook"}` 条目到 log.jsonl** ✅已实测坐实(2026-08-27 E2E)——**已修复**(change `fix-hook-contract`)
 
 - pi(**源码坐实** `hooks.ts` `appendHookLogEntryIfConfigured`):每次 fire 追加 `{type:"hook", stage, exit_code, duration_ms, stdout_bytes, timed_out}`。
 - 我方实测:before.sh fire 后 log.jsonl 中 `"type":"hook"` 条目数为 0。dashboard 与 post-hoc 分析看不到钩子活动/耗时/输出,排查"钩子到底跑没跑"无据可依。
