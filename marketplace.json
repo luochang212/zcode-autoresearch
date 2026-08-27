@@ -6,7 +6,7 @@
     "zh-CN": "ZCode autoresearch 插件：自主实验循环（init/run/log 工具、护栏、静态 dashboard）。"
   },
   "owner": {
-    "name": "zcode-autoresearch"
+    "name": "luochang212"
   },
   "plugins": [
     {
@@ -19,9 +19,9 @@
       },
       "version": "0.1.0",
       "author": {
-        "name": "zcode-autoresearch"
+        "name": "luochang212"
       },
-      "category": "research",
+      "category": "developer-tools",
       "keywords": ["autoresearch", "experiment", "optimization", "loop"]
     }
   ]
