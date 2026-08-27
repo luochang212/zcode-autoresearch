@@ -27,5 +27,5 @@ adrkit decide "<title>"
 ## Rules
 
 - Accepted decisions must not contain `## Proposal`, `## Acceptance
-  criteria`, or `## Risks` sections.
+criteria`, or `## Risks` sections.
 - `adrkit accept` is the better path when a proposal already exists.
