@@ -1,102 +1,121 @@
-# autoresearch — ZCode 插件
+# autoresearch
 
-让 ZCode 的 coding agent 在**固定度量**上自主迭代优化：改代码 → 跑基准 → 保留改进、回滚退化 → 循环。
+[中文文档](./README_CN.md)
 
-基于 [karpathy/autoresearch](https://github.com/karpathy/autoresearch) 与 [pi-autoresearch](https://github.com/yourduskqubis/pi-autoresearch) 的调研（见仓库根 `docs/research/autoresearch-survey.md`）。架构决策见 `adr/decisions/1-*.md`、`2-*.md`。
+An autonomous experiment loop for ZCode: set a fixed, mechanical metric and let the coding agent iterate — modify code → run the benchmark → keep improvements, revert regressions → repeat.
 
-## 安装
+Based on research into [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/yourduskqubis/pi-autoresearch) (see `docs/research/autoresearch-survey.md`). Architecture decisions live in `adr/decisions/`.
 
-本仓库即一个插件市场（`marketplace.json` 指向 `./plugin`）。在 ZCode 中：
+## Security and side effects
 
-1. 添加市场：本地目录 / 本仓库地址。
-2. 在 **Settings → Plugin Management** 安装并启用 `autoresearch`。
-3. 插件提供：MCP 服务（4 个工具）、skill `autoresearch`、两个命令、4 个 hook。启用插件即授予代码执行信任（官方约定）。
+This plugin executes code and operates on a git repository. Enabling it grants code-execution trust (official marketplace convention). Specifically, it:
 
-> 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库脚本。
+- **Runs commands**: `run_experiment` executes the benchmark script you author (`.auto/measure.sh`) and, when present, the correctness gate (`.auto/checks.sh`);
+- **Runs git operations automatically**: `git commit` on keep, automatic rollback on non-keep (`.auto/` is exempt from rollback);
+- **Installs ZCode hooks**: Stop (loop continuation), PreToolUse (frozen-file write protection), PermissionRequest (experiment-tool gating), UserPromptSubmit/SessionStart (ledger memory injection);
+- **Serves a local HTTP dashboard** on 127.0.0.1 via `export_dashboard`;
+- **Writes session state** to `.auto/` files (`log.jsonl`, `config.json`) in the project directory.
 
-## 用法
+No third-party npm dependencies: the MCP server and hooks are Node-stdlib-only scripts.
 
-```
-/autoresearch:autoresearch <目标>   # 进入/恢复 autoresearch 模式（无会话则走 setup）
-/autoresearch:export                # 导出静态 dashboard（autoresearch-dashboard.html）
-```
+## Install
 
-或让 skill 自动触发（描述含 "autoresearch"、"自主优化" 等）。一次完整循环：
+This repository is itself a plugin marketplace (`marketplace.json` points to `./plugin`). In ZCode:
 
-1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 写 `.auto/prompt.md` 章程 → 建实验分支 `git checkout -b autoresearch/<tag>`。
-2. `init_experiment`（metric_name、direction）→ 跑一次 baseline。
-3. **循环**：一次聚焦改动 → `run_experiment` → `log_experiment`（keep 自动 commit / 非 keep 自动回滚，`.auto/` 豁免）。
+1. Add the marketplace: this repository's URL (or a local directory).
+2. In **Settings → Plugin Management**, install and enable `autoresearch`.
+3. The plugin provides: an MCP server (5 tools), the `autoresearch` skill, 5 slash commands, and 5 hooks.
 
-## 工具（MCP）
-
-| 工具                     | 作用                                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init_experiment`        | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                  |
-| `run_experiment`         | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                        |
-| `log_experiment`         | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示、执行 `after.sh` 钩子 |
-| `export_dashboard`       | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                       |
-| `clear_experiments`      | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                             |
-| `/autoresearch:finalize` | 把 kept 实验按文件依赖整理为干净分支（`scripts/finalize.sh`）                                                                                                             |
-
-## 护栏
-
-- **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
-- **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
-- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` 的写入。
-- **工具门禁（近似）**：无会话时 PermissionRequest hook deny 实验工具（仅覆盖经权限询问的调用）。
-- **自动激活提示**：SessionStart 检测活动会话时注入续跑引导；`/autoresearch:off` 可暂停（`autoresearchOff: true`）。
-- **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。
-- **循环续跑**：Stop hook 在循环未结束时 `decision:block`（zcode 平台限制连续 3 次窗口）。
-- **迭代钩子**：`.auto/hooks/before.sh`（基准前）与 `after.sh`（记录后）每次实验自动执行（fail-open，30s 超时，stdout→`*_steer`）。
-- **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/` 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 即用（node 解析，无 jq 依赖）。
-- **止损**：连续失败达 `.auto/config.json` 的 `consecutiveFailures`（默认 3，可配）时提示停止。
-- **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 字段），违规拒收；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 可显式跳过（不推荐）。
-- **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对——基准中途变更时返回 `benchmark_drift` 警告（防"改基准造假 metric"）。
-- **次级度量约束**（opt-in）：`log_experiment` 支持 `constraints: [{name, maxPct}]`——keep 时校验次级度量不超首轮值的 maxPct%，超界拒收（防"用内存换速度"类 reward hacking）。
-
-## 目录结构
+## Usage
 
 ```
+/autoresearch:autoresearch <goal>   # enter/resume autoresearch mode (runs setup if there is no session)
+/autoresearch:export                # export a static dashboard (autoresearch-dashboard.html)
+/autoresearch:off                   # pause loop continuation (sets autoresearchOff: true)
+/autoresearch:clear                 # reset the session ledger
+/autoresearch:finalize              # organize kept experiments into a clean branch (scripts/finalize.sh)
+```
+
+Or let the skill trigger on its own (descriptions containing "autoresearch", "autonomous optimization", etc.). A full loop:
+
+1. **Setup**: pick a mechanical metric → write `.auto/measure.sh` (emits `METRIC name=value` lines) → optionally `.auto/checks.sh` (correctness gate) → write the `.auto/prompt.md` charter → create an experiment branch `git checkout -b autoresearch/<tag>`.
+2. `init_experiment` (metric_name, direction) → run a baseline.
+3. **Loop**: one focused change → `run_experiment` → `log_experiment` (keep auto-commits / non-keep auto-rolls-back, `.auto/` exempt).
+
+## Tools (MCP)
+
+| Tool                | What it does                                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `init_experiment`   | Start/restart an experiment segment (name, primary metric, direction lower/higher)                                                                                                                           |
+| `run_experiment`    | Run the benchmark: times it, parses `METRIC name=value` lines, returns a truncated tail (10 lines / 4KB), kills the process group on timeout, takes the median over `repeat` runs, runs the `before.sh` hook |
+| `log_experiment`    | Record the outcome: keep auto-commits (`experiment:` prefix); non-keep auto-rolls-back (`.auto/` exempt); returns baseline/best/delta/confidence/plateau plus a next-action hint; runs the `after.sh` hook   |
+| `export_dashboard`  | Serve a live local dashboard (127.0.0.1 + SSE auto-refresh) and write a static HTML fallback                                                                                                                 |
+| `clear_experiments` | Delete `.auto/log.jsonl` and reset the session (keeps measure/checks/prompt)                                                                                                                                 |
+
+## Guardrails
+
+- **Benchmark locking**: when `.auto/measure.sh` exists, `run_experiment` only executes that script (validated after stripping env/time/nice wrappers).
+- **Correctness backpressure**: when `.auto/checks.sh` exists, it runs automatically after a passing benchmark; a failing gate forbids keep and rolls back.
+- **Write protection**: a PreToolUse hook denies writes to `.auto/measure.sh` / `.auto/checks.sh`.
+- **Tool gating (approximate)**: a PermissionRequest hook denies experiment tools when there is no session (only covers calls that go through the permission prompt).
+- **Auto-resume hint**: SessionStart injects a continuation hint when an active session is detected; `/autoresearch:off` pauses it (`autoresearchOff: true`).
+- **Memory injection**: UserPromptSubmit/SessionStart hooks inject an aggregated summary (progress + deduped tried directions + best trajectory + ASI distillation) so progress survives compaction; repeated/oscillating attempts (doom-loop) trigger a hint to switch direction.
+- **Loop continuation**: the Stop hook blocks (`decision:block`) while a loop is unfinished (zcode platform limit: 3 consecutive windows).
+- **Iteration hooks**: `.auto/hooks/before.sh` (pre-benchmark) and `after.sh` (post-record) run on every experiment (fail-open, 30s timeout, stdout → `*_steer`).
+- **Hook ecosystem**: `skills/autoresearch-hooks` tutorial + 6 ready-to-use examples in `hooks/examples/` (anti-thrash, hypothesis reflection, idea rotator, learnings journal, auto-tag winners, macOS notify) — copy to `.auto/hooks/` and go (parsed with Node, no jq dependency).
+- **Stop-loss**: after `consecutiveFailures` in a row (default 3, configurable in `.auto/config.json`) the plugin hints you to stop.
+- **Ledger audit**: `log_experiment` validates invariants before writing (keep must be a real improvement, a discarded real improvement must have failed the guard, event ordering, commit field); violations are rejected; a crashed segment that wasn't rolled back blocks continuation. `auditBypass: true` in `.auto/config.json` explicitly skips it (not recommended).
+- **Benchmark drift detection**: `init_experiment` records hashes of measure.sh/checks.sh; `run_experiment` compares — a mid-run benchmark change returns a `benchmark_drift` warning (prevents "faking the metric by editing the benchmark").
+- **Secondary-metric constraints** (opt-in): `log_experiment` supports `constraints: [{name, maxPct}]` — on keep, secondary metrics are checked not to exceed maxPct% of the first run's value, rejected otherwise (prevents reward hacking like "trading memory for speed").
+
+## Directory structure
+
+```text
 plugin/
-├── .zcode-plugin/plugin.json   # manifest（userConfig: maxIterations / 超时）
-├── .mcp.json                   # MCP stdio server 声明
+├── .zcode-plugin/plugin.json   # manifest (userConfig: maxIterations / timeouts)
+├── .mcp.json                   # MCP stdio server declaration
 ├── mcp/
-│   ├── server.mjs              # JSON-RPC 换行协议 + 三件套 + export_dashboard
-│   └── lib/                    # 纯逻辑：experiment / ledger / git / dashboard / html
+│   ├── server.mjs              # JSON-RPC line protocol + tools
+│   └── lib/                    # pure logic: experiment / ledger / git / validate / dashboard / dashboard-server / html / paths
 ├── hooks/
-│   ├── hooks.json              # Stop / PreToolUse / UserPromptSubmit / SessionStart
-│   ├── stop-continue.mjs       # 循环未结束 → block
-│   ├── guard-frozen.mjs        # 冻结文件写保护 → deny
-│   ├── memory-inject.mjs       # 账本尾行注入
-│   └── session-start.mjs       # 会话恢复提示
-├── skills/autoresearch/        # SKILL.md 薄路由 + references/
-├── commands/                   # autoresearch.md、export.md
-└── tests/                      # node --test 单元测试
+│   ├── hooks.json              # Stop / PreToolUse / PermissionRequest / UserPromptSubmit / SessionStart
+│   ├── stop-continue.mjs       # loop unfinished → block
+│   ├── guard-frozen.mjs        # frozen-file write protection → deny
+│   ├── permission-gate.mjs     # experiment-tool gating → deny
+│   ├── memory-inject.mjs       # ledger tail injection
+│   ├── session-start.mjs       # session resume hints
+│   └── examples/               # 6 ready-to-use before/after iteration hooks
+├── skills/
+│   ├── autoresearch/           # SKILL.md thin router + references/
+│   └── autoresearch-hooks/     # iteration-hook tutorial
+├── commands/                   # autoresearch / export / off / clear / finalize
+├── scripts/finalize.sh         # /autoresearch:finalize implementation
+└── tests/                      # node --test unit tests
 ```
 
 ## workingDir
 
-在 `.auto/config.json` 设 `"workingDir": "work/"` 可将研究目录与项目目录分离（账本/基准/git/dashboard 全部作用于 work/，config 留在项目）。
+Setting `"workingDir": "work/"` in `.auto/config.json` separates the research directory from the project directory (ledger/benchmark/git/dashboard all act on work/, config stays in the project).
 
-## 会话状态（`.auto/`）
+## Session state (`.auto/`)
 
-| 文件          | 作用                                                                     |
-| ------------- | ------------------------------------------------------------------------ |
-| `log.jsonl`   | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进 |
-| `prompt.md`   | 会话章程（目标/度量/范围/Off Limits/What's Been Tried）                  |
-| `measure.sh`  | 基准脚本（冻结）                                                         |
-| `checks.sh`   | 可选正确性门禁（冻结）                                                   |
-| `config.json` | 可选 `{ "maxIterations": N }`                                            |
-| `ideas.md`    | 可选假设清单                                                             |
+| File          | Purpose                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `log.jsonl`   | **append-only single source of truth**: config lines + run lines; segments advance on config lines |
+| `prompt.md`   | session charter (goal/metric/scope/Off Limits/What's Been Tried)                                   |
+| `measure.sh`  | benchmark script (frozen)                                                                          |
+| `checks.sh`   | optional correctness gate (frozen)                                                                 |
+| `config.json` | optional `{ "maxIterations": N }`                                                                  |
+| `ideas.md`    | optional hypothesis list                                                                           |
 
-## 已知边界（研究实证，详见报告 §4.1）
+## Known limits (research-backed, see `docs/research/autoresearch-survey.md` §4.1)
 
-- **无会话注入 API**：无过夜无人值守；靠 Stop hook 3 次窗口 + 用户再触发续跑。
-- **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
-- `git add -A` 会把无关脏文件一起 commit（继承 pi 的已知弱点）——setup 时先提交干净基线。
+- **No session-injection API**: no overnight unattended runs; rely on the 3-window Stop-hook allowance plus user re-triggering to continue.
+- **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.
+- `git add -A` commits unrelated dirty files together (known pi inheritance) — commit a clean baseline during setup.
 
-## 开发
+## Development
 
 ```bash
-cd plugin && node --test tests/*.test.mjs   # 单元测试
+cd plugin && node --test tests/*.test.mjs   # unit tests
 ```
