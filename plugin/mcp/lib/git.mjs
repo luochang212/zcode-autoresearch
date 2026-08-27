@@ -37,7 +37,10 @@ export function commitExperiment(cwd, { description, result }) {
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {
-      execFileSync("git", ["diff", "--cached", "--quiet"], { cwd, stdio: "ignore" });
+      execFileSync("git", ["diff", "--cached", "--quiet"], {
+        cwd,
+        stdio: "ignore",
+      });
       return false;
     } catch {
       return true;
@@ -64,7 +67,16 @@ export function rollbackWorkingTree(cwd) {
   execFileSync("git", ["reset", "-q"], { cwd, stdio: "ignore" });
   execFileSync(
     "git",
-    ["clean", "-fd", "-e", ".auto", "-e", ".auto/", "-e", "autoresearch-dashboard.html"],
+    [
+      "clean",
+      "-fd",
+      "-e",
+      ".auto",
+      "-e",
+      ".auto/",
+      "-e",
+      "autoresearch-dashboard.html",
+    ],
     { cwd, stdio: "ignore" },
   );
 }

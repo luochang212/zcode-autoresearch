@@ -29,14 +29,14 @@
 
 ## 工具（MCP）
 
-| 工具 | 作用 |
-|---|---|
-| `init_experiment` | 建立/重启实验 segment（名称、主度量、方向 lower/higher） |
-| `run_experiment` | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子 |
-| `log_experiment` | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示、执行 `after.sh` 钩子 |
-| `export_dashboard` | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底 |
-| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt） |
-| `/autoresearch:finalize` | 把 kept 实验按文件依赖整理为干净分支（`scripts/finalize.sh`） |
+| 工具                     | 作用                                                                                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init_experiment`        | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                  |
+| `run_experiment`         | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                        |
+| `log_experiment`         | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示、执行 `after.sh` 钩子 |
+| `export_dashboard`       | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                       |
+| `clear_experiments`      | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                             |
+| `/autoresearch:finalize` | 把 kept 实验按文件依赖整理为干净分支（`scripts/finalize.sh`）                                                                                                             |
 
 ## 护栏
 
@@ -80,14 +80,14 @@ plugin/
 
 ## 会话状态（`.auto/`）
 
-| 文件 | 作用 |
-|---|---|
-| `log.jsonl` | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进 |
-| `prompt.md` | 会话章程（目标/度量/范围/Off Limits/What's Been Tried） |
-| `measure.sh` | 基准脚本（冻结） |
-| `checks.sh` | 可选正确性门禁（冻结） |
-| `config.json` | 可选 `{ "maxIterations": N }` |
-| `ideas.md` | 可选假设清单 |
+| 文件          | 作用                                                                     |
+| ------------- | ------------------------------------------------------------------------ |
+| `log.jsonl`   | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进 |
+| `prompt.md`   | 会话章程（目标/度量/范围/Off Limits/What's Been Tried）                  |
+| `measure.sh`  | 基准脚本（冻结）                                                         |
+| `checks.sh`   | 可选正确性门禁（冻结）                                                   |
+| `config.json` | 可选 `{ "maxIterations": N }`                                            |
+| `ideas.md`    | 可选假设清单                                                             |
 
 ## 已知边界（研究实证，详见报告 §4.1）
 

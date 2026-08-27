@@ -3,7 +3,7 @@
 import { createServer } from "node:http";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { rebuildState, readLedger, readSessionConfig } from "./ledger.mjs";
+import { rebuildState, readSessionConfig } from "./ledger.mjs";
 import { renderLiveDashboard } from "./dashboard.mjs";
 
 const clients = new Set();
@@ -33,7 +33,9 @@ function start(workCwd) {
     }
     if (url.pathname === "/autoresearch.jsonl") {
       const log = join(workCwd, ".auto", "log.jsonl");
-      res.writeHead(200, { "Content-Type": "application/x-ndjson; charset=utf-8" });
+      res.writeHead(200, {
+        "Content-Type": "application/x-ndjson; charset=utf-8",
+      });
       res.end(readFileSync(log, "utf8"));
       return;
     }

@@ -22,12 +22,7 @@
         "name": "zcode-autoresearch"
       },
       "category": "research",
-      "keywords": [
-        "autoresearch",
-        "experiment",
-        "optimization",
-        "loop"
-      ]
+      "keywords": ["autoresearch", "experiment", "optimization", "loop"]
     }
   ]
 }

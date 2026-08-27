@@ -12,7 +12,12 @@ Finalize the experiment session into clean, PR-able topic branches.
      "base": "<trunk branch, e.g. main>",
      "goal": "<short goal slug>",
      "groups": [
-       { "title": "perf: sieve", "body": "...", "last_commit": "<full hash>", "slug": "sieve" }
+       {
+         "title": "perf: sieve",
+         "body": "...",
+         "last_commit": "<full hash>",
+         "slug": "sieve"
+       }
      ]
    }
    ```

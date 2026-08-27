@@ -5,6 +5,7 @@ Turn a vague goal into a loopable experiment. Do this once per target.
 ## 1. Pick a mechanical metric
 
 The metric must be:
+
 - **Mechanical**: extracted by the tool from `METRIC name=value` lines — no human judgment.
 - **Stable**: deterministic inputs, low variance. If noisy, run 3× and use the median.
 - **Directional**: lower or higher is strictly better.
@@ -41,18 +42,23 @@ Checks run automatically after a passing benchmark; failure forbids `keep`.
 
 ```markdown
 # Goal
+
 Make the startup faster.
 
 # Metric
+
 time_ms (lower is better), from .auto/measure.sh
 
 # Files in scope
+
 src/**, .auto/prompt.md
 
 # Off limits
+
 .auto/measure.sh, .auto/checks.sh, docs/**
 
 # What's Been Tried
+
 (baseline) no change — 42ms
 ```
 

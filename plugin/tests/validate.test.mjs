@@ -4,7 +4,15 @@ import assert from "node:assert/strict";
 import { validateLedger } from "../mcp/lib/validate.mjs";
 
 const cfg = { segment: 1, direction: "lower", metricName: "time_ms" };
-const run = (n, over = {}) => ({ type: "run", run: n, segment: 1, status: "keep", metric: 100, commit: "abc1234", ...over });
+const run = (n, over = {}) => ({
+  type: "run",
+  run: n,
+  segment: 1,
+  status: "keep",
+  metric: 100,
+  commit: "abc1234",
+  ...over,
+});
 
 test("legal ledger: baseline keep, improvement keep, guarded discard", () => {
   const runs = [
@@ -42,7 +50,10 @@ test("event order: run numbers must be contiguous, segment must match", () => {
   const runs = [run(1, { commit: "a" }), run(3, { metric: 90, commit: "b" })]; // skips 2
   assert.ok(validateLedger(runs, cfg).some((v) => v.code === "event_order"));
 
-  const badSeg = [run(1, { commit: "a" }), run(2, { segment: 2, metric: 90, commit: "b" })];
+  const badSeg = [
+    run(1, { commit: "a" }),
+    run(2, { segment: 2, metric: 90, commit: "b" }),
+  ];
   assert.ok(validateLedger(badSeg, cfg).some((v) => v.code === "event_order"));
 });
 
@@ -54,8 +65,15 @@ test("missing baseline is flagged (no config, or config.segment mismatch)", () =
 
 test("commit field consistency", () => {
   // non-keep with a commit is flagged; keep without commit is a tool-layer concern
-  const discardWithCommit = [run(1, { commit: "a" }), run(2, { status: "discard", metric: 95, commit: "x" })];
-  assert.ok(validateLedger(discardWithCommit, cfg).some((v) => v.code === "commit_field"));
+  const discardWithCommit = [
+    run(1, { commit: "a" }),
+    run(2, { status: "discard", metric: 95, commit: "x" }),
+  ];
+  assert.ok(
+    validateLedger(discardWithCommit, cfg).some(
+      (v) => v.code === "commit_field",
+    ),
+  );
   const keepNoCommit = [run(1, { commit: null })];
   assert.deepEqual(validateLedger(keepNoCommit, cfg), []);
 });
@@ -66,7 +84,14 @@ test("higher direction: improvement means larger", () => {
     run(1, { metric: 10, commit: "a" }),
     run(2, { metric: 10, commit: "b" }), // equal → not better (higher)
   ];
-  assert.ok(validateLedger(runs, higher).some((v) => v.code === "keep_without_improvement"));
-  const ok = [run(1, { metric: 10, commit: "a" }), run(2, { metric: 12, commit: "b" })];
+  assert.ok(
+    validateLedger(runs, higher).some(
+      (v) => v.code === "keep_without_improvement",
+    ),
+  );
+  const ok = [
+    run(1, { metric: 10, commit: "a" }),
+    run(2, { metric: 12, commit: "b" }),
+  ];
   assert.deepEqual(validateLedger(ok, higher), []);
 });

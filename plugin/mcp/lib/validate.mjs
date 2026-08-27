@@ -2,7 +2,13 @@
 // state machine. Pure function, zero I/O, unit-testable.
 import { isBetter } from "./experiment.mjs";
 
-const VALID_STATUS = new Set(["keep", "discard", "crash", "checks_failed", "noop"]);
+const VALID_STATUS = new Set([
+  "keep",
+  "discard",
+  "crash",
+  "checks_failed",
+  "noop",
+]);
 
 /**
  * Validate a run sequence against the session config. Returns a list of
@@ -40,11 +46,19 @@ export function validateLedger(runs, config) {
       push("event_order", r.run, `invalid status ${r.status}`);
     }
     if (r.run !== expectedRun) {
-      push("event_order", r.run, `run number ${r.run} != expected ${expectedRun}`);
+      push(
+        "event_order",
+        r.run,
+        `run number ${r.run} != expected ${expectedRun}`,
+      );
     }
     expectedRun += 1;
     if (r.segment !== config?.segment) {
-      push("event_order", r.run, `segment ${r.segment} != config segment ${config?.segment}`);
+      push(
+        "event_order",
+        r.run,
+        `segment ${r.segment} != config segment ${config?.segment}`,
+      );
     }
 
     // ---- commit field consistency (non-keep rows must not carry a commit;
@@ -56,7 +70,8 @@ export function validateLedger(runs, config) {
     // ---- keep must improve / discard needs failed guard ----
     const metric = r.metric;
     if (metric == null || !Number.isFinite(metric)) {
-      if (r.status !== "crash") push("event_order", r.run, "non-crash row missing metric");
+      if (r.status !== "crash")
+        push("event_order", r.run, "non-crash row missing metric");
       continue;
     }
 
@@ -64,8 +79,11 @@ export function validateLedger(runs, config) {
       if (retained == null) {
         retained = metric; // baseline / first keep
       } else if (!isBetter(metric, retained, direction)) {
-        push("keep_without_improvement", r.run,
-          `keep metric ${metric} does not beat retained ${retained} (${direction})`);
+        push(
+          "keep_without_improvement",
+          r.run,
+          `keep metric ${metric} does not beat retained ${retained} (${direction})`,
+        );
       } else {
         retained = metric;
       }
@@ -75,9 +93,16 @@ export function validateLedger(runs, config) {
       // crash metric (0) is a placeholder — no measurement semantics
     } else {
       // discard / checks_failed
-      if (retained != null && isBetter(metric, retained, direction) && r.status !== "checks_failed") {
-        push("discarded_improvement", r.run,
-          `metric ${metric} beats retained ${retained} but status is ${r.status}, not checks_failed`);
+      if (
+        retained != null &&
+        isBetter(metric, retained, direction) &&
+        r.status !== "checks_failed"
+      ) {
+        push(
+          "discarded_improvement",
+          r.run,
+          `metric ${metric} beats retained ${retained} but status is ${r.status}, not checks_failed`,
+        );
       }
     }
   }

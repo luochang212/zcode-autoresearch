@@ -4,7 +4,12 @@
 // directions, best trajectory, recent runs with ASI, and a doom-loop warning.
 import { rebuildState, readSessionConfig } from "../mcp/lib/ledger.mjs";
 import { resolveWorkCwd } from "../mcp/lib/paths.mjs";
-import { directionLabel, detectDoomLoop, normalizeHypothesis, hypothesesSimilar } from "../mcp/lib/experiment.mjs";
+import {
+  directionLabel,
+  detectDoomLoop,
+  normalizeHypothesis,
+  hypothesesSimilar,
+} from "../mcp/lib/experiment.mjs";
 
 const projectCwd = process.argv[2] || process.cwd();
 const cwd = resolveWorkCwd(projectCwd);
@@ -17,7 +22,9 @@ let state;
 try {
   const cfg = readSessionConfig(projectCwd);
   const max = Number(cfg.maxIterations);
-  state = rebuildState(cwd, { maxIterations: Number.isFinite(max) && max > 0 ? max : 20 });
+  state = rebuildState(cwd, {
+    maxIterations: Number.isFinite(max) && max > 0 ? max : 20,
+  });
 } catch {
   pass();
 }
@@ -43,13 +50,16 @@ for (const r of state.runs) {
   tried.push(label);
 }
 const triedList = tried.slice(-8);
-if (triedList.length > 0) lines.push(`已尝试方向：${triedList.join("、")}（避免重复尝试）。`);
+if (triedList.length > 0)
+  lines.push(`已尝试方向：${triedList.join("、")}（避免重复尝试）。`);
 
 // Best trajectory: baseline → improving keeps (≤6 steps)
 const kept = state.runs.filter((r) => r.status === "keep" && r.metric != null);
 const steps = kept.filter((r) => r.metric !== state.baseline).slice(-6);
 if (steps.length > 0) {
-  const traj = steps.map((r) => `${r.metric}(${directionLabel(r).slice(0, 14)})`);
+  const traj = steps.map(
+    (r) => `${r.metric}(${directionLabel(r).slice(0, 14)})`,
+  );
   lines.push(`best 轨迹：${state.baseline ?? "—"} → ${traj.join(" → ")}。`);
 }
 
@@ -80,7 +90,9 @@ if (doom) {
   );
 }
 
-lines.push("如果你在运行 autoresearch 循环，请基于上述进度选择下一个假设并继续 run_experiment → log_experiment。");
+lines.push(
+  "如果你在运行 autoresearch 循环，请基于上述进度选择下一个假设并继续 run_experiment → log_experiment。",
+);
 
 process.stdout.write(
   JSON.stringify({

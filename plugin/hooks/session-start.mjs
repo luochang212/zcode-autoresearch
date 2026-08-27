@@ -13,7 +13,9 @@ if (!existsSync(log)) process.exit(0);
 
 let off = false;
 try {
-  const cfg = JSON.parse(readFileSync(join(cwd, ".auto", "config.json"), "utf8"));
+  const cfg = JSON.parse(
+    readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
+  );
   off = cfg.autoresearchOff === true;
 } catch {
   /* no config → treat as active */

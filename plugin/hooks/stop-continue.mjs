@@ -2,8 +2,6 @@
 // Stop hook: keep the autoresearch loop running while it is not finished.
 // zcode grants at most 3 consecutive Stop continuations per window, so this
 // hook only fires when the ledger shows the loop should continue.
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { rebuildState, readSessionConfig } from "../mcp/lib/ledger.mjs";
 import { resolveWorkCwd } from "../mcp/lib/paths.mjs";
 import { isStopReached, detectDoomLoop } from "../mcp/lib/experiment.mjs";
@@ -31,7 +29,11 @@ try {
 // No active session → let the model finish normally.
 if (!state.config || state.runs.length === 0) failOpen();
 
-const finished = isStopReached(state.runs, state.maxIterations ?? 20, state.failureThreshold);
+const finished = isStopReached(
+  state.runs,
+  state.maxIterations ?? 20,
+  state.failureThreshold,
+);
 if (finished) failOpen();
 
 // Plateau convergence: recent runs improved < 1% → let the model wrap up.
@@ -49,7 +51,8 @@ if (state.plateau) {
       if (r.asi && typeof r.asi === "object") {
         const parts = [];
         if (r.asi.hypothesis) parts.push(`hyp: ${r.asi.hypothesis}`);
-        if (r.asi.next_action_hint) parts.push(`next: ${r.asi.next_action_hint}`);
+        if (r.asi.next_action_hint)
+          parts.push(`next: ${r.asi.next_action_hint}`);
         if (r.asi.rollback) parts.push(`rollback: ${r.asi.rollback}`);
         if (parts.length) line += "\n    " + parts.join("\n    ");
       }

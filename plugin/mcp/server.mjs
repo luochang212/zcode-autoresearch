@@ -3,14 +3,19 @@
 // Tools: init_experiment / run_experiment / log_experiment / export_dashboard.
 // Design: experiment/autoresearch + ADR-1 (MCP tools carry mechanism).
 import { spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   parseMetricLines,
   unwrapMeasureCommand,
-  isStopReached,
   median,
   detectDoomLoop,
 } from "./lib/experiment.mjs";
@@ -31,7 +36,10 @@ import {
 import { renderDashboard } from "./lib/dashboard.mjs";
 import { resolveWorkCwd } from "./lib/paths.mjs";
 import { validateLedger } from "./lib/validate.mjs";
-import { ensureDashboardServer, broadcastDashboardUpdate, dashboardServerInfo } from "./lib/dashboard-server.mjs";
+import {
+  ensureDashboardServer,
+  broadcastDashboardUpdate,
+} from "./lib/dashboard-server.mjs";
 
 const projectCwd = process.cwd();
 // Effective research directory: `.auto/config.json` may set workingDir.
@@ -39,7 +47,8 @@ const cwd = resolveWorkCwd(projectCwd);
 const paths = autoPaths(cwd);
 
 const envMax = Number(process.env.AR_MAX_ITERATIONS);
-const DEFAULT_MAX_ITERATIONS = Number.isFinite(envMax) && envMax > 0 ? envMax : 20;
+const DEFAULT_MAX_ITERATIONS =
+  Number.isFinite(envMax) && envMax > 0 ? envMax : 20;
 const BENCHMARK_TIMEOUT_MS =
   Number(process.env.AR_BENCHMARK_TIMEOUT_MS) || 600_000;
 const CHECKS_TIMEOUT_MS = Number(process.env.AR_CHECKS_TIMEOUT_MS) || 300_000;
@@ -91,7 +100,11 @@ function sessionState() {
   });
 }
 
-function truncateTail(text, maxLines = LLM_MAX_LINES, maxBytes = LLM_MAX_BYTES) {
+function truncateTail(
+  text,
+  maxLines = LLM_MAX_LINES,
+  maxBytes = LLM_MAX_BYTES,
+) {
   if (text == null) return "";
   const lines = String(text).split("\n");
   let out = lines.slice(-maxLines).join("\n");
@@ -109,7 +122,6 @@ function runCommand(command, timeoutMs) {
       detached: true, // own process group so we can kill the tree
       stdio: ["ignore", "pipe", "pipe"],
     });
-    let output = "";
     const chunks = [];
     let totalBytes = 0;
     let logFile = null;
@@ -117,7 +129,10 @@ function runCommand(command, timeoutMs) {
       chunks.push(d);
       totalBytes += d.length;
       if (totalBytes > 2 * 1024 * 1024 && !logFile) {
-        logFile = join(tmpdir(), `pi-experiment-${process.pid}-${Date.now()}.log`);
+        logFile = join(
+          tmpdir(),
+          `pi-experiment-${process.pid}-${Date.now()}.log`,
+        );
         writeFileSync(logFile, Buffer.concat(chunks));
         chunks.length = 0;
         log("output overflowed, spilling to", logFile);
@@ -127,7 +142,10 @@ function runCommand(command, timeoutMs) {
       chunks.push(d);
       totalBytes += d.length;
       if (totalBytes > 2 * 1024 * 1024 && !logFile) {
-        logFile = join(tmpdir(), `pi-experiment-${process.pid}-${Date.now()}.log`);
+        logFile = join(
+          tmpdir(),
+          `pi-experiment-${process.pid}-${Date.now()}.log`,
+        );
         writeFileSync(logFile, Buffer.concat(chunks));
         chunks.length = 0;
       }
@@ -237,7 +255,11 @@ function checkBenchmarkDrift() {
     return { drift: false, reason: "recorded", hashes: current };
   }
   for (const key of ["measure", "checks"]) {
-    if (recorded[key] != null && current[key] != null && recorded[key] !== current[key]) {
+    if (
+      recorded[key] != null &&
+      current[key] != null &&
+      recorded[key] !== current[key]
+    ) {
       return { drift: true, reason: key, hashes: current };
     }
   }
@@ -254,11 +276,16 @@ function runHook(scriptPath, payload) {
     const chunks = [];
     let total = 0;
     proc.stdout.on("data", (d) => {
-      if (total < HOOK_MAX_BYTES) chunks.push(d.subarray(0, HOOK_MAX_BYTES - total));
+      if (total < HOOK_MAX_BYTES)
+        chunks.push(d.subarray(0, HOOK_MAX_BYTES - total));
       total += d.length;
     });
     const timer = setTimeout(() => {
-      try { proc.kill("SIGKILL"); } catch { /* gone */ }
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        /* gone */
+      }
     }, HOOK_TIMEOUT_MS);
     proc.on("close", () => {
       clearTimeout(timer);
@@ -286,7 +313,12 @@ async function runBeforeHook(state, nextRun) {
   const hook = join(cwd, ".auto", "hooks", "before.sh");
   if (!isExecutable(hook)) return null;
   const last = state.lastRun
-    ? { run: state.lastRun.run, status: state.lastRun.status, metric: state.lastRun.metric, description: state.lastRun.description ?? null }
+    ? {
+        run: state.lastRun.run,
+        status: state.lastRun.status,
+        metric: state.lastRun.metric,
+        description: state.lastRun.description ?? null,
+      }
     : null;
   return runHook(hook, {
     event: "before",
@@ -345,8 +377,11 @@ async function toolInitExperiment(args) {
   return {
     ok: true,
     segment,
-    message: `experiment session "${name}" initialized (segment ${segment}). metric=${metricName} direction=${direction}` +
-      (branch && branch.startsWith("autoresearch/") ? "" : `\nnote: on branch "${branch || "no git repo"}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`),
+    message:
+      `experiment session "${name}" initialized (segment ${segment}). metric=${metricName} direction=${direction}` +
+      (branch && branch.startsWith("autoresearch/")
+        ? ""
+        : `\nnote: on branch "${branch || "no git repo"}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`),
   };
 }
 
@@ -354,11 +389,18 @@ async function toolRunExperiment(args) {
   const state = sessionState();
   const maxIter = state.maxIterations ?? DEFAULT_MAX_ITERATIONS;
   if (state.config && state.runs.length >= maxIter) {
-    return { ok: false, error: `iteration cap (${maxIter}) reached for segment ${state.segment}; start a new segment with init_experiment or stop` };
+    return {
+      ok: false,
+      error: `iteration cap (${maxIter}) reached for segment ${state.segment}; start a new segment with init_experiment or stop`,
+    };
   }
   // Audit: a crash with unrolled-back working tree must not start a new run.
   const lastRun = state.lastRun;
-  if (lastRun && (lastRun.status === "crash" || lastRun.status === "error") && isDirty(cwd)) {
+  if (
+    lastRun &&
+    (lastRun.status === "crash" || lastRun.status === "error") &&
+    isDirty(cwd)
+  ) {
     return {
       ok: false,
       error: `audit: last run was ${lastRun.status} with unrolled-back working-tree changes — revert first (or /autoresearch:clear) before starting a new experiment`,
@@ -384,9 +426,10 @@ async function toolRunExperiment(args) {
   }
 
   const repeat = Math.min(Math.max(Number(args.repeat) || 1, 1), 10);
-  const timeoutMs = Number(args.timeout_seconds ?? 0) > 0
-    ? Number(args.timeout_seconds) * 1000
-    : BENCHMARK_TIMEOUT_MS;
+  const timeoutMs =
+    Number(args.timeout_seconds ?? 0) > 0
+      ? Number(args.timeout_seconds) * 1000
+      : BENCHMARK_TIMEOUT_MS;
 
   // Iteration hook: .auto/hooks/before.sh runs before the benchmark (fail-open).
   const before = await runBeforeHook(state, state.runs.length + 1);
@@ -414,8 +457,13 @@ async function toolRunExperiment(args) {
     checks = await runChecks(paths.checks);
   }
 
-  const values = runs.map((r) => r.metric).filter((v) => v != null && Number.isFinite(v));
-  const medianMetric = repeat > 1 && values.length > 0 ? median(values) : (runs[0]?.metric ?? null);
+  const values = runs
+    .map((r) => r.metric)
+    .filter((v) => v != null && Number.isFinite(v));
+  const medianMetric =
+    repeat > 1 && values.length > 0
+      ? median(values)
+      : (runs[0]?.metric ?? null);
 
   const ret = {
     ok: true,
@@ -429,14 +477,21 @@ async function toolRunExperiment(args) {
     metric: medianMetric,
     median_metric: repeat > 1 ? medianMetric : undefined,
     checks: checks
-      ? { ran: true, failed: checks.failed, exit_code: checks.exitCode, output_tail: checks.outputTail }
+      ? {
+          ran: true,
+          failed: checks.failed,
+          exit_code: checks.exitCode,
+          output_tail: checks.outputTail,
+        }
       : { ran: false },
     output_tail: truncateTail(last.output),
     log_file: last.logFile ?? null,
     ...(before ? { before_steer: before.steer } : {}),
     ...(driftWarn ? { benchmark_drift: true, warning: driftWarn } : {}),
     ...(medianMetric != null && state.config
-      ? { suggestion: `Use these values directly in log_experiment (metric: ${medianMetric})` }
+      ? {
+          suggestion: `Use these values directly in log_experiment (metric: ${medianMetric})`,
+        }
       : {}),
   };
   return ret;
@@ -445,25 +500,35 @@ async function toolRunExperiment(args) {
 async function toolLogExperiment(args) {
   const state = sessionState();
   if (!state.config) {
-    return { ok: false, error: "no active experiment session — call init_experiment first" };
+    return {
+      ok: false,
+      error: "no active experiment session — call init_experiment first",
+    };
   }
   const status = String(args.status ?? "keep");
   const description = String(args.description ?? "");
   const metric = args.metric != null ? Number(args.metric) : null;
   if (!Number.isFinite(metric) && status !== "crash") {
-    return { ok: false, error: "metric must be a finite number (or use status=crash)" };
+    return {
+      ok: false,
+      error: "metric must be a finite number (or use status=crash)",
+    };
   }
-  const metrics = args.metrics && typeof args.metrics === "object" ? args.metrics : undefined;
+  const metrics =
+    args.metrics && typeof args.metrics === "object" ? args.metrics : undefined;
   const asi = args.asi && typeof args.asi === "object" ? args.asi : undefined;
   const constraints = Array.isArray(args.constraints)
-    ? args.constraints.filter((c) => c && typeof c.name === "string" && Number(c.maxPct) > 0)
+    ? args.constraints.filter(
+        (c) => c && typeof c.name === "string" && Number(c.maxPct) > 0,
+      )
     : [];
 
   // keep gate: previous run's checks failed → refuse keep.
   if (status === "keep" && state.lastRunChecksFailed) {
     return {
       ok: false,
-      error: "the previous run failed correctness checks — you cannot keep it. use status=checks_failed or discard.",
+      error:
+        "the previous run failed correctness checks — you cannot keep it. use status=checks_failed or discard.",
     };
   }
   // keep gate: metric must be present.
@@ -478,13 +543,25 @@ async function toolLogExperiment(args) {
     for (const c of constraints) {
       const value = metrics?.[c.name];
       const base = baselineRuns[c.name];
-      const limit = base != null && Number.isFinite(base) ? (base * Number(c.maxPct)) / 100 : null;
+      const limit =
+        base != null && Number.isFinite(base)
+          ? (base * Number(c.maxPct)) / 100
+          : null;
       if (value == null || !Number.isFinite(value) || limit == null) {
-        constraintResults.push({ name: c.name, status: "skipped", reason: "no baseline or value" });
+        constraintResults.push({
+          name: c.name,
+          status: "skipped",
+          reason: "no baseline or value",
+        });
         continue;
       }
       const pass = value <= limit;
-      constraintResults.push({ name: c.name, status: pass ? "pass" : "fail", value, limit });
+      constraintResults.push({
+        name: c.name,
+        status: pass ? "pass" : "fail",
+        value,
+        limit,
+      });
       if (!pass) {
         return {
           ok: false,
@@ -506,7 +583,10 @@ async function toolLogExperiment(args) {
   };
   const cfgAudit = readSessionConfig(projectCwd);
   if (cfgAudit.auditBypass !== true) {
-    const violations = validateLedger([...state.runs, entryPrelim], state.config);
+    const violations = validateLedger(
+      [...state.runs, entryPrelim],
+      state.config,
+    );
     if (violations.length > 0) {
       const v = violations[0];
       const hint =
@@ -519,7 +599,10 @@ async function toolLogExperiment(args) {
               : v.code === "commit_field"
                 ? "keep rows need a commit, non-keep rows must not have one"
                 : "see message";
-      return { ok: false, error: `audit violation (${v.code}): ${v.message}. ${hint}.` };
+      return {
+        ok: false,
+        error: `audit violation (${v.code}): ${v.message}. ${hint}.`,
+      };
     }
   }
 
@@ -535,7 +618,8 @@ async function toolLogExperiment(args) {
       // keep produced no commit (no working-tree changes) — that is not a real keep
       return {
         ok: false,
-        error: "audit: keep with no changes to commit — there is nothing to retain. Make a real change first, or use status=noop.",
+        error:
+          "audit: keep with no changes to commit — there is nothing to retain. Make a real change first, or use status=noop.",
       };
     }
   } else if (status !== "noop") {
@@ -570,9 +654,11 @@ async function toolLogExperiment(args) {
   const baseline = nextState.baseline;
   const best = nextState.best;
   const conf = nextState.confidence;
-  const delta = metric != null && baseline != null
-    ? (metric - baseline) * (nextState.config?.direction === "higher" ? 1 : -1)
-    : null;
+  const delta =
+    metric != null && baseline != null
+      ? (metric - baseline) *
+        (nextState.config?.direction === "higher" ? 1 : -1)
+      : null;
 
   return {
     ok: true,
@@ -592,23 +678,29 @@ async function toolLogExperiment(args) {
     doom_loop: detectDoomLoop(nextState.runs)?.doomLoop ?? false,
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
-    next_action_hint: nextState.runs.length >= (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
-      ? "iteration cap reached — run init_experiment for a new segment, or /autoresearch off"
-      : detectDoomLoop(nextState.runs)
-        ? "doom loop detected (repeated/oscillating hypotheses) — stop repeating, try a structurally different direction"
-        : nextState.consecutiveFailures >= nextState.failureThreshold
-          ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}) — consider a different approach or stopping`
-          : nextState.plateau
-            ? `plateau detected (last 5 runs improved < 1%) — consider rerunning with repeat:3 to confirm, opening a new segment, or stopping`
-            : "pick the next hypothesis and run_experiment again",
+    next_action_hint:
+      nextState.runs.length >=
+      (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
+        ? "iteration cap reached — run init_experiment for a new segment, or /autoresearch off"
+        : detectDoomLoop(nextState.runs)
+          ? "doom loop detected (repeated/oscillating hypotheses) — stop repeating, try a structurally different direction"
+          : nextState.consecutiveFailures >= nextState.failureThreshold
+            ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}) — consider a different approach or stopping`
+            : nextState.plateau
+              ? `plateau detected (last 5 runs improved < 1%) — consider rerunning with repeat:3 to confirm, opening a new segment, or stopping`
+              : "pick the next hypothesis and run_experiment again",
   };
 }
 
 async function toolClearExperiments() {
-  if (!existsSync(paths.log)) return { ok: true, message: "no active session to clear" };
+  if (!existsSync(paths.log))
+    return { ok: true, message: "no active session to clear" };
   const { rmSync } = await import("node:fs");
   rmSync(paths.log, { force: true });
-  return { ok: true, message: "cleared .auto/log.jsonl; start fresh with init_experiment" };
+  return {
+    ok: true,
+    message: "cleared .auto/log.jsonl; start fresh with init_experiment",
+  };
 }
 
 async function toolExportDashboard() {
@@ -640,9 +732,19 @@ const TOOLS = [
       type: "object",
       properties: {
         name: { type: "string", description: "session name" },
-        metric_name: { type: "string", description: "primary metric name, e.g. time_ms" },
-        metric_unit: { type: "string", description: "optional unit: ms, s, kb, mb, ..." },
-        direction: { type: "string", enum: ["lower", "higher"], description: "lower is better (default) or higher is better" },
+        metric_name: {
+          type: "string",
+          description: "primary metric name, e.g. time_ms",
+        },
+        metric_unit: {
+          type: "string",
+          description: "optional unit: ms, s, kb, mb, ...",
+        },
+        direction: {
+          type: "string",
+          enum: ["lower", "higher"],
+          description: "lower is better (default) or higher is better",
+        },
       },
       required: ["metric_name"],
     },
@@ -654,9 +756,20 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        command: { type: "string", description: "shell command to run (or .auto/measure.sh when it exists)" },
-        timeout_seconds: { type: "number", description: "override timeout in seconds (default 600)" },
-        repeat: { type: "number", description: "run the benchmark N times and return the median metric (1-10, default 1)" },
+        command: {
+          type: "string",
+          description:
+            "shell command to run (or .auto/measure.sh when it exists)",
+        },
+        timeout_seconds: {
+          type: "number",
+          description: "override timeout in seconds (default 600)",
+        },
+        repeat: {
+          type: "number",
+          description:
+            "run the benchmark N times and return the median metric (1-10, default 1)",
+        },
       },
       required: ["command"],
     },
@@ -668,13 +781,34 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        status: { type: "string", enum: ["keep", "discard", "crash", "checks_failed", "noop"] },
-        metric: { type: "number", description: "primary metric value from run_experiment (0 for crash)" },
-        description: { type: "string", description: "one-line summary of the hypothesis and change" },
+        status: {
+          type: "string",
+          enum: ["keep", "discard", "crash", "checks_failed", "noop"],
+        },
+        metric: {
+          type: "number",
+          description: "primary metric value from run_experiment (0 for crash)",
+        },
+        description: {
+          type: "string",
+          description: "one-line summary of the hypothesis and change",
+        },
         metrics: { type: "object", description: "optional secondary metrics" },
-        constraints: { type: "array", description: "optional hard limits on secondary metrics when keeping, e.g. [{name: \"memory_mb\", maxPct: 105}] — keep is rejected if the secondary metric exceeds maxPct% of the first run's value" },
-        asi: { type: "object", description: "Actionable Side Information — survives revert, e.g. {hypothesis, next_action_hint, rollback}" },
-        commit: { type: "string", description: "optional 7-char short hash; ignored on keep (real hash is filled in)" },
+        constraints: {
+          type: "array",
+          description:
+            'optional hard limits on secondary metrics when keeping, e.g. [{name: "memory_mb", maxPct: 105}] — keep is rejected if the secondary metric exceeds maxPct% of the first run\'s value',
+        },
+        asi: {
+          type: "object",
+          description:
+            "Actionable Side Information — survives revert, e.g. {hypothesis, next_action_hint, rollback}",
+        },
+        commit: {
+          type: "string",
+          description:
+            "optional 7-char short hash; ignored on keep (real hash is filled in)",
+        },
       },
       required: ["status", "description"],
     },

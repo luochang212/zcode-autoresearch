@@ -1,5 +1,11 @@
 // `.auto/` ledger: append-only JSONL source of truth + segment rebuild.
-import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+} from "node:fs";
 import { join } from "node:path";
 import { computeConfidence, isBetter, detectPlateau } from "./experiment.mjs";
 
@@ -81,10 +87,12 @@ export function rebuildState(cwd, options = {}) {
       const run = { ...e, segment: state.segment, config: state.config };
       state.runs.push(run);
       state.totalExperiments += 1;
-      if (state.baseline == null && run.metric != null) state.baseline = run.metric;
+      if (state.baseline == null && run.metric != null)
+        state.baseline = run.metric;
       if (run.status === "keep" && run.metric != null) {
         const dir = state.config?.direction ?? "lower";
-        if (state.best == null || isBetter(run.metric, state.best, dir)) state.best = run.metric;
+        if (state.best == null || isBetter(run.metric, state.best, dir))
+          state.best = run.metric;
       }
       if (run.status === "keep") state.consecutiveFailures = 0;
       else state.consecutiveFailures += 1;
@@ -93,18 +101,20 @@ export function rebuildState(cwd, options = {}) {
     }
   }
   // Confidence over the current segment's values.
-  const values = state.runs.map((r) => r.metric).filter((v) => v != null && Number.isFinite(v));
+  const values = state.runs
+    .map((r) => r.metric)
+    .filter((v) => v != null && Number.isFinite(v));
   if (state.config && values.length > 0) {
     state.confidence = computeConfidence({
       values,
       baseline: state.baseline,
       best: state.best,
-      direction: state.config.direction ?? "lower",
     });
   } else {
     state.confidence = null;
   }
-  if (options.maxIterations != null) state.maxIterations = options.maxIterations;
+  if (options.maxIterations != null)
+    state.maxIterations = options.maxIterations;
   state.failureThreshold = options.consecutiveFailures ?? 3;
   // Plateau over the current segment's recent runs.
   if (state.config && state.runs.length >= (options.plateauWindow ?? 5)) {

@@ -9,17 +9,18 @@ The loop runs `before` (each benchmark) and `after` (each `log_experiment`) hook
 
 ## Contract
 
-| | before.sh | after.sh |
-|---|---|---|
-| when | before each benchmark | after each `log_experiment` |
-| stdin (one JSON line) | `{event:"before", cwd, next_run, last_run, session}` | `{event:"after", cwd, run_entry, session}` |
-| stdout | returned to the agent as `before_steer` (advisory) | returned as `after_steer` (advisory) |
-| constraints | exit within 30s (killed otherwise); stdout ≤8KB; **fail-open** (errors never block the loop) | same |
+|                       | before.sh                                                                                    | after.sh                                   |
+| --------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| when                  | before each benchmark                                                                        | after each `log_experiment`                |
+| stdin (one JSON line) | `{event:"before", cwd, next_run, last_run, session}`                                         | `{event:"after", cwd, run_entry, session}` |
+| stdout                | returned to the agent as `before_steer` (advisory)                                           | returned as `after_steer` (advisory)       |
+| constraints           | exit within 30s (killed otherwise); stdout ≤8KB; **fail-open** (errors never block the loop) | same                                       |
 
 `session` = `{metric_name, direction, baseline_metric, best_metric, run_count}`.
 `last_run` (before) = previous run or `null`; `run_entry` (after) = the run just logged: `{run, status, metric, description, commit, asi?}`.
 
 Rules of thumb:
+
 - **Silence is the default** — print nothing unless you have something worth saying.
 - **One hook, one concern** — a reminder hook vs a journal hook are different files.
 - No environment variables; everything comes from stdin.

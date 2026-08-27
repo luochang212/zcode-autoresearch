@@ -48,7 +48,7 @@ export function median(values) {
     : sorted[mid];
 }
 
-export function computeConfidence({ values, baseline, best, direction = "lower" }) {
+export function computeConfidence({ values, baseline, best }) {
   if (values.length < 3 || baseline == null || best == null) return null;
   const med = median(values);
   if (med == null || med === 0) return null;
@@ -114,7 +114,9 @@ export function isStopReached(runs, maxIterations, consecutiveFailures = 3) {
   if (maxIterations != null && runs.length >= maxIterations) return true;
   if (runs.length === 0) return false;
   const tail = runs.slice(-consecutiveFailures);
-  return tail.length >= consecutiveFailures && tail.every((r) => r.status !== "keep");
+  return (
+    tail.length >= consecutiveFailures && tail.every((r) => r.status !== "keep")
+  );
 }
 
 /**
@@ -149,8 +151,13 @@ export function hypothesesSimilar(a, b) {
  */
 export function directionLabel(run) {
   const raw = run?.asi?.hypothesis || run?.description || "";
-  const clause = String(raw).split(/[,.;，。；]/)[0]?.trim() || "";
-  return clause.length > 40 ? clause.slice(0, 40) + "…" : clause || (run?.status ?? "?");
+  const clause =
+    String(raw)
+      .split(/[,.;，。；]/)[0]
+      ?.trim() || "";
+  return clause.length > 40
+    ? clause.slice(0, 40) + "…"
+    : clause || (run?.status ?? "?");
 }
 
 /**
@@ -169,14 +176,21 @@ export function detectDoomLoop(runs, { window = 6 } = {}) {
 
   // 3+ consecutive repeats (needs 3)
   const last3 = norm.slice(-3);
-  if (hypothesesSimilar(last3[0], last3[1]) && hypothesesSimilar(last3[1], last3[2])) {
+  if (
+    hypothesesSimilar(last3[0], last3[1]) &&
+    hypothesesSimilar(last3[1], last3[2])
+  ) {
     return { doomLoop: true, pattern: "repeat" };
   }
 
   // A→B→A→B oscillation (needs 4)
   if (norm.length >= 4) {
     const [a, b, c, d] = norm.slice(-4);
-    if (hypothesesSimilar(a, c) && hypothesesSimilar(b, d) && !hypothesesSimilar(a, b)) {
+    if (
+      hypothesesSimilar(a, c) &&
+      hypothesesSimilar(b, d) &&
+      !hypothesesSimilar(a, b)
+    ) {
       return { doomLoop: true, pattern: "oscillate" };
     }
   }
@@ -190,7 +204,10 @@ export function detectDoomLoop(runs, { window = 6 } = {}) {
  * below `minImprovement`. Returns false when there are fewer than `window`
  * valid records (not enough data to judge).
  */
-export function detectPlateau(runs, { window = 5, minImprovement = 0.01, direction = "lower" } = {}) {
+export function detectPlateau(
+  runs,
+  { window = 5, minImprovement = 0.01, direction = "lower" } = {},
+) {
   const valid = runs
     .filter((r) => r.metric != null && Number.isFinite(r.metric))
     .slice(-window);
@@ -198,9 +215,12 @@ export function detectPlateau(runs, { window = 5, minImprovement = 0.01, directi
   const first = valid[0].metric;
   let best = first;
   for (const r of valid) {
-    if (direction === "higher" ? r.metric > best : r.metric < best) best = r.metric;
+    if (direction === "higher" ? r.metric > best : r.metric < best)
+      best = r.metric;
   }
   const improvement =
-    first === 0 ? Math.abs(best - first) : Math.abs(best - first) / Math.abs(first);
+    first === 0
+      ? Math.abs(best - first)
+      : Math.abs(best - first) / Math.abs(first);
   return improvement < minImprovement;
 }

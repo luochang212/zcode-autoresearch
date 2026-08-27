@@ -6,7 +6,9 @@ import { resolve, isAbsolute, join } from "node:path";
 
 export function resolveWorkCwd(projectCwd) {
   try {
-    const cfg = JSON.parse(readFileSync(join(projectCwd, ".auto", "config.json"), "utf8"));
+    const cfg = JSON.parse(
+      readFileSync(join(projectCwd, ".auto", "config.json"), "utf8"),
+    );
     const wd = cfg.workingDir;
     if (typeof wd === "string" && wd.trim()) {
       const target = isAbsolute(wd) ? wd : resolve(projectCwd, wd);

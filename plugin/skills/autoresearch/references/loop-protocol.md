@@ -26,12 +26,12 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 
 ## Failure handling
 
-| Symptom | Handling |
-|---|---|
-| benchmark crashes | fix the script/change; log as `crash` (reverts) |
-| repeated crashes (>2) | log `crash`, pick a smaller/different hypothesis |
-| checks fail | log `checks_failed` (reverts), do not keep |
-| command hangs | `run_experiment` kills at timeout; log `crash` |
+| Symptom               | Handling                                             |
+| --------------------- | ---------------------------------------------------- |
+| benchmark crashes     | fix the script/change; log as `crash` (reverts)      |
+| repeated crashes (>2) | log `crash`, pick a smaller/different hypothesis     |
+| checks fail           | log `checks_failed` (reverts), do not keep           |
+| command hangs         | `run_experiment` kills at timeout; log `crash`       |
 | iteration cap reached | stop; optionally `init_experiment` for a new segment |
 
 ## Stopping
@@ -47,9 +47,9 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 
 Optional scripts in `.auto/hooks/` that run around every iteration (fail-open):
 
-| Hook | When | stdin | stdout → |
-|---|---|---|---|
-| `before.sh` | before each benchmark | `{event:"before", cwd, next_run, last_run, session}` | `before_steer` |
-| `after.sh` | after each `log_experiment` | `{event:"after", cwd, run_entry, session}` | `after_steer` |
+| Hook        | When                        | stdin                                                | stdout →       |
+| ----------- | --------------------------- | ---------------------------------------------------- | -------------- |
+| `before.sh` | before each benchmark       | `{event:"before", cwd, next_run, last_run, session}` | `before_steer` |
+| `after.sh`  | after each `log_experiment` | `{event:"after", cwd, run_entry, session}`           | `after_steer`  |
 
 `session` = `{metric_name, direction, baseline_metric, best_metric, run_count}`. Hooks must exit within 30s and print ≤8KB. Use them for anything the agent shouldn't be trusted to do on its own: external lookups, anti-repetition guards, notifications, journals. `*_steer` is advisory — read it, but the loop is not blocked by it.

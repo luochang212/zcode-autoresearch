@@ -2,12 +2,13 @@
 
 # zcode-autoresearch
 
+[![ZCode Plugin](https://img.shields.io/badge/ZCode-Plugin-0e7490?style=flat-square)](<>)
+[![Version](https://img.shields.io/badge/version-0.1.0-0e7490?style=flat-square)](<>)
 [![License](https://img.shields.io/badge/license-MIT-0e7490?style=flat-square)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-0e7490?style=flat-square)]()
-[![Language](https://img.shields.io/badge/docs-%E7%AE%80%E4%BD%93%E4%B8%AD%E6%96%87-0e7490?style=flat-square)]()
-[![Tests](https://img.shields.io/badge/tests-58%20passed-0e7490?style=flat-square)]()
+[![CI](https://github.com/luochang212/zcode-autoresearch/actions/workflows/ci.yml/badge.svg)](https://github.com/luochang212/zcode-autoresearch/actions/workflows/ci.yml)
+[![zread](https://img.shields.io/badge/%E2%80%8B-zread-0e7490?style=flat-square&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQuOTYxNTYgMS42MDAxSDIuMjQxNTZDMS44ODgxIDEuNjAwMSAxLjYwMTU2IDEuODg2NjQgMS42MDE1NiAyLjI0MDFWNC45NjAxQzEuNjAxNTYgNS4zMTM1NiAxLjg4ODEgNS42MDAxIDIuMjQxNTYgNS42MDAxSDQuOTYxNTZDNS4zMTUwMiA1LjYwMDEgNS42MDE1NiA1LjMxMzU2IDUuNjAxNTYgNC45NjAxVjIuMjQwMUM1LjYwMTU2IDEuODg2NjQgNS4zMTUwMiAxLjYwMDEgNC45NjE1NiAxLjYwMDFaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00Ljk2MTU2IDEwLjM5OTlIMi4yNDE1NkMxLjg4ODEgMTAuMzk5OSAxLjYwMTU2IDEwLjY4NjQgMS42MDE1NiAxMS4wMzk5VjEzLjc1OTlDMS42MDE1NiAxNC4xMTM0IDEuODg4MSAxNC4zOTk5IDIuMjQxNTYgMTQuMzk5OUg0Ljk2MTU2QzUuMzE1MDIgMTQuMzk5OSA1LjYwMTU2IDE0LjExMzQgNS42MDE1NiAxMy43NTk5VjExLjAzOTlDNS42MDE1NiAxMC42ODY0IDUuMzE1MDIgMTAuMzk5OSA0Ljk2MTU2IDEwLjM5OTlaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik0xMy43NTg0IDEuNjAwMUgxMS4wMzg0QzEwLjY4NSAxLjYwMDEgMTAuMzk4NCAxLjg4NjY0IDEwLjM5ODQgMi4yNDAxVjQuOTYwMUMxMC4zOTg0IDUuMzEzNTYgMTAuNjg1IDUuNjAwMSAxMS4wMzg0IDUuNjAwMUgxMy43NTg0QzE0LjExMTkgNS42MDAxIDE0LjM5ODQgNS4zMTM1NiAxNC4zOTg0IDQuOTYwMVYyLjI0MDFDMTQuMzk4NCAxLjg4NjY0IDE0LjExMTkgMS42MDAxIDEzLjc1ODQgMS42MDAxWiIgZmlsbD0iI2ZmZiIvPgo8cGF0aCBkPSJNNCAxMkwxMiA0TDQgMTJaIiBmaWxsPSIjZmZmIi8%2BCjxwYXRoIGQ9Ik00IDEyTDEyIDQiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K&logoColor=ffffff)](https://zread.ai/luochang212/zcode-autoresearch)
 
-*Try an idea, measure it, keep what works, discard what doesn't, repeat forever.*
+_Try an idea, measure it, keep what works, discard what doesn't, repeat forever._
 
 一个 ZCode 插件：让 coding agent 在**固定度量**上自主迭代优化——改代码 → 跑基准 → 保留改进、回滚退化 → 循环。灵感与设计依据见 [karpathy/autoresearch](https://github.com/karpathy/autoresearch) 与 [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) 的机制研究（[`docs/research/`](docs/research/)）。
 
@@ -37,33 +38,33 @@ agent 会引导 setup（写 `.auto/measure.sh` + 可选 `checks.sh` + 章程）�
 
 ### 工具（MCP）
 
-| 工具 | 作用 |
-|---|---|
-| `init_experiment` | 建立/重启实验 segment（名称、主度量、方向 lower/higher） |
-| `run_experiment` | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断、超时杀进程组、`repeat` 取中位数、执行 before 钩子、基准漂移检测 |
-| `log_experiment` | 记录结果：keep 自动 commit / 非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau/doom-loop；执行 after 钩子；审计校验 |
-| `export_dashboard` | 起 live dashboard（127.0.0.1 + SSE 自动刷新）+ 写静态 HTML 兜底 |
-| `clear_experiments` | 重置会话（保留 measure/checks/prompt） |
+| 工具                | 作用                                                                                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                         |
+| `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断、超时杀进程组、`repeat` 取中位数、执行 before 钩子、基准漂移检测                          |
+| `log_experiment`    | 记录结果：keep 自动 commit / 非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau/doom-loop；执行 after 钩子；审计校验 |
+| `export_dashboard`  | 起 live dashboard（127.0.0.1 + SSE 自动刷新）+ 写静态 HTML 兜底                                                                                  |
+| `clear_experiments` | 重置会话（保留 measure/checks/prompt）                                                                                                           |
 
 ### 命令
 
-| 命令 | 作用 |
-|---|---|
-| `/autoresearch:autoresearch <目标>` | 进入/恢复循环（无会话走 setup） |
-| `/autoresearch:export` | 导出 live dashboard |
-| `/autoresearch:finalize` | 把 kept 实验整理成干净分支（`scripts/finalize.sh`） |
-| `/autoresearch:off` / `/autoresearch:clear` | 暂停续跑提示 / 重置会话 |
+| 命令                                        | 作用                                                |
+| ------------------------------------------- | --------------------------------------------------- |
+| `/autoresearch:autoresearch <目标>`         | 进入/恢复循环（无会话走 setup）                     |
+| `/autoresearch:export`                      | 导出 live dashboard                                 |
+| `/autoresearch:finalize`                    | 把 kept 实验整理成干净分支（`scripts/finalize.sh`） |
+| `/autoresearch:off` / `/autoresearch:clear` | 暂停续跑提示 / 重置会话                             |
 
 ## 🔒 Trust & Security
 
 防作弊是**结构性控制，不是提示词**——四层护栏，全部可审计：
 
-| 层 | 防什么 | 机制 |
-|---|---|---|
-| checks 正确性背压 | 输出不对 / 删功能 | `.auto/checks.sh` 断言，失败禁 keep |
-| 审计不变量 | 账本说谎（假装保留/丢弃） | `log_experiment` 写入前校验：keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 溯源 |
-| 基准漂移检测 | 改基准造假 metric | `init_experiment` 记录冻结文件哈希，中途变更即警告 |
-| 次级度量约束 | 用内存/调用数换速度（reward hacking） | `constraints: [{name, maxPct}]` 超界禁 keep（opt-in） |
+| 层                | 防什么                                | 机制                                                                                                 |
+| ----------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| checks 正确性背压 | 输出不对 / 删功能                     | `.auto/checks.sh` 断言，失败禁 keep                                                                  |
+| 审计不变量        | 账本说谎（假装保留/丢弃）             | `log_experiment` 写入前校验：keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 溯源 |
+| 基准漂移检测      | 改基准造假 metric                     | `init_experiment` 记录冻结文件哈希，中途变更即警告                                                   |
+| 次级度量约束      | 用内存/调用数换速度（reward hacking） | `constraints: [{name, maxPct}]` 超界禁 keep（opt-in）                                                |
 
 - **冻结文件写保护**：`measure.sh`/`checks.sh` 被 PreToolUse hook 拒绝写入；
 - **全程零依赖**：插件仅用 Node 标准库，无 `npm install`，可审计；

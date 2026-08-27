@@ -25,14 +25,20 @@ function renderBody(state, live) {
   const rows = state.runs
     .map((r, i) => {
       const delta = deltaFor(state, r.metric);
-      const deltaText = delta == null ? "—" : (delta >= 0 ? "+" : "") + delta.toFixed(4);
+      const deltaText =
+        delta == null ? "—" : (delta >= 0 ? "+" : "") + delta.toFixed(4);
       const improved = delta != null && delta > 0;
       return {
         i: i + 1,
         run: r,
         deltaText,
         improved,
-        cls: r.status === "keep" ? "keep" : r.status === "discard" ? "discard" : "crash",
+        cls:
+          r.status === "keep"
+            ? "keep"
+            : r.status === "discard"
+              ? "discard"
+              : "crash",
       };
     })
     .reverse(); // newest first
@@ -83,26 +89,38 @@ function renderBody(state, live) {
   <div class="card"><div class="n">${state.best ?? "—"}</div>best</div>
   ${conf ? `<div class="card"><div class="n" style="color:${conf.level === "green" ? "#1a7f37" : conf.level === "yellow" ? "#b35900" : "#c62828"}">${escapeHtml(conf.level)}</div>confidence</div>` : ""}
 </div>
-${rows.length === 0 ? "<p>暂无实验记录。</p>" : `
+${
+  rows.length === 0
+    ? "<p>暂无实验记录。</p>"
+    : `
 <table>
 <thead><tr><th>#</th><th>status</th><th>metric</th><th>Δ vs baseline</th><th>commit</th><th>description</th></tr></thead>
 <tbody>
-${rows.map((r) => `<tr>
+${rows
+  .map(
+    (r) => `<tr>
   <td>${r.i}</td>
   <td><span class="badge ${r.cls}">${STATUS_LABEL[r.run.status] ?? escapeHtml(r.run.status)}</span></td>
   <td>${r.run.metric ?? "—"}</td>
   <td class="${r.cls}">${r.improved ? "▲" : "▼"} ${escapeHtml(r.deltaText)}</td>
   <td>${r.run.commit ? `<code>${escapeHtml(r.run.commit)}</code>` : "—"}</td>
   <td class="desc">${escapeHtml(r.run.description ?? "")}</td>
-</tr>`).join("\n")}
+</tr>`,
+  )
+  .join("\n")}
 </tbody>
-</table>`}
-${live ? `<script>
+</table>`
+}
+${
+  live
+    ? `<script>
 (function () {
   const es = new EventSource('/events');
   es.addEventListener('jsonl-updated', () => { location.reload(); });
 })();
-</script>` : ""}
+</script>`
+    : ""
+}
 </body>
 </html>`;
 }
