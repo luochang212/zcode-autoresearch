@@ -5,10 +5,10 @@ machine-checkable header. Decisions are durable; proposals are ephemeral drafts.
 
 ## Folders
 
-| Folder | Meaning |
-| --- | --- |
-| `decisions/` | Decisions, numbered sequentially, immutable history (accepted or superseded) |
-| `.drafts/` | Proposal drafts, gitignored and ephemeral - promote one with `adrkit accept` or discard it with `adrkit reject` |
+| Folder       | Meaning                                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------------------------- |
+| `decisions/` | Decisions, numbered sequentially, immutable history (accepted or superseded)                                    |
+| `.drafts/`   | Proposal drafts, gitignored and ephemeral - promote one with `adrkit accept` or discard it with `adrkit reject` |
 
 Rejection is recorded in a decision's `Alternatives considered` section, never
 as a standalone record.

@@ -15,16 +15,16 @@
 
 **9 轮（baseline + 8 个假设），度量 2852ms → 4ms（约 713× 加速），正确性全程守住。**
 
-| 轮 | 假设 | metric | 判定 |
-|---|---|---|---|
-| R1 | 试除只到 sqrt(n) + 跳过偶数 | 2852 → 22ms | keep |
-| R2 | 埃氏筛（Uint8Array 标记合数） | 22 → 7ms | keep |
-| R3 | odds-only 筛（索引 i 代表奇数 2i+1） | 7 → 5ms | keep |
-| R4 | 标记段+收集段拆两段去分支 | 7ms（变差） | discard |
-| R5 | Uint32Array 位打包筛 | 6ms（未优于 5） | discard |
-| R6 | 外层跳过 3 的倍数（wheel 2×3） | 5 → 4ms | keep |
-| R7 | wheel-6 标记跳过 ≡3 mod 6 的倍数 | 4ms（持平） | discard |
-| R8 | 交替步长替代 %6 分支 | 7ms（变差） | discard |
+| 轮  | 假设                                 | metric          | 判定    |
+| --- | ------------------------------------ | --------------- | ------- |
+| R1  | 试除只到 sqrt(n) + 跳过偶数          | 2852 → 22ms     | keep    |
+| R2  | 埃氏筛（Uint8Array 标记合数）        | 22 → 7ms        | keep    |
+| R3  | odds-only 筛（索引 i 代表奇数 2i+1） | 7 → 5ms         | keep    |
+| R4  | 标记段+收集段拆两段去分支            | 7ms（变差）     | discard |
+| R5  | Uint32Array 位打包筛                 | 6ms（未优于 5） | discard |
+| R6  | 外层跳过 3 的倍数（wheel 2×3）       | 5 → 4ms         | keep    |
+| R7  | wheel-6 标记跳过 ≡3 mod 6 的倍数     | 4ms（持平）     | discard |
+| R8  | 交替步长替代 %6 分支                 | 7ms（变差）     | discard |
 
 最终实现：odds-only + wheel 2×3 的埃氏筛（标记从 p² 起步、步长 p、外层只访问奇数且跳过 3 的倍数）。agent 自行判断已接近该规模下 JS 筛法实用下限（4–6ms 波动，含 `Date.now()` 1ms 分辨率噪声）并收尾。
 

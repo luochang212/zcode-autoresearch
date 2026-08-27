@@ -6,23 +6,32 @@
 
 ## 仓库结构
 
-| 目录 | 内容 | 性质 |
-|---|---|---|
-| `plugin/` | 插件本体：`.zcode-plugin/`、`mcp/`（server + lib）、`hooks/`、`skills/`、`commands/`、`scripts/`、`tests/` | 可修改 |
-| `openspec/` | `specs/`（主规范）、`changes/`（活动）、`changes/archive/`（已归档） | 走 change 流程修改 |
-| `adr/decisions/` | adr-kit 决策记录（1-4） | 走 adrkit 追加 |
-| `docs/research/` | 研究报告（survey / field-test / pi-gap / next-steps） | 可补充 |
-| `archived/` | 四个外部 autoresearch 仓库的只读 clone（karpathy/pi/uditgoenka/zcode-plugins） | **只读研究素材** |
+| 目录             | 内容                                                                                                       | 性质               |
+| ---------------- | ---------------------------------------------------------------------------------------------------------- | ------------------ |
+| `plugin/`        | 插件本体：`.zcode-plugin/`、`mcp/`（server + lib）、`hooks/`、`skills/`、`commands/`、`scripts/`、`tests/` | 可修改             |
+| `openspec/`      | `specs/`（主规范）、`changes/`（活动）、`changes/archive/`（已归档）                                       | 走 change 流程修改 |
+| `adr/decisions/` | adr-kit 决策记录                                                                                           | 走 adrkit 追加     |
+| `docs/research/` | 研究报告（survey / field-test / pi-gap / next-steps）                                                      | 可补充             |
+| `archived/`      | 外部仓库 clone、临时资料与草稿（仓库的草稿本，往里丢东西不用犹豫）                                         | 可改、不进 git     |
+
+## 按任务找入口
+
+- 改插件**行为** → openspec change 流程，主规范在 `openspec/specs/`
+- 查插件清单/市场字段 → `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`；契约从仓库文件推导，不从记忆
+- 懂设计取舍与已否决方向 → `adr/decisions/`
+- 背景研究 → `docs/research/`
+
+上下文预算：先定位任务再读文件；`archived/` 与 `openspec/changes/archive/` 默认不整读。
 
 ## 铁律
 
-1. **`archived/` 只读**：不修改、不分析后改动、不进 git（`.gitignore` 已排除）。它是外部代码样本，仅作研究引用。
-2. **零第三方依赖**：插件所有代码只允许 Node 标准库（`plugin/` 无 `package.json` 依赖、无 `node_modules`、无 `npm install` 流程）。hooks 与 MCP server 都是 `.mjs`。
+1. **`archived/` 是草稿本**：临时资料夹——外部仓库 clone、调研残留、随手草稿都放这里，**可随意修改**；但**不进 git**（`.gitignore` 已排除），正式内容别只存在这里。
+2. **零第三方依赖**：插件所有代码只允许 Node（≥22）标准库（`plugin/` 无 `package.json` 依赖、无 `node_modules`、无 `npm install` 流程）。hooks 与 MCP server 都是 `.mjs`。仓库根 `package.json` 仅存开发工具 devDependencies，不进 `plugin/`，不违反本条。
 3. **隐私卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。
 4. **插件改动走 openspec change**：任何行为变更先 `openspec new change`（propose → specs/design/tasks → `openspec validate --strict` → apply → archive），归档时 delta specs 合并进 `openspec/specs/`。
 5. **关键决策用 adrkit**：`adrkit decide "<title>"` 生成于 `adr/decisions/`，补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`。
-6. **测试必须通过**：`cd plugin && node --test tests/*.test.mjs`（当前 58 个）。新增功能必须带测试。
-7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `archived/`、`node_modules/`、`*.tgz`。
+6. **测试必须通过**：`cd plugin && node --test tests/*.test.mjs`（根目录 `npm test` 等价；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
+7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `archived/`、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`。
 
 ## 插件架构速览（改动前先读）
 
@@ -40,8 +49,13 @@
 ## 常用命令
 
 ```bash
-cd plugin && node --test tests/*.test.mjs   # 全量测试
+npm install                                  # 首次克隆后安装开发工具并启用 pre-commit 钩子
+npm run lint / npm run lint:fix              # ESLint 检查 / 自动修复
+npm run fmt / npm run fmt:check              # Prettier 格式化 / 检查
+npm test                                     # 全量测试（等价于 cd plugin && node --test tests/*.test.mjs）
 openspec validate --specs                    # 主规范校验
 openspec validate --strict <change>          # change 校验
 adrkit validate                              # 决策记录校验
 ```
+
+CI（GitHub Actions，`.github/workflows/ci.yml`）在 push/PR 时跑 lint + fmt:check + test，Node 22/24 矩阵。

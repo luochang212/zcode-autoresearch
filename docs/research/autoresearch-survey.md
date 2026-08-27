@@ -11,12 +11,12 @@
 
 **研究样本与版本**（对比时请勿按"成熟度"排序，三者代表三条不同路线）：
 
-| 样本 | 版本/快照 | 形态 | 一句话定位 |
-|---|---|---|---|
-| karpathy-autoresearch | commit `228791f`，2026-03-25 | **纯 prompt 章程**（program.md） | 原始概念验证：LLM 训练这一个领域 |
-| pi-autoresearch | v1.6.2（package.json） | **extension 工具 + skill 流程** | 工程化：任意优化目标，宿主为 pi 终端 agent |
-| uditgoenka-autoresearch | v2.2.2（`050e30d`，2026-08 快照） | **多命令 skill 套件** | 泛化：Claude Code/OpenCode/Codex 三宿主，14 个命令 |
-| zcode-plugins（参考） | commit `c06b727`，2026-08-26 | zcode 官方插件市场 | 核实 zcode 插件组成单元（§4） |
+| 样本                    | 版本/快照                         | 形态                             | 一句话定位                                         |
+| ----------------------- | --------------------------------- | -------------------------------- | -------------------------------------------------- |
+| karpathy-autoresearch   | commit `228791f`，2026-03-25      | **纯 prompt 章程**（program.md） | 原始概念验证：LLM 训练这一个领域                   |
+| pi-autoresearch         | v1.6.2（package.json）            | **extension 工具 + skill 流程**  | 工程化：任意优化目标，宿主为 pi 终端 agent         |
+| uditgoenka-autoresearch | v2.2.2（`050e30d`，2026-08 快照） | **多命令 skill 套件**            | 泛化：Claude Code/OpenCode/Codex 三宿主，14 个命令 |
+| zcode-plugins（参考）   | commit `c06b727`，2026-08-26      | zcode 官方插件市场               | 核实 zcode 插件组成单元（§4）                      |
 
 ---
 
@@ -26,11 +26,11 @@
 
 核心只有 3 个文件（wc -l 实测），权责三分：
 
-| 文件 | 行数 | 分工 | 权限 |
-|---|---|---|---|
-| `prepare.py` | 389 | 固定常量、数据准备、tokenizer、**评估函数 evaluate_bpb** | **冻结**（program.md:13 明令 "Do not modify"） |
-| `train.py` | 630 | GPT 模型 + 优化器 + 训练循环 | **agent 唯一可改的文件** |
-| `program.md` | 114 | agent 的全部指令 | 人类编辑迭代 |
+| 文件         | 行数 | 分工                                                     | 权限                                           |
+| ------------ | ---- | -------------------------------------------------------- | ---------------------------------------------- |
+| `prepare.py` | 389  | 固定常量、数据准备、tokenizer、**评估函数 evaluate_bpb** | **冻结**（program.md:13 明令 "Do not modify"） |
+| `train.py`   | 630  | GPT 模型 + 优化器 + 训练循环                             | **agent 唯一可改的文件**                       |
+| `program.md` | 114  | agent 的全部指令                                         | 人类编辑迭代                                   |
 
 README 自己说：program.md "is essentially a super lightweight 'skill'"——这就是全部"插件机制"：一个 markdown 章程，宿主 agent（Claude/Codex 等）直接读。没有任何宿主特定代码。
 
@@ -84,12 +84,12 @@ program.md 规定的循环（`program.md:94-104`，"LOOP FOREVER"），9 步：
 
 三层解耦（README.md:178-191，与代码一致；wc -l 实测）：
 
-| 层 | 文件 | 行数 | 职责 |
-|---|---|---|---|
+| 层                                | 文件                                              | 行数                 | 职责                                                                                |
+| --------------------------------- | ------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------- |
 | **extension**（领域无关基础设施） | `extensions/pi-autoresearch/index.ts` 等 7 个文件 | index.ts 3067 + ~812 | 3 个工具、/autoresearch 命令、widget/dashboard、auto-resume、git 自动 commit/revert |
-| **skills**（流程与领域知识） | `skills/autoresearch-{create,hooks,finalize}/` | 160/173/88+448 | 冷启动问目标→写会话文件→开跑；事后整理 |
-| **slash command**（模式开关） | index.ts:2949-3066 | — | 进入/退出模式，本身不含流程 |
-| **磁盘状态** | `.auto/` 目录 | — | 唯一事实源，内存只是缓存 |
+| **skills**（流程与领域知识）      | `skills/autoresearch-{create,hooks,finalize}/`    | 160/173/88+448       | 冷启动问目标→写会话文件→开跑；事后整理                                              |
+| **slash command**（模式开关）     | index.ts:2949-3066                                | —                    | 进入/退出模式，本身不含流程                                                         |
+| **磁盘状态**                      | `.auto/` 目录                                     | —                    | 唯一事实源，内存只是缓存                                                            |
 
 ### 2.2 工具设计（agent 唯一触碰的接口）
 
@@ -177,14 +177,14 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 ### 3.7 token 效率声称实测核对（README vs 代码）
 
-| README 声称 | 实测 | 判定 |
-|---|---|---|
-| v2.0 monolith SKILL.md 813 行 | GitHub tag v2.0.04 实测 813 行/43.7KB | ✅ 属实 |
-| "thin 41-line routing file" | v2.1.0=41 行 ✅；**v2.2.2 已是 107 行** | ⚠️ 当前版过时 |
-| "12 command files 94–120 lines" | v2.1.0=12 个 ✅；v2.2.2=**14 个，94–136** | ⚠️ 当前版过时 |
-| "~100K tokens per invocation"（monolith） | 43.7KB ≈ **~11K tokens** | ❌ 夸大约 9 倍 |
-| "~5–8K tokens per invocation"（新架构） | 单命令 4–6KB ≈ **1–1.5K tokens** | ❌ 夸大 4–5 倍 |
-| "95% token reduction" | 实际削减约 **70–85%**（43.7KB→~13KB） | ❌ 达不到，方向对幅度虚标 |
+| README 声称                               | 实测                                      | 判定                      |
+| ----------------------------------------- | ----------------------------------------- | ------------------------- |
+| v2.0 monolith SKILL.md 813 行             | GitHub tag v2.0.04 实测 813 行/43.7KB     | ✅ 属实                   |
+| "thin 41-line routing file"               | v2.1.0=41 行 ✅；**v2.2.2 已是 107 行**   | ⚠️ 当前版过时             |
+| "12 command files 94–120 lines"           | v2.1.0=12 个 ✅；v2.2.2=**14 个，94–136** | ⚠️ 当前版过时             |
+| "~100K tokens per invocation"（monolith） | 43.7KB ≈ **~11K tokens**                  | ❌ 夸大约 9 倍            |
+| "~5–8K tokens per invocation"（新架构）   | 单命令 4–6KB ≈ **1–1.5K tokens**          | ❌ 夸大 4–5 倍            |
+| "95% token reduction"                     | 实际削减约 **70–85%**（43.7KB→~13KB）     | ❌ 达不到，方向对幅度虚标 |
 
 结论：**架构重构本身真实且有效**（单次加载 43.7KB→~13KB），但营销数字系统性夸大。另一个教训：SKILL.md 在两个版本内从 41 行长回 107 行——**新能力总会往路由层回流**，要么把 orchestrator 协议放 reference 子文件只留指针，要么接受路由层膨胀并停止在文档里写死行数（该仓库 4 处文档数字全部过时）。
 
@@ -196,13 +196,13 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 **一个 zcode 插件 = `.zcode-plugin/plugin.json` 清单 + 五类组件：**
 
-| 组件 | 位置/格式 | 对本项目意味着 |
-|---|---|---|
-| **Commands** | `commands/*.md`，YAML frontmatter（description 等）+ `$ARGUMENTS`，调用形如 `/插件名:命令名` | `/autoresearch:loop` 等入口 |
-| **Skills** | `skills/<名>/SKILL.md`，frontmatter name/description，可带 references/、scripts/（github 插件先例） | 章程/流程知识，按需加载 |
-| **Hooks** | `hooks/hooks.json` 自动发现；事件：**SessionStart、UserPromptSubmit、PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、Stop** | 护栏 + 记忆再注入 + **循环续跑** |
-| **MCP 服务** | 根 `.mcp.json`，stdio（换行分隔 JSON-RPC），键名自动命名空间 `plugin:<插件>:<服务>`，支持 `${ZCODE_PLUGIN_ROOT}/${ZCODE_PLUGIN_DATA}/${ZCODE_PROJECT_DIR}/${user_config.*}` | **init/run/log 三件套工具**的载体（等价 pi extension tools） |
-| **userConfig** | manifest 内声明，设置页呈现 | 默认迭代上限、超时等用户可调项 |
+| 组件           | 位置/格式                                                                                                                                                                   | 对本项目意味着                                               |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **Commands**   | `commands/*.md`，YAML frontmatter（description 等）+ `$ARGUMENTS`，调用形如 `/插件名:命令名`                                                                                | `/autoresearch:loop` 等入口                                  |
+| **Skills**     | `skills/<名>/SKILL.md`，frontmatter name/description，可带 references/、scripts/（github 插件先例）                                                                         | 章程/流程知识，按需加载                                      |
+| **Hooks**      | `hooks/hooks.json` 自动发现；事件：**SessionStart、UserPromptSubmit、PreToolUse、PermissionRequest、PostToolUse、PostToolUseFailure、Stop**                                 | 护栏 + 记忆再注入 + **循环续跑**                             |
+| **MCP 服务**   | 根 `.mcp.json`，stdio（换行分隔 JSON-RPC），键名自动命名空间 `plugin:<插件>:<服务>`，支持 `${ZCODE_PLUGIN_ROOT}/${ZCODE_PLUGIN_DATA}/${ZCODE_PROJECT_DIR}/${user_config.*}` | **init/run/log 三件套工具**的载体（等价 pi extension tools） |
+| **userConfig** | manifest 内声明，设置页呈现                                                                                                                                                 | 默认迭代上限、超时等用户可调项                               |
 
 **对 autoresearch 最关键的两个 hook 协议**（PLUGIN_DEVELOPMENT_CN.md §4.6）：
 
@@ -218,8 +218,11 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 **① 无会话注入 API —— 已确认"没有"**：bundle 全量搜索 `sendUserMessage` / `injectUserMessage` **零命中**。zcode 的续跑唯一原语是 **Stop hook**，实现级确认：
 
 ```js
-function a9r(e, t) {  // e=Stop hook 输出, t=stopHookContinuationCount
-  return e.stopShouldContinue === true && e.additionalContexts.length > 0 && t < 3;  // soi=3
+function a9r(e, t) {
+  // e=Stop hook 输出, t=stopHookContinuationCount
+  return (
+    e.stopShouldContinue === true && e.additionalContexts.length > 0 && t < 3
+  ); // soi=3
 }
 ```
 
@@ -239,20 +242,20 @@ function a9r(e, t) {  // e=Stop hook 输出, t=stopHookContinuationCount
 
 ### 5.1 核心维度对比
 
-| 维度 | karpathy | pi-autoresearch | uditgoenka |
-|---|---|---|---|
-| **形态** | 114 行纯 prompt 章程 | extension 工具（3067 行 TS）+ skill（流程）+ 命令（开关） | 薄路由 SKILL.md + 14 个命令 markdown + shell 脚本 |
-| **循环驱动** | agent 自觉遵循章程（NEVER STOP） | 事件驱动 auto-resume（合成用户消息 + 熔断） | 单命令内 bounded 循环（默认 25 次）；orchestrator 跨命令路由 |
-| **度量获取** | grep 训练日志固定行 | 工具内 `METRIC name=value` 正则解析 + 超时 + 截断 | agent 自己跑 Verify 命令并提取数值 |
-| **度量防篡改** | prompt 契约（冻结文件） | **工具锁死 benchmark 脚本**（最强） | verify 命令安全筛查 + orchestrator verify hop 独立复核 |
-| **keep/discard 判定** | agent 按章程判 | agent 判，工具硬门禁（checks 失败禁 keep） | agent 按 6 态协议判，Guard 独立否决 |
-| **回滚** | `git reset`（丢历史） | revert 未 commit 改动（checkout+clean，豁免 .auto/） | `git revert`（**失败历史保留**） |
-| **状态/记忆** | results.tsv（不入库）+ git | `.auto/log.jsonl` append-only 事实源 + ASI 幸存记忆 + 确定性 compaction 摘要 | TSV + handoff.json + orchestrator-state.json 三层 |
-| **正确性背压** | 无（度量即一切） | checks.sh（失败禁 keep+自动 revert） | Guard 命令（独立于 Metric 的双信号） |
-| **安全护栏** | 全 prompt 契约 | 模式门禁+脚本锁定+迭代上限+熔断 | 9 个 hooks（block/ask/inject 三级）+ screen-cmd 黑名单 |
-| **token 控制** | 重定向+grep+TSV 单行 | 指针注入+10行/4KB 截断+人机上下文分离 | 薄路由+自包含命令文件（实测 70–85% 削减） |
-| **目标领域** | 仅 LLM 训练 | 任意可测量命令 | 任意领域（但 2/3 命令已泛化成通用工作流） |
-| **无人值守** | ✅ 过夜设计初衷 | ✅ auto-resume + 熔断 | ⚠️ 默认 bounded，unlimited 需 opt-in |
+| 维度                  | karpathy                         | pi-autoresearch                                                              | uditgoenka                                                   |
+| --------------------- | -------------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **形态**              | 114 行纯 prompt 章程             | extension 工具（3067 行 TS）+ skill（流程）+ 命令（开关）                    | 薄路由 SKILL.md + 14 个命令 markdown + shell 脚本            |
+| **循环驱动**          | agent 自觉遵循章程（NEVER STOP） | 事件驱动 auto-resume（合成用户消息 + 熔断）                                  | 单命令内 bounded 循环（默认 25 次）；orchestrator 跨命令路由 |
+| **度量获取**          | grep 训练日志固定行              | 工具内 `METRIC name=value` 正则解析 + 超时 + 截断                            | agent 自己跑 Verify 命令并提取数值                           |
+| **度量防篡改**        | prompt 契约（冻结文件）          | **工具锁死 benchmark 脚本**（最强）                                          | verify 命令安全筛查 + orchestrator verify hop 独立复核       |
+| **keep/discard 判定** | agent 按章程判                   | agent 判，工具硬门禁（checks 失败禁 keep）                                   | agent 按 6 态协议判，Guard 独立否决                          |
+| **回滚**              | `git reset`（丢历史）            | revert 未 commit 改动（checkout+clean，豁免 .auto/）                         | `git revert`（**失败历史保留**）                             |
+| **状态/记忆**         | results.tsv（不入库）+ git       | `.auto/log.jsonl` append-only 事实源 + ASI 幸存记忆 + 确定性 compaction 摘要 | TSV + handoff.json + orchestrator-state.json 三层            |
+| **正确性背压**        | 无（度量即一切）                 | checks.sh（失败禁 keep+自动 revert）                                         | Guard 命令（独立于 Metric 的双信号）                         |
+| **安全护栏**          | 全 prompt 契约                   | 模式门禁+脚本锁定+迭代上限+熔断                                              | 9 个 hooks（block/ask/inject 三级）+ screen-cmd 黑名单       |
+| **token 控制**        | 重定向+grep+TSV 单行             | 指针注入+10行/4KB 截断+人机上下文分离                                        | 薄路由+自包含命令文件（实测 70–85% 削减）                    |
+| **目标领域**          | 仅 LLM 训练                      | 任意可测量命令                                                               | 任意领域（但 2/3 命令已泛化成通用工作流）                    |
+| **无人值守**          | ✅ 过夜设计初衷                  | ✅ auto-resume + 熔断                                                        | ⚠️ 默认 bounded，unlimited 需 opt-in                         |
 
 ### 5.2 三条路线的本质
 
@@ -311,14 +314,14 @@ zcode-autoresearch/
 
 ### 6.3 开放问题清单（已逐条结案，2026-08-27 实证）
 
-| # | 问题 | 结论 | 依据 |
-|---|---|---|---|
-| 1 | zcode 是否有程序化注入用户消息/自动重启会话的 API？ | **没有**。Stop hook 是唯一续跑原语，连续 block 上限 3 次；过夜无人值守不可用，按"长会话 + 用户周期性确认"设计 | §4.1① bundle 零命中 + `a9r`/`soi=3` |
-| 2 | MCP 工具是否支持动态可见性切换（模式门禁）？ | **schema 层无**（MCP 工具注册后恒定可见，`tools/list` 实测恒定）；**但权限层有等价门禁**：`permission.allowedTools/disallowedTools` 配置（bundle `xko` schema 确认）＋ `PermissionRequest` hook 返回 `decision.behavior: "deny"/"allow"` 自动拒绝/放行权限询问（bundle 51 处命中）。设计：非模式时 PermissionRequest deny + 工具内检查双保险；低风险工具不经过权限询问，故工具内检查仍是兜底 | §4.1② + bundle 权限层确认 |
-| 3 | hook matcher 能否按路径参数过滤？ | **不能**。matcher 只匹配工具名；路径判断在 hook 脚本内读 stdin（`tool_input.file_path`），PreToolUse `deny` 硬拦 | 官方文档 §4.5 + §4.1③ |
-| 4 | 插件 MCP 服务能否长驻维护会话级状态？ | **可以（实测）**。同一会话多次 tools/call 同一进程、进程内状态保持；`.auto/` 落盘仍作为崩溃恢复事实源 | §4.1② pid 3945 实验 |
-| 5 | 是否需要 dashboard？ | **不影响根设计，可后置**。首版 `/autoresearch export` 生成静态 HTML 起步；SSE 实时版是增强不是根设计的一部分 | §5.2 人机上下文分离理念 |
-| 6 | 多实验目标并行是否影响根设计？ | **不影响，可后置**。单会话单目标 + pi 的 segment 机制（顺序切换目标）即满足；多目标并行 = 多个会话各自 `.auto/` + git 分支命名约定（`autoresearch/<tag>`），不改变核心机制 | §5.1 karpathy 分支命名 + pi segment |
+| #   | 问题                                                | 结论                                                                                                                                                                                                                                                                                                                                                                                         | 依据                                |
+| --- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| 1   | zcode 是否有程序化注入用户消息/自动重启会话的 API？ | **没有**。Stop hook 是唯一续跑原语，连续 block 上限 3 次；过夜无人值守不可用，按"长会话 + 用户周期性确认"设计                                                                                                                                                                                                                                                                                | §4.1① bundle 零命中 + `a9r`/`soi=3` |
+| 2   | MCP 工具是否支持动态可见性切换（模式门禁）？        | **schema 层无**（MCP 工具注册后恒定可见，`tools/list` 实测恒定）；**但权限层有等价门禁**：`permission.allowedTools/disallowedTools` 配置（bundle `xko` schema 确认）＋ `PermissionRequest` hook 返回 `decision.behavior: "deny"/"allow"` 自动拒绝/放行权限询问（bundle 51 处命中）。设计：非模式时 PermissionRequest deny + 工具内检查双保险；低风险工具不经过权限询问，故工具内检查仍是兜底 | §4.1② + bundle 权限层确认           |
+| 3   | hook matcher 能否按路径参数过滤？                   | **不能**。matcher 只匹配工具名；路径判断在 hook 脚本内读 stdin（`tool_input.file_path`），PreToolUse `deny` 硬拦                                                                                                                                                                                                                                                                             | 官方文档 §4.5 + §4.1③               |
+| 4   | 插件 MCP 服务能否长驻维护会话级状态？               | **可以（实测）**。同一会话多次 tools/call 同一进程、进程内状态保持；`.auto/` 落盘仍作为崩溃恢复事实源                                                                                                                                                                                                                                                                                        | §4.1② pid 3945 实验                 |
+| 5   | 是否需要 dashboard？                                | **不影响根设计，可后置**。首版 `/autoresearch export` 生成静态 HTML 起步；SSE 实时版是增强不是根设计的一部分                                                                                                                                                                                                                                                                                 | §5.2 人机上下文分离理念             |
+| 6   | 多实验目标并行是否影响根设计？                      | **不影响，可后置**。单会话单目标 + pi 的 segment 机制（顺序切换目标）即满足；多目标并行 = 多个会话各自 `.auto/` + git 分支命名约定（`autoresearch/<tag>`），不改变核心机制                                                                                                                                                                                                                   | §5.1 karpathy 分支命名 + pi segment |
 
 遗留（需实现阶段验证）：无头模式不执行 hooks（§4.1④）是否也适用于**插件 hooks**（当前证据为配置 hooks；插件 hooks 的 runner 激活逻辑不同）；ZCode.app 桌面端 TUI 会话中 Stop 续跑的实际手感（3 次窗口耗尽时模型是否自然收尾）。
 
