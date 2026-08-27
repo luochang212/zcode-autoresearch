@@ -5,10 +5,12 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 把"别用内存换速度"从口头变成硬门槛：keep 时校验次级度量在容忍带内，超界拒收。
 - 零摩擦：默认不启用，声明才生效。
 
 **Non-Goals:**
+
 - 不做绝对 max/min（先支持 maxPct 相对语义——最常用的约束形式）。
 - 不做约束的自动推断（用户/agent 显式声明）。
 - 不改 run_experiment（次级度量已解析）。
@@ -18,6 +20,7 @@
 **1. constraints 语义：`[{ name, maxPct }]`，相对首条 run。** `maxPct: 105` 表示"该次级度量 ≤ 首条 run 值的 105%"。相对语义与主度量 baseline 一致（首条 run 是基准），且不随绝对值漂移。校验仅在 status=keep 且声明时进行。
 
 **2. 校验实现（log_experiment，审计校验旁）：**
+
 - 解析 `args.constraints`（数组，每项 `{name, maxPct}`，maxPct 为正数）。
 - 本次 run 的次级度量从 `args.metrics` 或 run 解析的 metrics 取（run_experiment 返回里 metrics 字典——agent 传入；也可从本 run 的 metrics 参数）。
 - baseline：`state.runs[0]?.metrics?.[name]`（首条 run 的该次级度量）；缺失 → 该约束跳过（无法判定）。

@@ -5,11 +5,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 让"何时收尾"成为协议层判定（plateau），而非 agent 自觉。
 - 让噪声度量下的改进判定可复测（repeat 取中位数）。
 - 让 confidence 进入 agent 的实际决策规程，而非仅是返回字段。
 
 **Non-Goals:**
+
 - 不改账本/git/锁定/背压等既有机制。
 - 不做 uditgoenka 式完整 orchestrator（goal 分类、命令路由）——plateau 只在单 segment 循环内。
 - 不引入额外依赖或改变 MCP 协议。
@@ -23,6 +25,7 @@
 每次独立 spawn + 计时；主度量（与 config.metricName 同名者）收集为数组，返回 `metrics`（每次完整值）+ `median_metric`（中位数，复用 `experiment.mjs` 的 `median`）。checks 只在最后一次运行后执行一次（正确性不随重复变化）。timeout 按单次计算。备选：在 measure.sh 内自行循环——不可（measure.sh 冻结，且工具应负责计时语义）。
 
 **3. confidence 规程化：SKILL + loop-protocol 显式规则。**
+
 - SKILL 循环规程加一步："改进在噪声区间时，用 `repeat: 3` 复测取中位数再判定"。
 - `log_experiment` 返回 `confidence` 移到 `delta` 后（显著位置）。
 - loop-protocol 噪声小节改写为规则：`confidence.level` 为 red/yellow 时，改进视为"方向性"，可 keep 但 description 标注；无 repeat 复测前不做大幅结构改动。

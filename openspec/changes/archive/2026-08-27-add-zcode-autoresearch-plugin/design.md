@@ -7,12 +7,14 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 一次完整循环可无头驱动：init → 改码 → run → log → git 账本一致。
 - 护栏在交互式会话生效（PreToolUse 写保护、Stop 续跑、记忆注入）。
 - server 核心逻辑有单元测试，集成路径有无头 CLI 验证。
 - dashboard export 自包含、离线可看。
 
 **Non-Goals:**
+
 - 不做多目标并行/多会话编排（单会话单目标 + segment 顺序切换）。
 - 不做 SSE 实时 dashboard（静态导出即可）。
 - 不做泛化命令（debug/security/ship 等，报告 §6.2-5 的教训）。
@@ -30,11 +32,12 @@
 实现：`git checkout -- . ':(exclude,glob)**/.auto/**'` + `git clean -fd -e .auto -e .auto/`。实验分支隔离（init 时若在 master 提示建 `autoresearch/<tag>` 分支，不强推）。commit message：`experiment: <desc>\n\nResult: <json>`。
 
 **4. hooks 四件套（交互式会话生效，headless 不执行——已验证）：**
+
 - `Stop`：读 `.auto/log.jsonl` 判循环是否结束，未结束返回 `{decision:"block", reason: 进度摘要+下一步}`；3 次窗口由平台限制。
 - `PreToolUse`（matcher `Write|Edit|Bash`）：拦截对 `.auto/measure.sh`/`.auto/checks.sh` 的写入（deny）；对 Bash 不做拦截（命令锁定在 server 内做）。
 - `UserPromptSubmit`：注入账本最近 3 条摘要 + 下一步提示。
 - `SessionStart`：注入 `.auto/` 存在性提示与 setup 指引。
-全部 fail-open（异常不阻断），无敏感数据。
+  全部 fail-open（异常不阻断），无敏感数据。
 
 **5. measure.sh 锁定（借 pi，§5.2）：命令解析剥 env/time/nice/nohup 包装后，核心命令必须是 `.auto/measure.sh` 本身（绝对或相对路径），拒绝 `evil; measure.sh` 链式注入。**
 

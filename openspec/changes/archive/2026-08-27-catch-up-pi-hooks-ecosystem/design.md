@@ -5,11 +5,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 用户复制示例到 `.auto/hooks/` 即可获得确定性行为（防重复失败、换思路、学习日志、通知、最优打标）。
 - 教学 skill 让 agent 能自己写出符合契约的钩子（场景选型 + mock 测试 + 提交）。
 - 示例全部 node 解析 stdin，无 jq 依赖；macOS/Linux 可用。
 
 **Non-Goals:**
+
 - 不改变钩子机制（不改 server 执行逻辑、不改契约）。
 - 不把示例数量堆到 pi 的 10 个——精选 6 个覆盖高频场景。
 - 不做钩子输出入账本（评估过的账本格式变更，后置）。
@@ -17,6 +19,7 @@
 ## Decisions
 
 **1. 示例 6 个（3 before + 3 after），语义参考 pi、代码从零写：**
+
 - before：`anti-thrash`（读 jsonl 尾 N 条，连续 discard/crash ≥ 阈值 → 结构反思建议）、`idea-rotator`（读 `.auto/ideas.md` 的未尝试方向，轮换提醒）、`hypothesis-reflection`（检查 agent 是否给出本轮假设——通过 last_run.asi.hypothesis 缺失时提醒）。
 - after：`learnings-journal`（追加 markdown 到 `.auto/learnings.md`）、`macos-notify`（osascript 弹通知，macOS 专用）、`auto-tag-winners`（新 best 打 `autoresearch/best-run-N-metric` git tag）。
 - 全部：bash 外壳 + node 内嵌解析 stdin（heredoc），短小自包含（20-40 行），带注释说明契约字段。

@@ -5,11 +5,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 差距矩阵达到"每个能力项可决策"粒度（可追平/受限/不可行 + 依据）。
 - 效果证据区分"验证过的"与"营销声称"（沿用 uditgoenka 教训）。
 - 追平路线图可直接作为后续 change 的任务输入。
 
 **Non-Goals:**
+
 - 不实现任何追平项（研究先行）。
 - 不修改 `plugin/` 代码。
 - 不评价 pi 的价值主张（是否值得用），只做差距。
@@ -20,10 +22,11 @@
 理由：pi 效果数据独立于代码（下载量/stars/用户证据），派子代理并行省时；我方审计由主线程做（对自家代码最熟）。pi 代码深读聚焦上次研究未覆盖的部分：activation 判定（`shouldAutoActivateAutoresearch` 及调用点）、`/autoresearch` 命令全子命令、dashboard 渲染全链路、finalize.sh、hooks skill、session 生命周期事件（`before_agent_start`/`session_before_compact` 等）的注入语义。
 
 **2. 差距矩阵分类标准（写死，防主观）：**
+
 - **可追平**：zcode 存在功能等价原语（工具/命令/hook/MCP 长驻/静态文件），实现无平台阻碍。
 - **zcode 受限**：zcode 有替代原语但能力有损（如 Stop 3 次窗口 vs 无限 auto-resume；静态 HTML vs SSE 实时）。
 - **平台不可行**：依赖 pi 专有 API 且 zcode 无等价（如 `sendUserMessage` 会话注入、动态工具可见性）。
-依据 `docs/research/autoresearch-survey.md` §4.1 的实证（bundle 零命中、MCP 长驻实测、hook 契约）。
+  依据 `docs/research/autoresearch-survey.md` §4.1 的实证（bundle 零命中、MCP 长驻实测、hook 契约）。
 
 **3. 效果证据分级：S 级（可复现实验/代码内证据）、A 级（README/CHANGELOG 声称+代码佐证）、B 级（仅声称或第三方未验证）。** 报告标注每项级别，防止把营销当效果。
 

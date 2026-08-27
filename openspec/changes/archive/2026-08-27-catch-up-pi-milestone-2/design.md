@@ -5,11 +5,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 浏览器 dashboard 从"静态快照"升级为"live 直播"（每次实验自动刷新），降级路径保留静态 HTML。
 - 研究目录与项目目录可分离（workingDir），hooks 与 server 行为一致。
 - finalize 把一晚上实验变成可交付的干净分支，失败安全回滚。
 
 **Non-Goals:**
+
 - 不移植 pi 的 canvas 折线图/分享卡（live 用整页刷新代替精细重渲染）。
 - workingDir 不做"重定向后 cwd 自动切换"的 UI 层（配置驱动即可）。
 - finalize 不做 pi 的 groups.json 用户批准交互流（agent 引导 + 脚本执行，简化批准为命令确认）。

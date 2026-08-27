@@ -5,12 +5,14 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 迭代钩子成为可靠的循环扩展点：agent 可写脚本、每次实验自动触发、输出反馈给 agent。
 - clear 可一键重置会话（工具层可靠，不依赖 agent 手动 rm）。
 - 记忆注入携带 ASI 三字段，跨会话/compaction 后"思路可继承"。
 - 连续失败阈值用户可调（默认 3，可对齐 pi 的 20）。
 
 **Non-Goals:**
+
 - 不移植 pi 的 hooks 教学 skill 全套（M1 只做机制 + SKILL 简要指引；教学 examples 后置）。
 - 不实现 before 钩子对 run 的"阻断"语义（pi 是 steer，非阻断；保持 fail-open）。
 - 不改账本格式（asi 已存；钩子输出不入账本——pi 会把 hook 观测行写入 jsonl，M1 不做，避免账本格式变更，后置评估）。
@@ -18,6 +20,7 @@
 ## Decisions
 
 **1. 钩子执行语义（借 pi 简化）：**
+
 - `before.sh` 在 run_experiment 的基准执行前跑；`after.sh` 在 log_experiment 记录后跑。均 spawn `bash <path>`，stdin 写单行 JSON，30s 超时 kill，stdout 截 8KB。**fail-open**：钩子缺失/不可执行/失败都不阻断主流程。
 - stdin JSON：before `{event:"before", cwd, next_run, last_run, session}`；after `{event:"after", cwd, run_entry, session}`（session 含 metricName/direction/baseline/best/runCount）。
 - 返回：`before_steer` / `after_steer` 字段（钩子 stdout 或空）。备选（阻断式、写账本）——放弃：改变现有契约面，且 pi 亦非阻断。

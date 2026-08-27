@@ -5,11 +5,13 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 账本每行写入前经过机器校验，"keep 必须真实改进"等从自觉变硬保证。
 - 校验全部确定性、零 LLM、可单测（对抗用例）。
 - 合法会话零影响（校验只拦违规）。
 
 **Non-Goals:**
+
 - 不引入 target/complete/terminal 事件（leo 全套状态机超出需要——我们无 target 概念）。
 - 不做价值/意图判断（只对账，不裁判"值不值得"）。
 - 不改账本格式与既有工具行为（纯增量校验层）。
@@ -17,14 +19,16 @@
 ## Decisions
 
 **1. `validateLedger(runs, config)` 纯函数，返回违规列表。** 遍历 run 序列维护"当前保留值"（direction-aware best of kept）：
+
 - 首个 keep（含 baseline）允许 metric 持平；其后 keep 必须严格更优（isBetter），否则 `keep_without_improvement`。
 - 非 keep 且 metric 优于当前保留值 → 仅 `checks_failed` 合法，否则 `discarded_improvement`。
 - run 号必须连续（1..N）、segment 必须等于 config.segment，否则 `event_order`。
 - 首条 run 前必须有 config（baseline），否则 `missing_baseline`。
 - keep 行 commit 非空、非 keep 行 commit 为空，否则 `commit_field`。
-`noop` 不改变保留值、无 commit 要求。零 I/O 纯函数（git 校验不在此层）。
+  `noop` 不改变保留值、无 commit 要求。零 I/O 纯函数（git 校验不在此层）。
 
 **2. server 接线：**
+
 - `log_experiment`：构造拟追加 run 行 → `validateLedger(现有 runs + 拟追加行, config)` → 有违规拒收（返回 `{ok:false, error: "audit: <violation>"}`）→ 无违规才执行 git 操作与落盘。
 - `run_experiment`：开始前查上一条 run——status 为 crash 且 `isDirty(cwd)`（工作区脏，.auto 豁免在 isDirty 判定中）→ 拒绝。
 - keep 后 `shortHash` 回填即天然 HEAD 一致（commitExperiment 返回实际 hash），无需额外 git 校验。

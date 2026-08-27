@@ -11,7 +11,7 @@
 
 ## 3. 我方插件审计
 
-- [x] 3.1 按 pi 能力清单逐项核对 plugin/（mcp/server.mjs、lib/*、hooks/*、skills/*、commands/*、tests/*），产出我方能力现状表（已有/部分/缺失 + 行为差异）
+- [x] 3.1 按 pi 能力清单逐项核对 plugin/（mcp/server.mjs、lib/_、hooks/_、skills/_、commands/_、tests/*），产出我方能力现状表（已有/部分/缺失 + 行为差异）
 
 ## 4. 差距矩阵与路线图
 

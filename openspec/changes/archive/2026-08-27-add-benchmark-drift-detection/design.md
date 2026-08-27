@@ -5,10 +5,12 @@
 ## Goals / Non-Goals
 
 **Goals:**
+
 - 堵住"改基准造假 metric"的漏洞：基准中途变更 → 每次 run 显式警告，metric 不可比被明示。
 - 成本极低（hash 比对），additive 兼容旧账本。
 
 **Non-Goals:**
+
 - 不做硬拒（漂移仅警告——决定权留 agent/用户；SKILL 规则引导开新 segment）。
 - 不做完整 doctor 预检（开跑前全面验证基准可信——后置，等真实高价值场景）。
 - 不校验 git 追踪的其它文件（只防冻结的 measure/checks）。
@@ -18,6 +20,7 @@
 **1. hash 存放：账本 config 行（additive 字段 `benchmarkHashes`）。** 随会话走、不可被用户 config.json 覆盖；`{measure: "<sha256>"|null, checks: "<sha256>"|null}`。旧账本 config 无此字段 → 视为全 null（首见即基准）。
 
 **2. 比对时机：`run_experiment` 开始前（crash 门禁旁）。** 逻辑：读当前 measure.sh/checks.sh 的 sha256（存在时）→ 与 config 行记录比对：
+
 - 记录为 null（首见）→ 更新记录（写入账本 config 行？——不，config 行已写。**首见更新到内存 + 后续持久化**：简单方案——首见时把 hash 写入 config 行（重写 config 行或追加？账本 append-only…… config 行不可改写）。
   - 处理：账本 append-only，config 行写后不可改。首见记录怎么办？方案：**首见不写账本，放在 run 返回里提示"已记录基准"**——不持久化则下次 run 还是 null → 每次首见判定。简化：`null` 视为"未记录"，比对时若当前有文件则**以当前为基准**（本次不警告），并在返回中提示"已记录基准 hash"。跨 run 不持久化 → 每次都是"首次"？不行——那 drift 永远测不出（每次都是首见）。
   - 修正：需要在会话内持久化基准。选项：a) 写 `.auto/config.json`（非 append-only，可改写）加 `benchmarkHashes`；b) 改账本结构（config 行可更新——破坏 append-only）。
