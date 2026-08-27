@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="480" viewBox="0 0 1280 480" role="img" aria-label="zcode-autoresearch banner (English)">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A1622"/>
+      <stop offset="1" stop-color="#0C1F2E"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2DD4BF"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#0E7490" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#0E7490" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="dots" width="28" height="28" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#123244"/>
+    </pattern>
+    <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#3B7A93"/>
+    </marker>
+    <marker id="arrGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#34D399"/>
+    </marker>
+    <marker id="arrRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#F87171"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="480" fill="url(#bg)"/>
+  <rect width="1280" height="480" fill="url(#dots)" opacity="0.55"/>
+  <ellipse cx="950" cy="240" rx="400" ry="230" fill="url(#glow)"/>
+
+  <!-- left: title block -->
+  <text x="84" y="164" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="19" letter-spacing="7" fill="#2DD4BF">ZCODE PLUGIN</text>
+  <text x="80" y="236" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="50" font-weight="700" fill="url(#word)">zcode-autoresearch</text>
+  <text x="84" y="296" font-family="-apple-system, 'Helvetica Neue', sans-serif" font-size="22" fill="#B8D3E0">Edit · Benchmark · Keep · Revert · Repeat</text>
+  <text x="84" y="338" font-family="-apple-system, 'Helvetica Neue', sans-serif" font-size="17" fill="#5E7C8E">Autonomous experiment loop for coding agents</text>
+
+  <!-- right: experiment loop diagram -->
+  <!-- node boxes -->
+  <rect x="688" y="211" width="132" height="58" rx="10" fill="#0F2231" stroke="#1D4256" stroke-width="1.5"/>
+  <rect x="868" y="211" width="132" height="58" rx="10" fill="#0F2231" stroke="#1D4256" stroke-width="1.5"/>
+  <rect x="1050" y="148" width="170" height="52" rx="10" fill="#0F2231" stroke="#34D399" stroke-width="1.5"/>
+  <rect x="1050" y="280" width="170" height="52" rx="10" fill="#0F2231" stroke="#F87171" stroke-width="1.5"/>
+
+  <!-- node labels -->
+  <text x="754" y="233" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" letter-spacing="2" fill="#5E7C8E">ONE CHANGE</text>
+  <text x="754" y="258" text-anchor="middle" font-family="-apple-system, 'Helvetica Neue', sans-serif" font-size="20" font-weight="600" fill="#C9E4EE">Edit</text>
+  <text x="934" y="233" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" letter-spacing="2" fill="#5E7C8E">FIXED METRIC</text>
+  <text x="934" y="258" text-anchor="middle" font-family="-apple-system, 'Helvetica Neue', sans-serif" font-size="20" font-weight="600" fill="#C9E4EE">Benchmark</text>
+  <text x="1135" y="170" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" letter-spacing="2" fill="#34D399">KEEP ✓</text>
+  <text x="1135" y="193" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#A7F3D0">commit</text>
+  <text x="1135" y="302" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="11" letter-spacing="2" fill="#F87171">DISCARD ✗</text>
+  <text x="1135" y="325" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="15" fill="#FCA5A5">revert</text>
+
+  <!-- arrows: edit -> run -> keep/discard, then loop back -->
+  <line x1="822" y1="240" x2="864" y2="240" stroke="#3B7A93" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M1002,228 C1026,228 1024,186 1046,180" fill="none" stroke="#34D399" stroke-width="2" marker-end="url(#arrGreen)"/>
+  <path d="M1002,254 C1026,254 1024,296 1046,302" fill="none" stroke="#F87171" stroke-width="2" marker-end="url(#arrRed)"/>
+  <path d="M1135,146 C1128,82 762,78 755,207" fill="none" stroke="#34D399" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrGreen)"/>
+  <path d="M1135,334 C1128,398 762,402 755,273" fill="none" stroke="#F87171" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrRed)"/>
+  <text x="940" y="86" text-anchor="middle" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="13" letter-spacing="3" fill="#3B7A93">REPEAT</text>
+</svg>
