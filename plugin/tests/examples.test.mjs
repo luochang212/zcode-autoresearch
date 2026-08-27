@@ -122,6 +122,13 @@ test("learnings-journal: appends one markdown line per run", () => {
 test("auto-tag-winners: tags a new best, silent otherwise", () => {
   const cwd = tempCwd();
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
+  // CI runners have no global git identity — commits need a local one
+  for (const a of [
+    ["config", "user.email", "t@t"],
+    ["config", "user.name", "t"],
+  ]) {
+    execFileSync("git", a, { cwd, stdio: "ignore" });
+  }
   writeFileSync(join(cwd, "f.js"), "x\n");
   execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
   execFileSync("git", ["commit", "-qm", "init"], { cwd, stdio: "ignore" });

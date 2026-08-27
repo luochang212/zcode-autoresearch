@@ -16,8 +16,10 @@ function git(cwd, args) {
 
 function setup() {
   const cwd = mkdtempSync(join(tmpdir(), "ar-fin-"));
+  // -b main: groups.json references the base branch by name; CI runners
+  // default `git init` to master, so pin it instead of relying on the default
   for (const a of [
-    ["init", "-q"],
+    ["init", "-q", "-b", "main"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
   ]) {
