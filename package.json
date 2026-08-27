@@ -1,0 +1,37 @@
+{
+  "name": "zcode-autoresearch",
+  "private": true,
+  "type": "module",
+  "description": "Dev tooling (lint/format/hooks/CI) for the zcode autoresearch plugin repo. The plugin itself stays zero-dependency.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "prepare": "husky",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "test": "cd plugin && node --test tests/*.test.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "eslint": "^9.39.2",
+    "globals": "^16.4.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.1.6",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,yaml,yml,md}": [
+      "prettier --write"
+    ],
+    "*.sh": [
+      "bash -n"
+    ]
+  }
+}

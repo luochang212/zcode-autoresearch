@@ -1,0 +1,2 @@
+# Lint + format staged files; syntax-check staged shell scripts.
+npx lint-staged

@@ -1,0 +1,6 @@
+# External read-only research clones; see AGENTS.md.
+archived/
+node_modules/
+
+# Lockfile: machine-managed, slow to pretty-print.
+package-lock.json
