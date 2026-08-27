@@ -8,6 +8,14 @@
 # AI tool integrations written by adrkit init --tools.
 tools: [agents]
 
+# Workflow subset for agent integrations, written by `adrkit update
+# --workflows <list>`. adrkit 0.5.0+ consumes this key: a bare `adrkit
+# update` keeps the subset and `--workflows all` restores all seven.
+workflows:
+  - init
+  - decide
+  - validate
+
 # Optional per-status conventions. These are hints for writers and agents;
 # validate does not enforce them (it cannot check prose).
 # rules:

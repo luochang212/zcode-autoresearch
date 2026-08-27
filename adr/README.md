@@ -21,7 +21,9 @@ Every record starts with a YAML front matter block:
 ---
 status: accepted | superseded
 date: YYYY-MM-DD
+created: YYYY-MM-DD
 commit: abc1234
+tags: [frontend]
 ---
 
 # ADR: N <title>
@@ -31,7 +33,10 @@ Decisions use `# ADR: N <title>` and require `Problem`, `Decision`,
 `Alternatives considered`, and `Consequences`. Superseded decisions add
 `superseded-by: N`. The `date` field records when the current status was
 reached; the CLI stamps it at every lifecycle move, alongside the git `commit`
-the decision was recorded against. Drafts (`adr/.drafts/`, `status:
+the decision was recorded against. `created` is the birth date, stamped once
+and never re-stamped, so the time axis survives later lifecycle moves.
+Optional `tags` (kebab-case keywords) let `adrkit graph` group and filter
+decisions by theme. Drafts (`adr/.drafts/`, `status:
 proposed`) require `Problem`, `Proposal`, `Alternatives considered`,
 `Acceptance criteria`, and `Risks`; `adrkit accept` promotes one into a
 decision, and `adrkit reject` discards it without leaving a record.
