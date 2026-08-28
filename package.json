@@ -4,7 +4,7 @@
   "type": "module",
   "description": "Dev tooling (lint/format/hooks/CI) for the zcode autoresearch plugin repo. The plugin itself stays zero-dependency.",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "prepare": "husky",
@@ -12,19 +12,23 @@
     "lint:fix": "eslint . --fix",
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
-    "test": "cd plugin && node --test tests/*.test.mjs"
+    "typecheck": "tsc --noEmit",
+    "test": "cd plugin && node --test tests/*.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
+    "@types/node": "^24.0.0",
     "adr-kit": "^0.5.0",
     "eslint": "^9.39.2",
     "globals": "^16.4.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.6",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "typescript": "^5.8.0",
+    "typescript-eslint": "^8.0.0"
   },
   "lint-staged": {
-    "*.{js,mjs,cjs}": [
+    "*.{js,mjs,cjs,ts}": [
       "eslint --fix",
       "prettier --write"
     ],
