@@ -1,8 +1,4 @@
-## Purpose
-
-定义 zcode autoresearch 插件 dashboard 导出的行为契约：`/autoresearch:export` 命令从实验账本生成静态 HTML 报告。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 从账本导出静态 dashboard
 

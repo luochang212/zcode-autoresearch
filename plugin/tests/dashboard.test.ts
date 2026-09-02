@@ -14,6 +14,47 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { renderDashboard } from "../mcp/lib/dashboard.ts";
+import type { LedgerRun, SessionState } from "../mcp/lib/types.ts";
+
+function sampleState(
+  runs: Array<[status: string, metric: number | null]> = [
+    ["keep", 100],
+    ["discard", 105],
+    ["keep", 60],
+    ["noop", null],
+    ["keep", 40],
+  ],
+): SessionState {
+  const entries: LedgerRun[] = runs.map(([status, metric], i) => ({
+    type: "run",
+    run: i + 1,
+    segment: 1,
+    status: status as LedgerRun["status"],
+    metric,
+    description: status === "noop" ? "no code change" : `hypothesis ${i + 1}`,
+  }));
+  return {
+    config: {
+      type: "config",
+      segment: 1,
+      name: "t",
+      metricName: "time_ms",
+      direction: "lower",
+    },
+    segment: 1,
+    runs: entries,
+    baseline: 100,
+    best: 40,
+    lastRunChecksFailed: false,
+    lastRun: entries[entries.length - 1],
+    totalExperiments: entries.length,
+    consecutiveFailures: 0,
+    confidence: { confidence: 3.0, level: "green" },
+    plateau: false,
+    failureThreshold: 3,
+  };
+}
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SERVER = join(ROOT, "mcp", "server.ts");
@@ -245,4 +286,46 @@ test("live server survives a deleted ledger (404) and dead SSE clients", async (
     assert.equal(home.status, 200);
     await sseRes.body?.cancel().catch(() => {});
   });
+});
+
+test("renderer: equal-width card grid, dual theme, overflow guards, neutral no-op", () => {
+  const html = renderDashboard(sampleState());
+  assert.match(html, /box-sizing: border-box/);
+  assert.match(
+    html,
+    /grid-template-columns: repeat\(auto-fit, minmax\(110px, 1fr\)\)/,
+  );
+  assert.match(html, /prefers-color-scheme: dark/);
+  assert.match(html, /overflow-wrap: anywhere/);
+  assert.match(html, /class="tablewrap"/);
+  assert.match(html, /overflow-x: auto/);
+  // no-op is neutral, never the crash-red fallback
+  assert.match(html, /badge noop">no-op/);
+  assert.doesNotMatch(html, /badge crash">no-op/);
+  // confidence card carries its value next to the level
+  assert.match(html, /confidence 3\.00/);
+});
+
+test("renderer: SVG trend line with per-status points and baseline reference", () => {
+  const html = renderDashboard(sampleState());
+  assert.match(html, /<svg viewBox="0 0 860 120"/);
+  assert.match(html, /<polyline class="line"/);
+  // 4 valid metric points (100/105/60/40; the no-op row has none)
+  assert.equal((html.match(/<circle class="c-/g) ?? []).length, 4);
+  assert.match(html, /class="base"/); // dashed baseline reference
+  assert.match(html, /baseline 100/);
+  assert.match(html, /c-keep/); // keep points filled
+  assert.match(html, /c-discard/); // discard points hollow
+});
+
+test("renderer: no trend below two valid points", () => {
+  const html = renderDashboard(
+    sampleState([
+      ["keep", 100],
+      ["noop", null],
+      ["crash", null],
+    ]),
+  );
+  assert.doesNotMatch(html, /<svg/);
+  assert.match(html, /badge noop">no-op/);
 });
