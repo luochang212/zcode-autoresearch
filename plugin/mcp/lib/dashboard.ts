@@ -18,9 +18,34 @@ function fmtMetric(v: number | null | undefined): string {
 }
 
 /**
+ * Nice grid-tick values for [lo, hi]: step is 1/2/2.5/5 × 10^k, so tick values
+ * stay short and all share the same decimal precision — no 61.6667-style noise.
+ */
+function niceTicks(
+  lo: number,
+  hi: number,
+  target = 3,
+): Array<{ value: number; decimals: number }> {
+  const raw = (hi - lo) / target;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const norm = raw / pow;
+  const step =
+    pow *
+    (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10);
+  const ds = String(step).split(".")[1];
+  const decimals = ds ? ds.replace(/0+$/, "").length : 0;
+  const out: Array<{ value: number; decimals: number }> = [];
+  const first = Math.ceil((lo - 1e-9) / step);
+  const last = Math.floor((hi + 1e-9) / step);
+  for (let k = first; k <= last; k++) out.push({ value: k * step, decimals });
+  return out;
+}
+
+/**
  * Inline-SVG metric trend: valid metric points in run order (keep filled,
- * others hollow), baseline as a dashed reference. Fewer than 2 points → "".
- * Zero external resources — the dashboard must stay self-contained.
+ * others hollow), baseline as a dashed reference, light horizontal grid ticks
+ * with values on the left. Fewer than 2 points → "". Zero external resources —
+ * the dashboard must stay self-contained.
  */
 function renderTrendSvg(state: SessionState): string {
   const pts = state.runs.filter(
@@ -30,7 +55,8 @@ function renderTrendSvg(state: SessionState): string {
   if (pts.length < 2) return "";
   const W = 860;
   const H = 120;
-  const pad = 10;
+  const padX = 44; // left gutter carries the grid-tick values
+  const padY = 10;
   const vals = pts.map((r) => r.metric);
   let lo = Math.min(...vals, state.baseline ?? Infinity);
   let hi = Math.max(...vals, state.baseline ?? -Infinity);
@@ -39,8 +65,18 @@ function renderTrendSvg(state: SessionState): string {
     hi += 1;
   }
   const span = hi - lo;
-  const x = (i: number) => pad + (i * (W - 2 * pad)) / (pts.length - 1);
-  const y = (v: number) => pad + ((hi - v) * (H - 2 * pad)) / span;
+  const x = (i: number) => padX + (i * (W - 2 * padX)) / (pts.length - 1);
+  const y = (v: number) => padY + ((hi - v) * (H - 2 * padY)) / span;
+  // Light horizontal grid ticks at "nice" values covering [lo, hi].
+  const ticks = niceTicks(lo, hi)
+    .map(({ value: v, decimals }) => {
+      const yy = y(v);
+      return (
+        `<line class="gline" x1="${padX}" y1="${yy.toFixed(1)}" x2="${W - padX}" y2="${yy.toFixed(1)}"/>` +
+        `<text x="${padX - 6}" y="${(yy + 3).toFixed(1)}" text-anchor="end">${v.toFixed(decimals)}</text>`
+      );
+    })
+    .join("");
   const poly = pts.map(
     (r, i) => `${x(i).toFixed(1)},${y(r.metric).toFixed(1)}`,
   );
@@ -64,10 +100,11 @@ function renderTrendSvg(state: SessionState): string {
     Number.isFinite(baseline) &&
     baseline >= lo &&
     baseline <= hi
-      ? `<line class="base" x1="${pad}" y1="${y(baseline).toFixed(1)}" x2="${W - pad}" y2="${y(baseline).toFixed(1)}"/>` +
-        `<text x="${W - pad}" y="${(y(baseline) - 4).toFixed(1)}" text-anchor="end">baseline ${escapeHtml(fmtMetric(baseline))}</text>`
+      ? `<line class="base" x1="${padX}" y1="${y(baseline).toFixed(1)}" x2="${W - padX}" y2="${y(baseline).toFixed(1)}"/>` +
+        `<text x="${W - padX}" y="${(y(baseline) - 4).toFixed(1)}" text-anchor="end">baseline ${escapeHtml(fmtMetric(baseline))}</text>`
       : "";
   return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="metric trend">
+${ticks}
 <polyline class="line" points="${poly.join(" ")}"/>
 ${baseLine}
 ${circles}
@@ -144,6 +181,7 @@ function renderBody(state: SessionState, live: boolean): string {
   .trend svg { display: block; width: 100%; height: auto; }
   .trend .line { fill: none; stroke: var(--muted); opacity: .55; }
   .trend .base { stroke: var(--muted); stroke-dasharray: 5 4; }
+  .trend .gline { stroke: var(--border); }
   .trend .c-keep { fill: var(--keep); }
   .trend .c-discard { fill: var(--card-bg); stroke: var(--discard); stroke-width: 1.5; }
   .trend .c-fail { fill: var(--card-bg); stroke: var(--fail); stroke-width: 1.5; }

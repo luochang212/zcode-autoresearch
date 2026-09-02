@@ -314,6 +314,10 @@ test("renderer: SVG trend line with per-status points and baseline reference", (
   assert.equal((html.match(/<circle class="c-/g) ?? []).length, 4);
   assert.match(html, /class="base"/); // dashed baseline reference
   assert.match(html, /baseline 100/);
+  assert.match(html, /class="gline"/); // light horizontal grid ticks
+  assert.match(html, />50<\/text>/); // nice ticks land on round values
+  assert.match(html, />75<\/text>/);
+  assert.match(html, />100<\/text>/);
   assert.match(html, /c-keep/); // keep points filled
   assert.match(html, /c-discard/); // discard points hollow
 });
