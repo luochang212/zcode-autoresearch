@@ -117,6 +117,58 @@ test("unwrapMeasureCommand rejects non-benchmark or chained commands", () => {
   assert.equal(unwrapMeasureCommand(null, "measure.sh"), null);
 });
 
+test("unwrapMeasureCommand rejects shell injection after the script (whitelist)", () => {
+  // newline / CR chaining
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh \necho PWNED", "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh \recho PWNED", "measure.sh"),
+    null,
+  );
+  // redirection
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh > /tmp/x", "measure.sh"),
+    null,
+  );
+  // backtick / dollar / quotes / glob
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh `id`", "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh $HOME", "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand('bash .auto/measure.sh --name="a b"', "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh *.js", "measure.sh"),
+    null,
+  );
+});
+
+test("unwrapMeasureCommand allows plain benchmark args (whitelist)", () => {
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh --verbose", "measure.sh"),
+    "bash .auto/measure.sh --verbose",
+  );
+  assert.equal(
+    unwrapMeasureCommand("bash .auto/measure.sh --foo=bar -n 3", "measure.sh"),
+    "bash .auto/measure.sh --foo=bar -n 3",
+  );
+  assert.equal(
+    unwrapMeasureCommand(
+      "bash .auto/measure.sh --input=./data/a_b-c.txt:2 +x",
+      "measure.sh",
+    ),
+    "bash .auto/measure.sh --input=./data/a_b-c.txt:2 +x",
+  );
+});
+
 test("isStopReached on cap and consecutive failures", () => {
   const runs = [1, 2, 3].map((n) => ({ run: n, status: "keep" }));
   assert.equal(isStopReached(runs, 3), true);

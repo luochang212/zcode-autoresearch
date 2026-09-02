@@ -126,7 +126,11 @@ export function rebuildState(
       }
       if (run.status === "keep") state.consecutiveFailures = 0;
       else state.consecutiveFailures += 1;
-      if (run.checksFailed) state.lastRunChecksFailed = true;
+      // Per-run overwrite (no one-way latch): the flag always describes the
+      // latest ledger run. Status alone marks checks failure; the explicit
+      // field covers hand-written/legacy rows.
+      state.lastRunChecksFailed =
+        run.checksFailed === true || run.status === "checks_failed";
       state.lastRun = run;
     }
   }

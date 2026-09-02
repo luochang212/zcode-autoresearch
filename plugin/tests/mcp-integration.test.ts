@@ -5,9 +5,11 @@ import { spawn } from "node:child_process";
 import {
   mkdtempSync,
   writeFileSync,
+  appendFileSync,
   mkdirSync,
   existsSync,
   readFileSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -34,7 +36,7 @@ interface McpClient {
   close(): void;
 }
 
-function tempRepo() {
+function tempRepo(opts: { withMeasure?: boolean } = {}) {
   const cwd = mkdtempSync(join(tmpdir(), "ar-mcp-"));
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
   execFileSync("git", ["config", "user.email", "t@t"], {
@@ -43,10 +45,12 @@ function tempRepo() {
   });
   execFileSync("git", ["config", "user.name", "t"], { cwd, stdio: "ignore" });
   mkdirSync(join(cwd, ".auto"), { recursive: true });
-  writeFileSync(
-    join(cwd, ".auto", "measure.sh"),
-    '#!/usr/bin/env bash\necho "METRIC time_ms=42"\n',
-  );
+  if (opts.withMeasure !== false) {
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      '#!/usr/bin/env bash\necho "METRIC time_ms=42"\n',
+    );
+  }
   writeFileSync(join(cwd, "code.js"), "v1\n");
   execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
   execFileSync("git", ["commit", "-qm", "init"], { cwd, stdio: "ignore" });
@@ -143,6 +147,7 @@ test("iteration hooks: before runs before benchmark, after after logging, steer 
     });
     assert.equal(run.before_steer, "BEFORE-STEER");
     assert.equal(run.metric, 42);
+    appendFileSync(join(cwd, "code.js"), "// change\n");
     const log = await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -195,6 +200,7 @@ test("iteration hooks: payload carries asi (last_run and run_entry)", async () =
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     // first run: no asi anywhere yet — hooks stay silent (last_run null)
+    appendFileSync(join(cwd, "code.js"), "// c1\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -231,6 +237,7 @@ test("iteration hooks: every fire appends a type:hook ledger entry", async () =>
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// change\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -333,6 +340,7 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       command: "bash .auto/measure.sh",
     });
     assert.equal((r1.metrics as Record<string, number>).memory_mb, 100);
+    appendFileSync(join(cwd, "code.js"), "// base\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -340,6 +348,7 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       metrics: { memory_mb: 100 },
     });
     // constraint within band → keep passes (vs baseline memory_mb=100)
+    appendFileSync(join(cwd, "code.js"), "// c2\n");
     const ok = await s.tool("log_experiment", {
       status: "keep",
       metric: 41,
@@ -351,7 +360,9 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
     assert.deepEqual(ok.constraints, [
       { name: "memory_mb", status: "pass", value: 100, limit: 105 },
     ]);
-    // now a keep that blows the constraint → rejected
+    // now a keep that blows the constraint → rejected (before any git op,
+    // so the change stays in the working tree for the next keep)
+    appendFileSync(join(cwd, "code.js"), "// c3\n");
     const bad = await s.tool("log_experiment", {
       status: "keep",
       metric: 40,
@@ -373,5 +384,144 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
     });
     assert.equal(free.ok, true);
     assert.equal(free.constraints, undefined);
+  });
+});
+
+test("checks gate: keep rejected after failed checks, allowed again after a passing run", async () => {
+  const cwd = tempRepo();
+  // checks fail while code.js contains "broken"
+  writeFileSync(
+    join(cwd, ".auto", "checks.sh"),
+    "#!/usr/bin/env bash\n! grep -q broken code.js\n",
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    appendFileSync(join(cwd, "code.js"), "// broken\n");
+    const r1 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal((r1.checks as Record<string, unknown>).failed, true);
+    // dishonest keep of the checks-failed run → rejected (guardrail live)
+    const bad = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "keep despite failed checks",
+    });
+    assert.equal(bad.ok, false);
+    assert.match(String(bad.error), /correctness checks/);
+    // honest checks_failed → logged with checksFailed: true, tree rolled back
+    const cf = await s.tool("log_experiment", {
+      status: "checks_failed",
+      metric: 42,
+      description: "honest checks_failed row",
+    });
+    assert.equal(cf.ok, true);
+    const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    const cfRow = rows.find(
+      (r) => r.type === "run" && r.status === "checks_failed",
+    );
+    assert.equal(cfRow.checksFailed, true);
+    assert.ok(
+      !readFileSync(join(cwd, "code.js"), "utf8").includes("broken"),
+      "checks_failed rolls back the broken change",
+    );
+    // fix the code, rerun (checks pass) → keep allowed (no one-way latch)
+    appendFileSync(join(cwd, "code.js"), "// fixed\n");
+    const r2 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal((r2.checks as Record<string, unknown>).failed, false);
+    const good = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "keep after checks pass",
+    });
+    assert.equal(good.ok, true);
+    assert.equal(typeof good.commit, "string");
+  });
+});
+
+test("benchmark drift: measure.sh created mid-session is recorded, then modification warns", async () => {
+  const cwd = tempRepo({ withMeasure: false });
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    // first sighting: create the benchmark mid-session → recorded, no warning
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      '#!/usr/bin/env bash\necho "METRIC time_ms=42"\n',
+    );
+    const r1 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r1.metric, 42);
+    assert.equal(r1.benchmark_drift, undefined);
+    const cfg = JSON.parse(
+      readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
+    );
+    assert.equal(typeof cfg.benchmarkHashes?.measure, "string");
+    // silently changing the now-recorded benchmark → drift warning
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      '#!/usr/bin/env bash\necho "METRIC time_ms=1"\n',
+    );
+    const r2 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r2.benchmark_drift, true);
+    assert.match(String(r2.warning), /no longer comparable/);
+  });
+});
+
+test("benchmark drift: deleting a frozen file warns", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const r1 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r1.benchmark_drift, undefined);
+    rmSync(join(cwd, ".auto", "measure.sh"));
+    const r2 = await s.tool("run_experiment", {
+      command: 'echo "METRIC time_ms=0"',
+    });
+    assert.equal(r2.benchmark_drift, true);
+    assert.match(String(r2.warning), /no longer comparable/);
+  });
+});
+
+test("keep commit excludes .auto; keep with only session changes is rejected", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // no code change: only .auto/ has drifted → keep must hit the no-changes audit
+    const noopKeep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "nothing changed",
+    });
+    assert.equal(noopKeep.ok, false);
+    assert.match(String(noopKeep.error), /no changes to commit/);
+    // a real change keeps, and the commit carries no .auto files
+    appendFileSync(join(cwd, "code.js"), "// change\n");
+    const keep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "real change",
+    });
+    assert.equal(keep.ok, true);
+    const files = execFileSync(
+      "git",
+      ["show", "--name-only", "--format=", "HEAD"],
+      { cwd, encoding: "utf8" },
+    ).trim();
+    assert.ok(files.includes("code.js"));
+    assert.ok(
+      !files.split("\n").some((f) => f.startsWith(".auto/") || f === ".auto"),
+      `keep commit must not contain .auto files, got: ${files}`,
+    );
   });
 });

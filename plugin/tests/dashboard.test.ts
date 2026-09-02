@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import {
   mkdtempSync,
   writeFileSync,
+  appendFileSync,
   mkdirSync,
   existsSync,
   readFileSync,
@@ -124,6 +125,8 @@ test("export_dashboard starts a live server with HTML, ledger and SSE routes", a
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // keep requires a real (non-.auto) change since the .auto exclusion fix
+    appendFileSync(join(cwd, "code.js"), "// change\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -200,6 +203,8 @@ test("workingDir redirects the ledger, benchmark and git to the research dir", a
       command: "bash .auto/measure.sh",
     });
     assert.equal(run.metric, 7);
+    // keep requires a real (non-.auto) change in the research dir
+    writeFileSync(join(cwd, "work", "code.js"), "v2\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 7,

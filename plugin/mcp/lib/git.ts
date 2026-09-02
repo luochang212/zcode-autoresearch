@@ -29,14 +29,16 @@ export function shortHash(cwd: string): string {
 }
 
 /**
- * Commit all tracked+untracked changes as one experiment.
+ * Commit all tracked+untracked changes as one experiment, excluding the
+ * `.auto/` session dir (ledger noise must not ride along, and a keep with
+ * only session-file changes must hit the "nothing to commit" path).
  * Returns the short hash, or null when there is nothing to commit.
  */
 export function commitExperiment(
   cwd: string,
   { description, result }: { description: string; result: unknown },
 ): string | null {
-  git(cwd, ["add", "-A"]);
+  git(cwd, ["add", "-A", "--", ".", ":(exclude).auto"]);
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {

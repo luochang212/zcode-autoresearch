@@ -118,9 +118,12 @@ export function unwrapMeasureCommand(
   ];
   const match = variants.find((v) => cmd === v || cmd.startsWith(v + " "));
   if (!match) return null;
-  // 4) no shell metacharacters after the script (rejects `; evil` chaining)
-  const rest = cmd.slice(match.length).trim();
-  if (/[;&|`]/.test(rest) || rest.includes("$(")) return null;
+  // 4) args after the script must be plain tokens — whitelist characters only.
+  //    A blacklist cannot enumerate the shell injection surface (newlines, CR,
+  //    redirection, quotes, backticks, $, globs, ...), so anything outside
+  //    [word chars . / : = + - space tab] is rejected.
+  const rest = cmd.slice(match.length);
+  if (!/^[\w./:=+ \t-]*$/.test(rest)) return null;
   return cmd;
 }
 

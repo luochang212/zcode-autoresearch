@@ -289,10 +289,8 @@ function readBenchmarkHashes() {
   }
 }
 
-function writeBenchmarkHashes(hashes: {
-  measure: string | null;
-  checks: string | null;
-}): void {
+/** Merge a patch into the project's `.auto/config.json` (creates if missing). */
+function patchSessionConfig(patch: Record<string, unknown>): void {
   const cfgPath = join(projectCwd, ".auto", "config.json");
   let cfg: Record<string, unknown> = {};
   try {
@@ -300,14 +298,35 @@ function writeBenchmarkHashes(hashes: {
   } catch {
     /* start fresh */
   }
-  cfg.benchmarkHashes = hashes;
+  Object.assign(cfg, patch);
   writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+}
+
+function writeBenchmarkHashes(hashes: {
+  measure: string | null;
+  checks: string | null;
+}): void {
+  patchSessionConfig({ benchmarkHashes: hashes });
+}
+
+/**
+ * Persist the checks outcome of the latest run_experiment so log_experiment's
+ * keep gate works even across an MCP server restart (pi `runtime.lastRunChecks`
+ * equivalent, but on disk). `failed` is true only when checks ran and failed.
+ */
+function setPendingChecksFailed(failed: boolean): void {
+  patchSessionConfig({ pendingChecksFailed: failed });
+}
+
+function pendingChecksFailed(): boolean {
+  return readSessionConfig(projectCwd).pendingChecksFailed === true;
 }
 
 /**
  * Compare current frozen-file hashes against the session's recorded ones.
- * Returns { drift, reason } where drift is true when a recorded hash changed.
- * First sighting (recorded null but file exists) records and reports "recorded".
+ * Returns { drift, reason } where drift is true when a recorded hash changed
+ * or a recorded file was deleted. First sighting (recorded null but file
+ * exists) records the hash without warning.
  */
 function checkBenchmarkDrift() {
   const recorded = readBenchmarkHashes();
@@ -316,16 +335,25 @@ function checkBenchmarkDrift() {
     writeBenchmarkHashes(current);
     return { drift: false, reason: "recorded", hashes: current };
   }
+  const merged = { ...recorded };
+  let firstSeen = false;
   for (const key of ["measure", "checks"] as const) {
-    if (
-      recorded[key] != null &&
-      current[key] != null &&
-      recorded[key] !== current[key]
-    ) {
+    if (recorded[key] == null && current[key] != null) {
+      merged[key] = current[key]; // first sighting: record, no warning
+      firstSeen = true;
+      continue;
+    }
+    // changed (hash mismatch) or deleted (current null) → drift
+    if (recorded[key] != null && recorded[key] !== current[key]) {
       return { drift: true, reason: key, hashes: current };
     }
   }
-  return { drift: false, reason: null, hashes: current };
+  if (firstSeen) writeBenchmarkHashes(merged);
+  return {
+    drift: false,
+    reason: firstSeen ? "recorded" : null,
+    hashes: current,
+  };
 }
 
 /**
@@ -497,6 +525,8 @@ async function toolInitExperiment(
   });
   // Record frozen-file hashes as the benchmark baseline for this session.
   writeBenchmarkHashes(currentBenchmarkHashes());
+  // New segment: any pending checks outcome from a previous session is stale.
+  setPendingChecksFailed(false);
   broadcastDashboardUpdate();
   const branch = isGitRepo(cwd) ? currentBranch(cwd) : "";
   return {
@@ -594,6 +624,9 @@ async function toolRunExperiment(
   if (existsSync(paths.checks) && last.exitCode === 0) {
     checks = await runChecks(paths.checks);
   }
+  // Persist the checks outcome for log_experiment's keep gate (see
+  // setPendingChecksFailed). No checks.sh / benchmark crashed → not failed.
+  setPendingChecksFailed(checks?.failed === true);
 
   const values = runs
     .map((r) => r.metric)
@@ -663,8 +696,10 @@ async function toolLogExperiment(
       )
     : [];
 
-  // keep gate: previous run's checks failed → refuse keep.
-  if (status === "keep" && state.lastRunChecksFailed) {
+  // keep gate: the just-run benchmark's checks failed → refuse keep. The
+  // outcome is persisted by run_experiment (pendingChecksFailed), because the
+  // ledger cannot know about a run that has not been logged yet.
+  if (status === "keep" && pendingChecksFailed()) {
     return {
       ok: false,
       error:
@@ -778,10 +813,14 @@ async function toolLogExperiment(
     asi,
     description,
     commit,
+    // audit trail: a checks_failed row carries the flag explicitly
+    ...(status === "checks_failed" ? { checksFailed: true } : {}),
     timestamp: new Date().toISOString(),
   };
 
   appendLedgerEntry(cwd, entry);
+  // The pending run is now accounted for — clear the keep-gate state.
+  setPendingChecksFailed(false);
   broadcastDashboardUpdate();
 
   // Iteration hook: .auto/hooks/after.sh runs after the record (fail-open).
@@ -833,6 +872,7 @@ async function toolLogExperiment(
 }
 
 async function toolClearExperiments() {
+  setPendingChecksFailed(false);
   if (!existsSync(paths.log))
     return { ok: true, message: "no active session to clear" };
   const { rmSync } = await import("node:fs");
