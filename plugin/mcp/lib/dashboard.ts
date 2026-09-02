@@ -209,8 +209,18 @@ ${
   live
     ? `<script>
 (function () {
+  // Preserve the scroll position across the auto-reload so an update never
+  // kicks the viewer (who is usually reading the history table) back to top.
+  var KEY = 'autoresearch-dash-scroll';
+  try {
+    var y = sessionStorage.getItem(KEY);
+    if (y != null) window.scrollTo(0, Number(y));
+  } catch (e) {}
   const es = new EventSource('/events');
-  es.addEventListener('jsonl-updated', () => { location.reload(); });
+  es.addEventListener('jsonl-updated', () => {
+    try { sessionStorage.setItem(KEY, String(window.scrollY)); } catch (e) {}
+    location.reload();
+  });
 })();
 </script>`
     : ""
