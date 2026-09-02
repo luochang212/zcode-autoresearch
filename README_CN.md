@@ -50,7 +50,7 @@
 | 次级度量约束      | 用内存或调用数换速度，即 reward hacking | opt-in 的 `constraints: [{name, maxPct}]`，超界禁 keep                |
 
 > [!NOTE]
-> **已知边界**（平台限制，如实记录）：zcode 无会话注入 API——无法过夜无人值守，靠 Stop 3 次窗口加用户回车续跑；无 compaction 事件——靠聚合摘要注入保住记忆；无 TUI widget——用浏览器 dashboard 替代。详见 [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md)。
+> **已知边界**（平台限制，如实记录）：zcode 无会话注入 API，无法过夜无人值守，靠 Stop 3 次窗口加用户回车续跑；无 compaction 事件，靠聚合摘要注入保住记忆；无 TUI widget，因此面板放在浏览器里。详见 [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md)。
 
 ## 📁 仓库结构
 
@@ -68,9 +68,9 @@
 
 我们欢迎任何形式的贡献！
 
-- 🐛 报告 Bug — 发现问题请提交 Issue
-- 💡 功能建议 — 有好想法就告诉我们
-- 🔧 代码优化 — 欢迎提交 Pull Request
+- 🐛 报告 Bug：发现问题请提交 Issue
+- 💡 功能建议：有好想法就告诉我们
+- 🔧 代码优化：欢迎提交 Pull Request
 
 ## 📜 License
 

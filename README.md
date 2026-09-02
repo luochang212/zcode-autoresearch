@@ -13,7 +13,7 @@
 
 <img src="./assets/readme-banner_en.svg" alt="zcode-autoresearch: edit code → run the benchmark → keep / discard → repeat" width="100%">
 
-A ZCode plugin that lets a coding agent iterate autonomously on a **fixed metric**: once you set a goal and a mechanical metric, the agent proposes hypotheses, modifies code, and runs the benchmark round by round. Improvements are kept and committed automatically; regressions are rolled back automatically — until convergence. The mechanism is inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch).
+A ZCode plugin that lets a coding agent iterate autonomously on a **fixed metric**: once you set a goal and a mechanical metric, the agent proposes hypotheses, modifies code, and runs the benchmark round by round. Improvements are kept and committed automatically; regressions are rolled back automatically, until convergence. The mechanism is inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch).
 
 ## ✨ Features
 
@@ -21,14 +21,14 @@ A ZCode plugin that lets a coding agent iterate autonomously on a **fixed metric
 - **Proven in practice**: on real projects, the agent independently optimized js-yaml parsing from 134ms to 32ms (4.2x), and prime-number computation from 695ms to 3ms (230x)
 - **Anti-cheating guardrails**: frozen-benchmark write protection, correctness-gate checks, ledger auditing, benchmark drift detection, secondary metric constraints (see below)
 - **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically around each experiment, with 6 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
-- **Live dashboard**: a local dashboard auto-refreshes via SSE — watch experiments as they run
+- **Live dashboard**: a local dashboard auto-refreshes via SSE, so you can watch experiments as they run
 - **One-command wrap-up**: `/autoresearch:finalize` turns kept experiments into a clean, PR-ready branch
 
 ## 🚀 Quick Start
 
 This repository is itself a plugin marketplace (`marketplace.json` points to `plugin/`). In ZCode:
 
-1. Open **Settings → Plugin Management → Add Marketplace** and point it to this repo — a local directory or the GitHub URL both work.
+1. Open **Settings → Plugin Management → Add Marketplace** and point it to this repo; a local directory or the GitHub URL both work.
 2. Install and enable the `autoresearch` plugin.
 3. In any git project, type:
 
@@ -45,12 +45,12 @@ The biggest risk of an autonomous loop is the agent faking results to "score poi
 | Layer                        | What it prevents                                        | Mechanism                                                                                                      |
 | ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
 | Correctness backpressure     | Wrong output or deleted functionality                   | Assertions in `.auto/checks.sh`; a failure blocks keep                                                         |
-| Audit invariants             | A lying ledger — faked keeps or discards                | Validated before `log_experiment` writes: keeps must be real improvements, event ordering, commit traceability |
+| Audit invariants             | A lying ledger: faked keeps or discards                 | Validated before `log_experiment` writes: keeps must be real improvements, event ordering, commit traceability |
 | Benchmark drift detection    | Modifying the benchmark to fake the metric              | `init_experiment` records hashes of frozen files; any mid-run change triggers a warning                        |
-| Secondary metric constraints | Trading memory or call count for speed — reward hacking | Opt-in `constraints: [{name, maxPct}]`; exceeding the bound blocks keep                                        |
+| Secondary metric constraints | Trading memory or call count for speed (reward hacking) | Opt-in `constraints: [{name, maxPct}]`; exceeding the bound blocks keep                                        |
 
 > [!NOTE]
-> **Known limits** (platform constraints, recorded honestly): zcode has no session-injection API — no unattended overnight runs; continuation relies on a 3-time Stop window plus the user pressing Enter. No compaction event — memory is preserved via aggregated-summary injection. No TUI widget — replaced by a browser dashboard. See [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md) for details.
+> **Known limits** (platform constraints, recorded honestly): zcode has no session-injection API, so unattended overnight runs are impossible; continuation relies on a 3-time Stop window plus the user pressing Enter. There is no compaction event either; memory is preserved via aggregated-summary injection. No TUI widget exists, which is why the dashboard lives in the browser. See [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md) for details.
 
 ## 📁 Repository Structure
 
@@ -68,9 +68,9 @@ The biggest risk of an autonomous loop is the agent faking results to "score poi
 
 Contributions of any kind are welcome!
 
-- 🐛 Report bugs — open an Issue when you find a problem
-- 💡 Suggest features — tell us your ideas
-- 🔧 Improve the code — Pull Requests are welcome
+- 🐛 Report bugs: open an Issue when you find a problem
+- 💡 Suggest features: tell us your ideas
+- 🔧 Improve the code: Pull Requests are welcome
 
 ## 📜 License
 
