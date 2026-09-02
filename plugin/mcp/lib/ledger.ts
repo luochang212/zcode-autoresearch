@@ -124,7 +124,10 @@ export function rebuildState(
         if (state.best == null || isBetter(run.metric, state.best, dir))
           state.best = run.metric;
       }
-      if (run.status === "keep") state.consecutiveFailures = 0;
+      // Consecutive-failure streak (guardrails spec): only real failures
+      // count; keep and noop both break the chain.
+      if (run.status === "keep" || run.status === "noop")
+        state.consecutiveFailures = 0;
       else state.consecutiveFailures += 1;
       // Per-run overwrite (no one-way latch): the flag always describes the
       // latest ledger run. Status alone marks checks failure; the explicit

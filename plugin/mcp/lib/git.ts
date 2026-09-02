@@ -16,9 +16,17 @@ export function isGitRepo(cwd: string): boolean {
   }
 }
 
+/**
+ * Whether the working tree has real (non-`.auto/`) changes. Session-file
+ * writes (ledger, config) must not count: e.g. the crash-unresolved gate
+ * would otherwise block forever right after logging the crash itself.
+ */
 export function isDirty(cwd: string): boolean {
   try {
-    return git(cwd, ["status", "--porcelain"]).length > 0;
+    return (
+      git(cwd, ["status", "--porcelain", "--", ".", ":(exclude).auto"]).length >
+      0
+    );
   } catch {
     return false;
   }

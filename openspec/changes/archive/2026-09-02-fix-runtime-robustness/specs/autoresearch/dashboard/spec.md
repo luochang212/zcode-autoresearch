@@ -1,8 +1,4 @@
-## Purpose
-
-定义 zcode autoresearch 插件 dashboard 导出的行为契约：`/autoresearch:export` 命令从实验账本生成静态 HTML 报告。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: 从账本导出静态 dashboard
 
@@ -32,12 +28,3 @@
 
 - **WHEN** `.auto/log.jsonl` 不存在或为空
 - **THEN** 命令返回提示，不生成文件或生成空状态页
-
-### Requirement: dashboard 反映度量方向与判定语义
-
-导出内容 SHALL 按 direction 标注每个实验相对基线的改善/恶化（lower 时数值下降为改善），并区分 keep/discard/crash/checks_failed 状态。
-
-#### Scenario: 状态着色与方向标注
-
-- **WHEN** 账本包含 mixed 状态的记录
-- **THEN** dashboard 按状态分类展示，并标注每个实验的改善/恶化

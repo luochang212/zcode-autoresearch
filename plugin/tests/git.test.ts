@@ -103,7 +103,19 @@ test("rollbackWorkingTree discards changes but keeps .auto/", () => {
     existsSync(join(cwd, ".auto", "log.jsonl")),
     ".auto survives clean",
   );
-  assert.equal(isDirty(cwd), true); // .auto/log.jsonl untracked -> still dirty, that's expected
+  assert.equal(
+    isDirty(cwd),
+    false, // .auto/log.jsonl untracked but excluded — session files are not real changes
+  );
+});
+
+test("isDirty ignores .auto-only changes but sees real ones", () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "log.jsonl"), '{"type":"config"}\n');
+  assert.equal(isDirty(cwd), false); // session files alone are not dirty
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  assert.equal(isDirty(cwd), true); // a real change still counts
 });
 
 test("rollbackWorkingTree leaves staged-but-uncommitted changes reverted too", () => {

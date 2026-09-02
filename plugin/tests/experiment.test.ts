@@ -328,3 +328,51 @@ test("detectDoomLoop flags repeats and oscillation, not normal progress", () => 
   // too few runs → null
   assert.equal(detectDoomLoop([run("a"), run("a")]), null);
 });
+
+test("isStopReached: noop neither counts as a failure nor keeps the streak", () => {
+  const mk = (status: string) => ({ status });
+  // [discard, crash, noop]: trailing failure streak is 0 — no stop
+  assert.equal(
+    isStopReached(
+      [mk("discard"), mk("crash"), mk("noop")].map((r, i) => ({
+        ...r,
+        run: i + 1,
+      })),
+      20,
+    ),
+    false,
+  );
+  // [discard, crash, noop, discard]: streak restarts at 1 — no stop
+  assert.equal(
+    isStopReached(
+      [mk("discard"), mk("crash"), mk("noop"), mk("discard")].map((r, i) => ({
+        ...r,
+        run: i + 1,
+      })),
+      20,
+    ),
+    false,
+  );
+  // three real failures in a row still stop
+  assert.equal(
+    isStopReached(
+      [mk("discard"), mk("crash"), mk("checks_failed")].map((r, i) => ({
+        ...r,
+        run: i + 1,
+      })),
+      20,
+    ),
+    true,
+  );
+  // all noop never stops
+  assert.equal(
+    isStopReached(
+      [mk("noop"), mk("noop"), mk("noop"), mk("noop")].map((r, i) => ({
+        ...r,
+        run: i + 1,
+      })),
+      20,
+    ),
+    false,
+  );
+});

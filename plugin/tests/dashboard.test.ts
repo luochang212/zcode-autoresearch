@@ -222,3 +222,27 @@ test("workingDir redirects the ledger, benchmark and git to the research dir", a
     assert.match(state, /"type":"run"/);
   });
 });
+
+test("live server survives a deleted ledger (404) and dead SSE clients", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const exp = await s.tool("export_dashboard", {});
+    // an SSE client connects, then dies abruptly (aborted fetch)
+    const ctrl = new AbortController();
+    const sseRes = await fetch(String(exp.url) + "/events", {
+      signal: ctrl.signal,
+    });
+    ctrl.abort();
+    // the ledger legitimately disappears (clear_experiments)
+    await s.tool("clear_experiments", {});
+    const gone = await fetch(String(exp.url) + "/autoresearch.jsonl");
+    assert.equal(gone.status, 404);
+    // a later broadcast (init writes the ledger again) must not crash the
+    // process even though a dead client may still be in the broadcast set
+    await s.tool("init_experiment", { name: "t2", metric_name: "time_ms" });
+    const home = await fetch(String(exp.url) + "/");
+    assert.equal(home.status, 200);
+    await sseRes.body?.cancel().catch(() => {});
+  });
+});
