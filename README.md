@@ -13,14 +13,14 @@
 
 <img src="./assets/readme-banner_en.svg" alt="zcode-autoresearch: edit code → run the benchmark → keep / discard → repeat" width="100%">
 
-A ZCode plugin that lets a coding agent iterate autonomously on a **fixed metric**: once you set a goal and a mechanical metric, the agent proposes hypotheses, modifies code, and runs the benchmark round by round. Improvements are kept and committed automatically; regressions are rolled back automatically, until convergence. The mechanism is inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch).
+A ZCode plugin that lets a coding agent iterate autonomously against a **fixed metric**: you set the goal and the metric, and the agent proposes hypotheses, modifies code, and runs the benchmark round by round. Improvements are kept and committed automatically, regressions rolled back, and the loop runs until convergence. The mechanism is inspired by [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch).
 
 ## ✨ Features
 
 - **Autonomous experiment loop**: one focused change per round → run the benchmark → improvements are auto-kept and committed, regressions auto-discarded and rolled back, until convergence or the iteration limit
 - **Proven in practice**: on real projects, the agent independently optimized js-yaml parsing from 134ms to 32ms (4.2x), and prime-number computation from 695ms to 3ms (230x)
 - **Anti-cheating guardrails**: frozen-benchmark write protection, correctness-gate checks, ledger auditing, benchmark drift detection, secondary metric constraints (see below)
-- **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically around each experiment, with 6 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
+- **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically before and after every experiment, with 6 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
 - **Live dashboard**: a local dashboard auto-refreshes via SSE, so you can watch experiments as they run
 - **One-command wrap-up**: `/autoresearch:finalize` turns kept experiments into a clean, PR-ready branch
 

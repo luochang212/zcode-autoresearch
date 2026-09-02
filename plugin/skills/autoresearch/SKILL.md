@@ -38,7 +38,7 @@ For each iteration, exactly one pass through:
    - worse, unchanged, crashed, or checks failed → `status: "discard"` / `"crash"` / `"checks_failed"` (auto-reverts the working tree, `.auto/` survives)
    - pass `asi` with `{ hypothesis, next_action_hint, rollback }`; it is the only memory that survives a revert.
      4b. **The ledger is audited**: `log_experiment` rejects writes that break invariants. A keep that does not actually improve, a discarded improvement without a failed guard, broken run numbering, or a crash with un-rolled-back changes are all hard errors, not advice. (`.auto/config.json` `auditBypass: true` disables this; only use it knowingly.)
-5. **Read `confidence`, `plateau` and `doom_loop` from the log result**: low confidence (red/yellow) improvements are "directional", so keep but note it, or re-measure with `repeat:3` before structural changes. If `plateau: true`, stop re-litigating the last 1%; either confirm with `repeat:3`, start a new segment (`init_experiment`), or summarize. If `doom_loop: true`, you are repeating/oscillating between the same hypotheses; stop and pick a structurally different direction.
+5. **Read `confidence`, `plateau` and `doom_loop` from the log result**: low-confidence (red/yellow) improvements are "directional": keep them with a note, or re-measure with `repeat:3` before structural changes. If `plateau: true`, stop re-litigating the last 1%; either confirm with `repeat:3`, start a new segment (`init_experiment`), or summarize. If `doom_loop: true`, you are repeating/oscillating between the same hypotheses; stop and pick a structurally different direction.
 6. If `iteration cap` reached → `init_experiment` again for a new target, or stop and summarize.
 
 ## Dashboard

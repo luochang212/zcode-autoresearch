@@ -66,7 +66,7 @@ Or let the skill trigger on its own (descriptions containing "autoresearch", "au
 - **Stop-loss**: after `consecutiveFailures` in a row (default 3, configurable in `.auto/config.json`) the plugin hints you to stop.
 - **Ledger audit**: `log_experiment` validates invariants before writing (keep must be a real improvement, a discarded real improvement must have failed the guard, event ordering, commit field); violations are rejected; a crashed segment that wasn't rolled back blocks continuation. `auditBypass: true` in `.auto/config.json` explicitly skips it (not recommended).
 - **Benchmark drift detection**: `init_experiment` records hashes of measure.sh/checks.sh; `run_experiment` compares them, and a mid-run benchmark change returns a `benchmark_drift` warning (prevents "faking the metric by editing the benchmark").
-- **Secondary-metric constraints** (opt-in): `log_experiment` supports `constraints: [{name, maxPct}]`. On keep, secondary metrics are checked not to exceed maxPct% of the first run's value and rejected otherwise (prevents reward hacking like "trading memory for speed").
+- **Secondary-metric constraints** (opt-in): `log_experiment` supports `constraints: [{name, maxPct}]`. On keep, secondary metrics must stay within maxPct% of the first run's value; anything beyond rejects the keep (prevents reward hacking like "trading memory for speed").
 
 ## Directory structure
 
