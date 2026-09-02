@@ -30,7 +30,7 @@
 
 ### Requirement: run_experiment 运行基准并解析度量
 
-`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB），同时提供完整输出的日志文件路径。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行——增量扫描全部输出、与 METRIC 行在输出中的位置（开头/结尾）无关——`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行）。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"——文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
+`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB），同时提供完整输出的日志文件路径。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行——增量扫描全部输出、与 METRIC 行在输出中的位置（开头/结尾）无关——`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"before", cwd, next_run, last_run, session}`，其中 `last_run` SHALL 透传上一条 run 的 `{run, status, metric, description, asi}`（无上轮或无 asi 时为 null）；钩子失败（非零退出/超时/启动失败）SHALL 不阻断基准执行，但 SHALL 以 `before_steer` 返回错误提示（形如 `[before hook exited N] <stderr 摘要>` 或 `[before hook timed out after 30s]`）；每次触发 SHALL 向 `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", exit_code, duration_ms, stdout_bytes, timed_out}` 观测条目。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"——文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
 
 #### Scenario: 漂移警告
 
@@ -80,7 +80,22 @@
 #### Scenario: before 钩子执行
 
 - **WHEN** `.auto/hooks/before.sh` 存在且可执行，且其 stdout 为一段建议文本
-- **THEN** 钩子在基准前被执行，返回中 `before_steer` 为该文本；钩子不存在或退出码非零时返回为空且基准仍执行
+- **THEN** 钩子在基准前被执行，返回中 `before_steer` 为该文本；钩子不存在时返回为空且基准仍执行
+
+#### Scenario: before 钩子透传 asi
+
+- **WHEN** 账本上一条 run 含 `asi: {hypothesis: "…"}`，before.sh 打印 `last_run.asi.hypothesis`
+- **THEN** 钩子 stdout 包含该 hypothesis 文本（payload 未丢弃 asi）
+
+#### Scenario: 钩子失败可见且不阻断
+
+- **WHEN** before.sh 以退出码 3 失败并输出 stderr
+- **THEN** 返回中 `before_steer` 以 `[before hook exited 3]` 开头并附 stderr 摘要，基准仍执行且 metric 正常解析
+
+#### Scenario: 钩子观测条目
+
+- **WHEN** before.sh 被触发（无论成败）
+- **THEN** `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", …}` 条目，且后续 rebuildState/校验不受影响
 
 #### Scenario: 命令超时
 
@@ -94,7 +109,7 @@
 
 ### Requirement: log_experiment 记录结果并执行 git 语义
 
-`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除 `.auto/` 会话目录**）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免 `.auto/` 目录，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
+`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除 `.auto/` 会话目录**）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免 `.auto/` 目录，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。工具 SHALL 在记录后执行 `.auto/hooks/after.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"after", cwd, run_entry, session}`，其中 `run_entry` SHALL 透传本条 run 的 `{run, status, metric, description, commit, asi}`（无 asi 时为 null）；钩子失败 SHALL 不阻断记录，但 SHALL 以 `after_steer` 返回错误提示；每次触发 SHALL 向 `.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 观测条目。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
 
 - **次级度量约束**：当调用含 `constraints: [{ name, maxPct }]` 且 status=keep 时，工具 SHALL 校验该次级度量（来自本次 run 的 metrics 字典）不超过"当前 segment 首条 run 该度量值"的 maxPct%；超界 SHALL 拒收 keep（返回错误提示放宽约束或改判）；无 constraints 或非 keep 时不校验。
 
@@ -155,8 +170,13 @@
 
 #### Scenario: after 钩子执行
 
-- **WHEN** `.auto/hooks/after.sh` 存在且可执行
-- **THEN** 钩子在记录后被执行，返回中 `after_steer` 为其 stdout；钩子失败不阻断记录
+- **WHEN** `.auto/hooks/after.sh` 存在且可执行，本次记录含 `asi: {hypothesis: "…"}`，after.sh 打印 `run_entry.asi.hypothesis`
+- **THEN** 钩子在记录后被执行，返回中 `after_steer` 为该文本（payload 未丢弃 asi）；`.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 条目
+
+#### Scenario: after 钩子失败可见且不阻断
+
+- **WHEN** after.sh 以非零退出码失败
+- **THEN** 记录正常完成，返回中 `after_steer` 以 `[after hook exited N]` 开头
 
 #### Scenario: doom-loop 检测
 
@@ -236,12 +256,12 @@
 
 ### Requirement: 钩子教学与示例资产
 
-插件 SHALL 提供钩子教学 skill（`autoresearch-hooks`）与开箱即用的示例脚本（`.auto/hooks/` 场景覆盖：防重复失败、换思路、假设反思、学习日志、完成通知、最优实验打标），示例 SHALL 遵循迭代钩子 stdin 契约（before：`event/cwd/next_run/last_run/session`；after：`event/cwd/run_entry/session`），SHALL 不依赖 jq（用 node 解析 stdin），可直接复制到 `.auto/hooks/` 使用。
+插件 SHALL 提供钩子教学 skill（`autoresearch-hooks`）与开箱即用的示例脚本（`.auto/hooks/` 场景覆盖：防重复失败、换思路、假设反思、学习日志、完成通知、最优实验打标），示例 SHALL 遵循迭代钩子 stdin 契约（before：`{event, cwd, next_run, last_run, session}`，`last_run` 含 `asi`；after：`{event, cwd, run_entry, session}`，`run_entry` 含 `asi`），SHALL 不依赖 jq（用 node 解析 stdin），可直接复制到 `.auto/hooks/` 使用。教学 skill SHALL 说明：钩子失败不阻断循环（fail-open）但会以 `*_steer` 返回 `[<stage> hook exited N]` / `[<stage> hook timed out after 30s]` 形式的错误提示，且每次触发会向账本追加 `{"type":"hook",…}` 观测条目。
 
 #### Scenario: 示例可直接使用
 
 - **WHEN** 用户把示例脚本复制到 `.auto/hooks/before.sh` / `after.sh` 并 `chmod +x`
-- **THEN** 循环中按契约触发（before 在 run 前、after 在 log 后），stdout 转 `*_steer`，脚本不因缺 jq 报错
+- **THEN** 循环中按契约触发（before 在 run 前、after 在 log 后），stdout 转 `*_steer`，payload 含 `asi`，脚本不因缺 jq 报错
 
 #### Scenario: 教学 skill 指导编写
 
