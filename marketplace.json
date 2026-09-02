@@ -1,9 +1,9 @@
 {
   "name": "zcode-autoresearch",
-  "description": "ZCode autoresearch plugin: autonomous experiment loop (init/run/log tools, guardrails, static dashboard).",
+  "description": "ZCode autoresearch plugin: autonomous experiment loop (init/run/log tools, guardrails, static + live dashboards).",
   "description_i18n": {
-    "en": "ZCode autoresearch plugin: autonomous experiment loop (init/run/log tools, guardrails, static dashboard).",
-    "zh-CN": "ZCode autoresearch 插件：自主实验循环（init/run/log 工具、护栏、静态 dashboard）。"
+    "en": "ZCode autoresearch plugin: autonomous experiment loop (init/run/log tools, guardrails, static + live dashboards).",
+    "zh-CN": "ZCode autoresearch 插件：自主实验循环（init/run/log 工具、护栏、静态 + 实时 dashboard）。"
   },
   "owner": {
     "name": "luochang212"
