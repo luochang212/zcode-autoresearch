@@ -97,7 +97,7 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 
 ### Requirement: 实验记忆注入
 
-UserPromptSubmit/SessionStart hook SHALL 把 `.auto/log.jsonl` 的会话记忆注入模型上下文，注入内容 SHALL 包含：会话进度（segment/metric/direction/已跑数/上限/baseline/best）、**已尝试方向去重列表**（从各 run 的 description 与 asi.hypothesis 提炼方向标签并去重，提示避免重复尝试）、**best 轨迹**（baseline → 各关键 keep 的 metric 变化）、最近记录摘要（含 ASI 的 hyp/next/rollback 提炼）、以及 **doom-loop 提示**（最近记录呈连续重复或 A→B→A→B 震荡时，提示停止重复并换方向）。注入内容 SHALL 保持精简（聚合后单块文本）。SessionStart hook SHALL 在检测到活动会话（存在 `.auto/log.jsonl` 且 `.auto/config.json` 未设置 `autoresearchOff: true`）时注入续跑引导；设置了 `autoresearchOff` 时不注入续跑提示。
+UserPromptSubmit/SessionStart hook SHALL 把 `.auto/log.jsonl` 的会话记忆注入模型上下文，注入内容 SHALL 包含：会话进度（segment/metric/direction/已跑数/上限/baseline/best）、**已尝试方向去重列表**（从各 run 的 description 与 asi.hypothesis 提炼方向标签并去重，提示避免重复尝试）、**best 轨迹**（baseline → 各关键 keep 的 metric 变化）、**弃用方向与理由**（当前 segment 内带 `asi.rollback` 的 discard/checks_failed 行，与已尝试方向同窗条数，单条理由截断，供 agent 判断旧 discard 的假设是否已被后续结果推翻）、最近记录摘要（含 ASI 的 hyp/next/rollback 提炼）、以及 **doom-loop 提示**（最近记录呈连续重复或 A→B→A→B 震荡时，提示停止重复并换方向）。注入内容 SHALL 保持精简（聚合后单块文本）。SessionStart hook SHALL 在检测到活动会话（存在 `.auto/log.jsonl` 且 `.auto/config.json` 未设置 `autoresearchOff: true`）时注入续跑引导；设置了 `autoresearchOff` 时不注入续跑提示。
 
 #### Scenario: 会话继续
 
@@ -113,6 +113,16 @@ UserPromptSubmit/SessionStart hook SHALL 把 `.auto/log.jsonl` 的会话记忆�
 
 - **WHEN** 账本含 4 条 run，description 分别为"试 sqrt 截断"、"试埃氏筛"、"试 sqrt 截断变体"、"试位运算"
 - **THEN** 注入的"已尝试方向"去重后列出 sqrt 截断 / 埃氏筛 / 位运算（不重复列出变体）
+
+#### Scenario: 弃用方向与理由注入
+
+- **WHEN** 当前 segment 含 discard 行 `#7 asi.rollback: "CPU 已满载"`，且该行不在最近 3 条 run 窗口内
+- **THEN** 注入文本含「弃用方向与理由」行，`#7` 的 rollback 理由可见（不依赖最近 3 条 run 窗口）
+
+#### Scenario: 弃用理由行截断与上限
+
+- **WHEN** 当前 segment 含超过同窗条数的带理由 discard 行，或某条理由超过截断长度
+- **THEN** 注入仅取窗口内条数、每条理由按截断长度收尾，注入总文本保持单块精简
 
 #### Scenario: doom-loop 提示
 
