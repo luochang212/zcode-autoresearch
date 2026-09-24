@@ -18,7 +18,7 @@
 ## 按任务找入口
 
 - 改插件**行为** → openspec change 流程，主规范在 `openspec/specs/`
-- 查插件清单/市场字段 → `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`；契约从仓库文件推导，不从记忆
+- 查插件清单/市场字段 → `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`；契约从仓库文件推导，不从记忆；与上游硬校验的一致性由 `tests/marketplace-contract.test.ts` 守护
 - 查插件使用细节（MCP 工具参数、`.auto/` 会话状态、护栏机制）→ `plugin/README.md`（英文）/ `plugin/README_CN.md`（中文）
 - 懂设计取舍与已否决方向 → `adr/decisions/`
 - 背景研究 → `docs/research/`
@@ -32,7 +32,7 @@
 3. **隐私卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。
 4. **插件改动走 openspec change**：任何行为变更先 `openspec new change`（propose → specs/design/tasks → `openspec validate --strict` → apply → archive），归档时 delta specs 合并进 `openspec/specs/`。
 5. **关键决策用 adrkit**：以下四类必须进 `adr/decisions/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。流程：`adrkit decide "<title>"` 生成于 `adr/decisions/`，补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`。
-6. **测试必须通过**：`cd plugin && node --test tests/*.test.ts`（根目录 `npm test` 等价；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
+6. **测试必须通过**：根目录 `npm test`（= 插件单测 `npm run test:plugin`，即 `cd plugin && node --test tests/*.test.ts`，加上 marketplace 契约检查 `npm run test:contract`；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
 7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `archived/`、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`。
 
 ## 插件架构速览（改动前先读）
@@ -54,7 +54,7 @@
 npm install                                  # 首次克隆后安装开发工具并启用 pre-commit 钩子
 npm run lint / npm run lint:fix              # ESLint 检查 / 自动修复
 npm run fmt / npm run fmt:check              # Prettier 格式化 / 检查
-npm test                                     # 全量测试（等价于 cd plugin && node --test tests/*.test.ts）
+npm test                                     # 全量测试（插件单测 + marketplace 契约检查 tests/marketplace-contract.test.ts）
 openspec validate --specs                    # 主规范校验
 openspec validate --strict <change>          # change 校验
 adrkit validate                              # 决策记录校验

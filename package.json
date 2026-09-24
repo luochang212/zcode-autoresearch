@@ -13,7 +13,9 @@
     "fmt": "prettier --write .",
     "fmt:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "test": "cd plugin && node --test tests/*.test.ts"
+    "test": "npm run test:plugin && npm run test:contract",
+    "test:plugin": "cd plugin && node --test tests/*.test.ts",
+    "test:contract": "node --test tests/*.test.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",
