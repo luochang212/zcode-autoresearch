@@ -44,3 +44,10 @@ init_experiment 与 run_experiment（只报有无，不要调用）。不做其�
 > 第 4 项决定 design D6 的「MCP 工具在 automation turn 可达性」结论。
 > 「Stop hook 是否在 automation turn 触发」列为第二阶段观察（影响每次唤醒跑 1 个还是 1+3 个实验；design D6 已注明两种结果均可用，不阻塞本门禁）——cron 通道验证通过后，在带活跃实验循环的会话里顺带观察。
 > E2E 失败（工具不可用 / 唤醒不触发 / automation turn 不可用）→ 按 tasks.md 1.4 终止 change 并回滚 ADR-7。
+
+## 前提核验（agent 只读侦察，2026-09-24）
+
+- 安装的 ZCode.app 版本 = **3.14.3**，与本地开源 clone（29628c9）一致 → 源码证据适用于安装版运行时
+- `~/.zcode/v2/tasks-index.sqlite` 存在 `automations` / `automation_runs` 表，schema 与源码一致（recurring / max_runs / schedule_rule / lifecycle_status / next_run_at / run_count）
+- `automations` 表当前 0 行：无既有定时任务与测试相互干扰
+- 应用设置内有 Automations 管理界面（AutomationsSection），可在 CronList 之外直观观察任务状态
