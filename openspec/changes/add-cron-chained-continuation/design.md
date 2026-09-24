@@ -29,9 +29,17 @@ automation turn 可能发生在长会话 compaction 之后，对话记忆不可�
 
 循环提前结束（达成目标 / 达限 / 用户 off）后，剩余唤醒为空转 turn（一次轻量模型调用）。清理只能发生在用户交互轮（automation turn 禁 CronDelete）：off/clear/finalize 命令加 CronList+CronDelete 步骤；用户不在场时空转持续到 maxRuns——这是宿主约束下的已知代价，如实文档化（README 已知边界），不试图绕过（例如让唤醒 turn 提示用户删除是唯一合规路径）。
 
-### D6. E2E 门禁先行（消证任务）
+### D6. E2E 门禁先行（消证任务）——已通过（2026-09-25）
 
 源码亲验覆盖了语义，但四点运行时行为未实证：CronCreate 在插件会话的可用性（permission mode / provider 工具面）、唤醒 turn 的真实形态（automationTurn 上下文、模型来源）、Stop hook 是否在 automation turn 触发（触发则每 wake 最多 1+3 个实验，不触发则 1 个——两种结果均可用，仅节奏不同）、唤醒 turn 对 MCP 工具的访问。任务 1 以最小实验矩阵一次跑清，结论回填本文件与 ADR；任一点证伪（如 automation turn 不可用 MCP 工具）则本 change 终止、ADR 回滚。
+
+**E2E 实测结论（真机 ZCode.app 3.14.3，会话 sess_860cf517…，执行单 e2e.md，调度侧由 tasks-index.sqlite 只读旁证、turn 侧由会话 model-IO 记录提取）**：
+
+1. **CronCreate 可用性 ✅**：用户授权后 agent 直接创建成功（每 2 分钟、maxRuns=3、cron `*/2 * * * *`），CronList 可见；恰 3 次后任务自动 `completed` 且 `enabled=0`，有界性实证。
+2. **唤醒 turn 形态 ✅**：3 次唤醒全部落在**同一会话**（automation_runs.session_id 一致 + 同一 model-IO 文件），`querySource=main_turn`（即自动化注入的同会话新 turn，非隔离子环境），模型与交互轮同源（GLM-5.3-Flash，provider 同一账号）。
+3. **空转与防失控 ✅（强于预期）**：宿主防失控为**双层**——不仅 `assertNotAutomationTurn` 会在 automation turn 拒绝 Cron 写调用，实际 automation turn 的**工具面里 CronDelete 根本不可见**（工具清单仅含 CronList，39 个工具无一为 Cron 写）。模型如实报告 `CronDelete: tool not found; automationId … 未删除`。结构性结论：automation turn 物理上无法写 Cron，清理只能在用户交互轮（D5 成立且更强）。maxRuns 到顶自动停、无孤儿任务，`next_run_at` 清空。
+4. **MCP 工具可达 ✅**：唤醒 turn 工具面含插件全部实验工具（`mcp__plugin_autoresearch_autoresearch__{init,run,log,clear}_experiment`），可正常驱动实验循环。
+5. **Stop hook 在 automation turn 是否触发**：本实验矩阵未带活跃循环，未直接观测；按 D6 预案「两种结果均可用，仅节奏不同」，不阻塞门禁——作为第二阶段观察项随真实无人值守使用顺带记录。
 
 ## 非目标
 

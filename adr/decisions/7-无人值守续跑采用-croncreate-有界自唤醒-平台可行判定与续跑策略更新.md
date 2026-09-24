@@ -20,7 +20,7 @@ ADR-3 判定「无限 auto-resume 平台不可行」，续跑策略定格为「S
 
 1. **原判维持的部分**：Stop hook 续跑上限为宿主常量 `MAX_STOP_HOOK_CONTINUATIONS = 3`（apps/zcode-cli/packages/core/src/runtime/methods/hooks.ts:10），「无限 auto-resume 经 Stop hook 不可行」与「确定性 compaction 不可行」（无 PreCompact 事件，事件全集 7 个、`source:"compact"` 声明从未 dispatch）在源码层面坐实，ADR-3/4 原判不变。
 2. **新可行通道**：`CronCreate` 为 agent 可调用工具，`sessionId: context.sessionId` 固定复用当前 session（core/src/tool/handlers/cron.ts:100-109），支持 delayMinutes/interval/maxRuns 有界调度；`assertNotAutomationTurn`（:31-43）禁止 automation turn 写 Cron——宿主级防失控。**有界自唤醒（recurring + maxRuns 的 cron 链）判定为平台可行**，作为续跑策略第三条「用户再触发」的机器等价物。
-3. **边界与前提**：仅在用户明确要求无人值守时创建；唤醒提示自包含（只依赖 `.auto/` 事实源）；清理只能在用户交互轮完成（automation turn 禁 CronDelete），循环提前结束后剩余唤醒空转至 maxRuns——已知代价，如实文档化。源码语义已亲验，端到端链路未实测：实施以真机 E2E 为前置门禁，验证失败则本判定回滚。
+3. **边界与前提**：仅在用户明确要求无人值守时创建；唤醒提示自包含（只依赖 `.auto/` 事实源）；清理只能在用户交互轮完成（automation turn 禁 CronDelete），循环提前结束后剩余唤醒空转至 maxRuns——已知代价，如实文档化。~~源码语义已亲验，端到端链路未实测：实施以真机 E2E 为前置门禁，验证失败则本判定回滚。~~ **E2E 门禁已通过（2026-09-25，真机 ZCode.app 3.14.3）**：CronCreate 可用且恰在 maxRuns 次后自动停（有界性实证）；3 次唤醒全部同会话（session_id 一致）、间隔精确 120s、全部 succeeded；唤醒 turn 工具面含全部 MCP 实验工具；防失控实测为双层结构——automation turn 的工具面不含 CronDelete（仅有 CronList），物理上无法写 Cron，`assertNotAutomationTurn` 是第二道保险。判定成立，change 存活。
 
 用户在 worth-fix 审计（docs/research/change-queue-worth-fix.md §B8）结论上批准立项，方向由人拍板；源码证据由 agent 收集。
 
@@ -33,4 +33,4 @@ ADR-3 判定「无限 auto-resume 平台不可行」，续跑策略定格为「S
 ## Consequences
 
 - 买到的：过夜无人值守有界可行——每唤醒 turn 享 Stop 3 次窗口（最多约 4 个实验），跨 turn 由 cron 链驱动；四层防失控（宿主禁 automation turn 写 Cron、maxRuns、maxIterations/consecutiveFailures 状态机、提示层空转）中三层为结构性控制；ADR-3 的「永久能力差」陈述收敛为「无限续跑不可行、有界自唤醒可行」。
-- 付出的：唤醒任务清理依赖用户交互轮（automation turn 不可删），循环提前结束后剩余唤醒空转至 maxRuns（轻量模型调用的浪费）；无人值守行为依赖宿主 Cron 工具面在目标环境的可用性（E2E 前置门禁，未证前不实施）；SKILL 规程与命令文档新增一套授权/清理语义需与用户沟通。
+- 付出的：唤醒任务清理依赖用户交互轮（E2E 实证 automation turn 工具面无 CronDelete，物理不可删），循环提前结束后剩余唤醒空转至 maxRuns（轻量模型调用的浪费）；无人值守行为依赖宿主 Cron 工具面在目标环境的可用性（E2E 已过，但 Stop hook 是否在 automation turn 触发未观测——两种结果均可用仅节奏不同，随真实使用记录）；SKILL 规程与命令文档新增一套授权/清理语义需与用户沟通。
