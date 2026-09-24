@@ -110,7 +110,7 @@ Setting `"workingDir": "work/"` in `.auto/config.json` separates the research di
 
 ## Known limits (research-backed, see `docs/research/autoresearch-survey.md` §4.1)
 
-- **No session-injection API**: no overnight unattended runs; rely on the 3-window Stop-hook allowance plus user re-triggering to continue.
+- **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (recurring + maxRuns, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
 - **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.
 - `git add -A` commits unrelated dirty files together (known pi inheritance); commit a clean baseline during setup.
 

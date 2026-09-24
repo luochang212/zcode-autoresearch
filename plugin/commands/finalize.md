@@ -23,6 +23,7 @@ Finalize the experiment session into clean, PR-able topic branches.
    ```
    `last_commit` must be the full kept commit hash (`git rev-parse <short>`).
 4. Run `bash ${ZCODE_PLUGIN_ROOT}/scripts/finalize.sh <project dir> <path to groups.json>`.
-5. Report: the created branches (`autoresearch/<goal>/NN-<slug>`), the overall metric improvement, and cleanup notes (`git branch -D` + `rm -r .auto` when done).
+5. **Scheduled wakeups**: run `CronList` and `CronDelete` every remaining `[autoresearch wake]` task of this session (scheduled tasks cannot be deleted from automation turns, so this must happen in a user turn).
+6. Report: the created branches (`autoresearch/<goal>/NN-<slug>`), the overall metric improvement, and cleanup notes (`git branch -D` + `rm -r .auto` when done).
 
 If the script reports a file appearing in multiple groups, merge those groups or re-split and rerun.

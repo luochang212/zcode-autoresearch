@@ -406,6 +406,10 @@ test("stop-continue blocks while the loop is unfinished, with progress", () => {
   assert.equal(out.decision, "block");
   assert.match(out.reason, /实验循环未结束/);
   assert.match(out.reason, /baseline=10/);
+  // Unattended nudge (add-cron-chained-continuation task 3): conditional
+  // advisory sentence rides along in the block reason; no state, no branching.
+  assert.match(out.reason, /unattended 规程/);
+  assert.match(out.reason, /CronCreate/);
 });
 
 test("stop-continue allows the stop on plateau convergence (spec: 放行)", () => {

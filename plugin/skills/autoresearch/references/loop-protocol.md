@@ -43,6 +43,10 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 - Reset everything with `clear_experiments` (`/autoresearch:clear`).
 - When done, run `export_dashboard` for a live URL + static report, then `/autoresearch:finalize` to split kept experiments into topic branches.
 
+## Unattended continuation
+
+If the user authorized unattended operation, scheduled wake-up turns re-enter this loop protocol from step 1 (Review) using only `.auto/` facts; when the session is inactive or off, a wake turn idles with one cheap reply. See `references/unattended.md` for the authorization requirement, CronCreate parameters, the wake prompt template, and cleanup.
+
 ## Iteration hooks
 
 Optional scripts in `.auto/hooks/` that run around every iteration (fail-open):

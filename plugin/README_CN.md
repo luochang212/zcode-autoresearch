@@ -110,7 +110,7 @@ plugin/
 
 ## 已知边界（研究实证，详见报告 §4.1）
 
-- **无会话注入 API**：无过夜无人值守；靠 Stop hook 3 次窗口 + 用户再触发续跑。
+- **无人值守**：双层形态——会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（recurring + maxRuns，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
 - `git add -A` 会把无关脏文件一起 commit（继承 pi 的已知弱点）；setup 时先提交干净基线。
 

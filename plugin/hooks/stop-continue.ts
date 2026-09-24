@@ -71,7 +71,8 @@ if (state.plateau) {
     (detectDoomLoop(state.runs)
       ? `⚠️ 检测到重复/震荡尝试：请停止重复同一假设，换一个结构性不同的方向。\n`
       : "") +
-    `请继续下一个假设：修改代码 → run_experiment → log_experiment（keep/discard）。`;
+    `请继续下一个假设：修改代码 → run_experiment → log_experiment（keep/discard）。\n` +
+    `（若用户已要求无人值守续跑，可按 unattended 规程用 CronCreate 创建有界定时唤醒。）`;
 
   process.stdout.write(JSON.stringify({ decision: "block", reason }));
 }

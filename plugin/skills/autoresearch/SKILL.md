@@ -58,7 +58,12 @@ Drop an executable script into `.auto/hooks/` to run custom logic around every e
 
 Use hooks for things the agent shouldn't do by itself: checking external docs before a change, anti-repetition guards, sending notifications, keeping a learnings journal. Treat `*_steer` as advisory input. Ready-made examples live in `hooks/examples/` (anti-thrash, idea-rotator, hypothesis-reflection, learnings-journal, macos-notify, auto-tag-winners); copy one into `.auto/hooks/` to use it. To write your own, load the `autoresearch-hooks` skill.
 
+## Unattended runs (optional, user-authorized only)
+
+When the user explicitly asks for unattended operation ("run overnight", "无人值守跑"), the loop can keep going across turns: create a scheduled self-wakeup with the host's `CronCreate` tool (recurring + maxRuns, self-contained wake prompt) right after authorization; wake turns re-enter the loop via the `.auto/` facts. Only create the task on explicit user request - an unprompted scheduled wakeup is a scare behavior. Cleanup happens in user turns (`/autoresearch:off` / `/autoresearch:clear` / `/autoresearch:finalize` include the CronList + CronDelete step); leftover wakes idle cheaply until maxRuns if the loop ends early. Full protocol: `references/unattended.md`
+
 ## Details
 
 - Setup guide (target → metric → measure.sh → checks.sh): `references/setup-guide.md`
 - Full loop protocol and failure handling: `references/loop-protocol.md`
+- Unattended continuation (scheduled self-wakeup, authorization + template + cleanup): `references/unattended.md`
