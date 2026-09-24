@@ -31,9 +31,24 @@
 2. **零第三方依赖**：插件所有代码只允许 Node（≥24）标准库（`plugin/` 无 `package.json` 依赖、无 `node_modules`、无 `npm install` 流程）。hooks 与 MCP server 都是 `.ts`，由 Node 原生剥离类型直接运行（无构建步骤）。仓库根 `package.json` 仅存开发工具 devDependencies，不进 `plugin/`，不违反本条。
 3. **隐私卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。
 4. **插件改动走 openspec change**：任何行为变更先 `openspec new change`（propose → specs/design/tasks → `openspec validate --strict` → apply → archive），归档时 delta specs 合并进 `openspec/specs/`。
-5. **关键决策用 adrkit**：以下四类必须进 `adr/decisions/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。流程：`adrkit decide "<title>"` 生成于 `adr/decisions/`，补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`。
+5. **关键决策用 adrkit**：以下四类必须进 `adr/decisions/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。流程：`adrkit decide "<title>" --raised-by human|agent --decided-by human|agent` 生成于 `adr/decisions/`（两个声明须如实标注：谁把决策摆上桌面、谁的判断拍板），补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`。
 6. **测试必须通过**：根目录 `npm test`（= 插件单测 `npm run test:plugin`，即 `cd plugin && node --test tests/*.test.ts`，加上 marketplace 契约检查 `npm run test:contract`；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
 7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `archived/`、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`。
+
+## Reading architecture decisions
+
+At the start of a coding, design, or review task, if `adr/` exists, run
+`adrkit list` and read every decision in full with `adrkit show <N>` (or read
+its file). ADR sets are small; do not filter by title alone. Treat accepted
+records as decision context, superseded records as history, and pending
+drafts as unaccepted proposals. Check relevant decisions against current
+code and the task's requirements. Apply the constraints that still hold;
+explain conflicts or changed assumptions before choosing a different approach.
+Mention relevant ADR numbers in the implementation or review summary and
+verify the affected behavior. If no decisions apply, continue normally;
+reading does not require creating an ADR. Re-read on a new or resumed task,
+or when scope or relevant files change, rather than relying on conversation
+memory.
 
 ## 插件架构速览（改动前先读）
 

@@ -1,6 +1,8 @@
 ---
 status: accepted
 date: 2026-08-28
+raised-by: agent
+decided-by: human
 created: 2026-08-28
 commit: 9720d48
 tags: [plugin-architecture, typescript, tooling]
