@@ -23,4 +23,5 @@ jobs:
       - run: npm run fmt:check
       - run: npm run typecheck
       - run: npx adrkit validate
+      - run: npx openspec validate --specs --strict
       - run: npm test
