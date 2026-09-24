@@ -15,6 +15,7 @@ workflows:
   - init
   - decide
   - validate
+installed-with: 0.13.0
 
 # Optional per-status conventions. These are hints for writers and agents;
 # validate does not enforce them (it cannot check prose).
