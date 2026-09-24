@@ -37,7 +37,7 @@ automation turn 可能发生在长会话 compaction 之后，对话记忆不可�
 
 1. **CronCreate 可用性 ✅**：用户授权后 agent 直接创建成功（每 2 分钟、maxRuns=3、cron `*/2 * * * *`），CronList 可见；恰 3 次后任务自动 `completed` 且 `enabled=0`，有界性实证。
 2. **唤醒 turn 形态 ✅**：3 次唤醒全部落在**同一会话**（automation_runs.session_id 一致 + 同一 model-IO 文件），`querySource=main_turn`（即自动化注入的同会话新 turn，非隔离子环境），模型与交互轮同源（GLM-5.3-Flash，provider 同一账号）。
-3. **空转与防失控 ✅（强于预期）**：宿主防失控为**双层**——不仅 `assertNotAutomationTurn` 会在 automation turn 拒绝 Cron 写调用，实际 automation turn 的**工具面里 CronDelete 根本不可见**（工具清单仅含 CronList，39 个工具无一为 Cron 写）。模型如实报告 `CronDelete: tool not found; automationId … 未删除`。结构性结论：automation turn 物理上无法写 Cron，清理只能在用户交互轮（D5 成立且更强）。maxRuns 到顶自动停、无孤儿任务，`next_run_at` 清空。
+3. **空转与防失控 ✅（强于预期）**：宿主防失控为**双层**——不仅 `assertNotAutomationTurn` 会在 automation turn 拒绝 Cron 写调用，实际 automation turn 的**工具面里 CronDelete 根本不可见**（工具清单仅含 CronList，39 个工具无一为 Cron 写；应用日志证实三次唤醒 turn 均未发起任何工具调用——清单里没有的工具，模型物理上无法调用）。注：唤醒 turn 模型输出中那段「CronDelete: tool not found…」是模型未见该工具后自行撰写的说明文字，并非宿主真实回执。结构性结论：automation turn 物理上无法写 Cron，清理只能在用户交互轮（D5 成立且更强）。maxRuns 到顶自动停、无孤儿任务，`next_run_at` 清空。
 4. **MCP 工具可达 ✅**：唤醒 turn 工具面含插件全部实验工具（`mcp__plugin_autoresearch_autoresearch__{init,run,log,clear}_experiment`），可正常驱动实验循环。
 5. **Stop hook 在 automation turn 是否触发**：本实验矩阵未带活跃循环，未直接观测；按 D6 预案「两种结果均可用，仅节奏不同」，不阻塞门禁——作为第二阶段观察项随真实无人值守使用顺带记录。
 
