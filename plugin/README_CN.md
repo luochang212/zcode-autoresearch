@@ -44,13 +44,13 @@
 
 ## 工具（MCP）
 
-| 工具                | 作用                                                                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                  |
-| `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                        |
-| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示、执行 `after.sh` 钩子 |
-| `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                       |
-| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                             |
+| 工具                | 作用                                                                                                                                                                                                                                                                                                                                           |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                                                                                                                                                                                       |
+| `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                                                                                                                                                                                             |
+| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
+| `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                                                                                                                                                                                            |
+| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                                                                                                                                                                                                  |
 
 ## 护栏
 
@@ -59,7 +59,7 @@
 - **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` 的写入。
 - **工具门禁（近似）**：无会话时 PermissionRequest hook deny 实验工具（仅覆盖经权限询问的调用）。
 - **自动激活提示**：SessionStart 检测活动会话时注入续跑引导；`/autoresearch:off` 可暂停（`autoresearchOff: true`）。
-- **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。
+- **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。
 - **循环续跑**：Stop hook 在循环未结束时 `decision:block`（zcode 平台限制连续 3 次窗口）。
 - **迭代钩子**：`.auto/hooks/before.sh`（基准前）与 `after.sh`（记录后）每次实验自动执行（fail-open，30s 超时，stdout→`*_steer`）。
 - **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/` 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 即用（node 解析，无 jq 依赖）。

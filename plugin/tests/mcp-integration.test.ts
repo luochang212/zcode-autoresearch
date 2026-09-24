@@ -678,3 +678,161 @@ test("logging a crash does not block the next run via .auto dirtiness", async ()
     assert.match(String(blocked.error), /crash/);
   });
 });
+
+test("revisit_nudge: only a rollback-reasoned discard in the current segment triggers it", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // no discard rows yet → field omitted entirely
+    appendFileSync(join(cwd, "code.js"), "// v2\n");
+    const keep1 = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "baseline",
+    });
+    assert.equal(keep1.ok, true);
+    assert.equal(keep1.revisit_nudge, undefined);
+    // a discard without a rollback reason is nothing to revisit
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const disc1 = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 43,
+      description: "worse, no reason given",
+    });
+    assert.equal(disc1.ok, true);
+    assert.equal(disc1.revisit_nudge, undefined);
+    // a discard with a rollback reason arms the nudge for the next log
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const disc2 = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 44,
+      description: "worse again",
+      asi: { hypothesis: "h", rollback: "CPU saturated" },
+    });
+    assert.equal(disc2.ok, true);
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v3\n");
+    const keep2 = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 41,
+      description: "improvement",
+    });
+    assert.equal(keep2.ok, true);
+    assert.equal(typeof keep2.revisit_nudge, "string");
+    assert.match(
+      String(keep2.revisit_nudge),
+      /invalidates a previous discard's rollback reason/,
+    );
+    assert.match(String(keep2.revisit_nudge), /asi\.revisits_run/);
+    // existing contract fields are untouched by the extra field
+    assert.equal(keep2.logged, true);
+    assert.equal(keep2.status, "keep");
+    assert.equal(keep2.metric, 41);
+    assert.equal(typeof keep2.next_action_hint, "string");
+    assert.ok(keep2.confidence, "confidence still returned");
+    // a new segment resets the trigger: the old discard must not carry over
+    await s.tool("init_experiment", { name: "t2", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v4\n");
+    const keep3 = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 41,
+      description: "new segment",
+    });
+    assert.equal(keep3.ok, true);
+    assert.equal(keep3.revisit_nudge, undefined);
+  });
+});
+
+test("asi.revisits_run passes through to ledger and after hook, unvalidated", async () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".auto", "hooks", "after.sh"),
+    '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));if(p.run_entry&&p.run_entry.asi)console.log("revisits:"+p.run_entry.asi.revisits_run)\'\n',
+  );
+  execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "after.sh")]);
+  const runRows = () =>
+    readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l))
+      .filter((r) => r.type === "run");
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// c\n");
+    const log = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "retry the parallel build",
+      asi: {
+        revisits_run: 7,
+        hypothesis: "cache warmed, retry parallel build",
+      },
+    });
+    assert.equal(log.ok, true);
+    assert.equal(runRows()[0]?.asi?.revisits_run, 7);
+    assert.equal(log.after_steer, "revisits:7");
+    // advisory passthrough: a dangling run number is recorded, not rejected
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const log2 = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 42,
+      description: "dangling revisits_run",
+      asi: { revisits_run: 999 },
+    });
+    assert.equal(log2.ok, true);
+    assert.equal(runRows()[1]?.asi?.revisits_run, 999);
+  });
+});
+
+test("confidence snapshot: ledger row matches the returned value, crash row safe", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v2\n");
+    const k1 = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "baseline",
+    });
+    // too little data to judge: no returned confidence and no snapshot
+    assert.equal(k1.confidence, null);
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const d2 = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 43,
+      description: "worse",
+    });
+    assert.equal(d2.confidence, null);
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v3\n");
+    const k3 = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 41,
+      description: "improve",
+    });
+    // values 42/43/41: median 42, MAD 1, |best-baseline|/MAD = 1 → yellow
+    assert.deepEqual(k3.confidence, { level: "yellow", value: 1 });
+    const runRows = () =>
+      readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+        .split("\n")
+        .filter((l) => l.trim())
+        .map((l) => JSON.parse(l))
+        .filter((r) => r.type === "run");
+    assert.equal(runRows()[0]?.confidence, undefined); // legacy-style row
+    assert.deepEqual(runRows()[2]?.confidence, k3.confidence);
+    // crash row: metric null, snapshot over the existing values, no throw
+    const crash = await s.tool("log_experiment", {
+      status: "crash",
+      description: "boom",
+    });
+    assert.equal(crash.ok, true);
+    const crashRow = runRows()[3];
+    assert.equal(crashRow?.metric, null);
+    assert.deepEqual(crashRow?.confidence, { level: "yellow", value: 1 });
+  });
+});

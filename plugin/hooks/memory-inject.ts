@@ -64,6 +64,23 @@ if (steps.length > 0) {
   lines.push(`best 轨迹：${state.baseline ?? "—"} → ${traj.join(" → ")}。`);
 }
 
+// Discard reasons (design D5): why each rejected direction was dropped, so a
+// later result can be checked against them even outside the 3-run recent
+// window. Same window as the tried-directions list, one line, reasons
+// truncated to keep the injection slim.
+const discardItems: string[] = [];
+for (const r of state.runs) {
+  if (r.status !== "discard" && r.status !== "checks_failed") continue;
+  const raw = r.asi?.rollback;
+  if (typeof raw !== "string" || raw.trim() === "") continue;
+  const reason = raw.trim();
+  const truncated = reason.length > 60 ? reason.slice(0, 60) + "…" : reason;
+  discardItems.push(`#${r.run} ${truncated}`);
+}
+const discardList = discardItems.slice(-8);
+if (discardList.length > 0)
+  lines.push(`弃用方向与理由：${discardList.join("；")}。`);
+
 // Recent runs with ASI extraction
 const recent = state.runs
   .slice(-3)

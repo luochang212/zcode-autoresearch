@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { renderDashboard } from "../mcp/lib/dashboard.ts";
+import { renderDashboard, renderLiveDashboard } from "../mcp/lib/dashboard.ts";
 import type { LedgerRun, SessionState } from "../mcp/lib/types.ts";
 
 function sampleState(
@@ -332,4 +332,26 @@ test("renderer: no trend below two valid points", () => {
   );
   assert.doesNotMatch(html, /<svg/);
   assert.match(html, /badge noop">no-op/);
+});
+
+test("renderer: revisits_run marker renders only for positive integers", () => {
+  const state = sampleState([
+    ["keep", 100],
+    ["discard", 105],
+    ["keep", 60],
+    ["noop", null],
+  ]);
+  state.runs[0].asi = { revisits_run: 3 }; // valid → ↻ Revisiting #3
+  state.runs[1].asi = { revisits_run: -1 }; // non-positive → plain row
+  state.runs[2].asi = { revisits_run: 0 }; // non-positive → plain row
+  state.runs[3].asi = { revisits_run: "2" }; // not an integer → plain row
+  const html = renderDashboard(state);
+  assert.match(html, /↻ Revisiting #3/);
+  assert.doesNotMatch(html, /Revisiting #0/);
+  assert.doesNotMatch(html, /Revisiting #-1/);
+  assert.doesNotMatch(html, /Revisiting #2/);
+  // the rest of the marked row renders unchanged
+  assert.match(html, /<span class="revisits">↻ Revisiting #3<\/span><\/td>/);
+  // the live dashboard shares the same render path
+  assert.match(renderLiveDashboard(state), /↻ Revisiting #3/);
 });

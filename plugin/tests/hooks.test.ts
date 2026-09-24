@@ -202,6 +202,179 @@ test("memory-inject warns on doom loop", () => {
   assert.match(out.hookSpecificOutput.additionalContext, /震荡/);
 });
 
+const discardLine = (ctx: string): string | undefined =>
+  ctx.split("\n").find((l: string) => l.startsWith("弃用方向与理由"));
+
+test("memory-inject injects discard reasons from outside the 3-run window", () => {
+  const cwd = tempCwd();
+  seedLedger(cwd, [
+    cfgLine,
+    {
+      type: "run",
+      run: 1,
+      segment: 1,
+      status: "discard",
+      metric: 60,
+      description: "parallel build",
+      asi: { rollback: "CPU 已满载" },
+    },
+    {
+      type: "run",
+      run: 2,
+      segment: 1,
+      status: "keep",
+      metric: 50,
+      description: "improvement two",
+    },
+    {
+      type: "run",
+      run: 3,
+      segment: 1,
+      status: "keep",
+      metric: 48,
+      description: "improvement three",
+    },
+    {
+      type: "run",
+      run: 4,
+      segment: 1,
+      status: "keep",
+      metric: 47,
+      description: "improvement four",
+    },
+    {
+      type: "run",
+      run: 5,
+      segment: 1,
+      status: "keep",
+      metric: 46,
+      description: "improvement five",
+    },
+  ]);
+  const out = JSON.parse(
+    runHook(
+      "memory-inject.ts",
+      cwd,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go" }),
+    ),
+  );
+  const ctx = out.hookSpecificOutput.additionalContext;
+  const line = discardLine(ctx);
+  assert.ok(line, "discard-reasons line injected");
+  assert.match(line, /#1 CPU 已满载/);
+});
+
+test("memory-inject truncates discard reasons and caps the list at 8", () => {
+  const cwd = tempCwd();
+  const entries: LedgerEntry[] = [cfgLine];
+  for (let i = 1; i <= 10; i++) {
+    entries.push({
+      type: "run",
+      run: i,
+      segment: 1,
+      status: "discard",
+      metric: 60 + i,
+      description: `direction number ${i}`,
+      asi: { rollback: i === 5 ? "a".repeat(70) : `reason ${i}` },
+    } as LedgerRun);
+  }
+  seedLedger(cwd, entries);
+  const out = JSON.parse(
+    runHook(
+      "memory-inject.ts",
+      cwd,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go" }),
+    ),
+  );
+  const line = discardLine(out.hookSpecificOutput.additionalContext);
+  assert.ok(line, "discard-reasons line injected");
+  // a 70-char reason is cut to 60 chars plus an ellipsis
+  assert.match(line, /#5 a{60}…/);
+  assert.doesNotMatch(line, /a{61}/);
+  // the window keeps only the last 8 qualifying rows (#3..#10)
+  const items = line!
+    .replace(/^弃用方向与理由：/, "")
+    .replace(/。$/, "")
+    .split("；");
+  assert.equal(items.length, 8);
+  assert.ok(items[0].startsWith("#3 "));
+  assert.ok(items[items.length - 1].startsWith("#10 "));
+});
+
+test("memory-inject omits the discard-reason line when nothing qualifies", () => {
+  const cwd = tempCwd();
+  // keeps plus a reason-less discard → no line
+  seedLedger(cwd, [
+    cfgLine,
+    {
+      type: "run",
+      run: 1,
+      segment: 1,
+      status: "keep",
+      metric: 10,
+      description: "baseline keep",
+    },
+    {
+      type: "run",
+      run: 2,
+      segment: 1,
+      status: "discard",
+      metric: 12,
+      description: "worse without a reason",
+    },
+  ]);
+  const out = JSON.parse(
+    runHook(
+      "memory-inject.ts",
+      cwd,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go" }),
+    ),
+  );
+  const ctx = out.hookSpecificOutput.additionalContext;
+  assert.equal(discardLine(ctx), undefined);
+  assert.match(ctx, /已尝试方向：/, "other injection content unaffected");
+  // a discard from an earlier segment does not leak into the current one
+  const cwd2 = tempCwd();
+  seedLedger(cwd2, [
+    cfgLine,
+    {
+      type: "run",
+      run: 1,
+      segment: 1,
+      status: "discard",
+      metric: 12,
+      description: "old segment",
+      asi: { rollback: "old reason" },
+    },
+    {
+      type: "config",
+      segment: 2,
+      name: "s2",
+      metricName: "m",
+      direction: "lower",
+    },
+    {
+      type: "run",
+      run: 1,
+      segment: 2,
+      status: "keep",
+      metric: 10,
+      description: "new segment baseline",
+    },
+  ]);
+  const out2 = JSON.parse(
+    runHook(
+      "memory-inject.ts",
+      cwd2,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go" }),
+    ),
+  );
+  assert.equal(
+    discardLine(out2.hookSpecificOutput.additionalContext),
+    undefined,
+  );
+});
+
 test("stop-continue blocks while the loop is unfinished, with progress", () => {
   const cwd = tempCwd();
   seedLedger(cwd, [

@@ -60,9 +60,10 @@ src/**, .auto/prompt.md
 # What's Been Tried
 
 (baseline) no change, 42ms
+(discard) memoize sort keys, 44ms; revisit if the memory cap is lifted
 ```
 
-Update **What's Been Tried** after every experiment; it is your loop memory along with the ledger.
+Update **What's Been Tried** after every experiment; it is your loop memory along with the ledger. When you discard an idea, also record the conditions under which it would be worth revisiting (as above: "revisit if ..."), so the judgment survives compaction and the `revisit_nudge` from `log_experiment` can be checked against real reasons instead of guesses.
 
 ## 4b. Define secondary-metric constraints (optional)
 

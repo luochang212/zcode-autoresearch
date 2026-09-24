@@ -137,7 +137,16 @@ function renderBody(state: SessionState, live: boolean): string {
             : r.status === "noop"
               ? "noop"
               : "crash";
-      return { i: i + 1, run: r, deltaText, improved, cls };
+      // Grounded-revisit marker: only a positive integer counts; anything
+      // else (missing, 0, negative, non-numeric) renders the plain row.
+      const revisits = r.asi?.revisits_run;
+      const revisitsN =
+        typeof revisits === "number" &&
+        Number.isInteger(revisits) &&
+        revisits > 0
+          ? revisits
+          : null;
+      return { i: i + 1, run: r, deltaText, improved, cls, revisitsN };
     })
     .reverse(); // newest first
 
@@ -202,6 +211,7 @@ function renderBody(state: SessionState, live: boolean): string {
   .badge.noop { background: var(--badge-neutral-bg); }
   code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: .85em; }
   .desc { max-width: 340px; overflow-wrap: anywhere; }
+  .revisits { color: var(--muted); font-size: .8rem; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -235,7 +245,7 @@ ${rows
   <td>${fmtMetric(r.run.metric)}</td>
   <td class="${r.cls}">${r.improved ? "▲" : "▼"} ${escapeHtml(r.deltaText)}</td>
   <td>${r.run.commit ? `<code>${escapeHtml(r.run.commit)}</code>` : "—"}</td>
-  <td class="desc">${escapeHtml(r.run.description ?? "")}</td>
+  <td class="desc">${escapeHtml(r.run.description ?? "")}${r.revisitsN != null ? ` <span class="revisits">↻ Revisiting #${r.revisitsN}</span>` : ""}</td>
 </tr>`,
   )
   .join("\n")}

@@ -9,6 +9,7 @@ import {
   readSessionConfig,
   LOG_FILE,
 } from "../mcp/lib/ledger.ts";
+import { validateLedger } from "../mcp/lib/validate.ts";
 
 function tempCwd() {
   return mkdtempSync(join(tmpdir(), "ar-ledger-"));
@@ -183,4 +184,35 @@ test("rebuildState: noop resets the consecutive-failure streak without counting"
   });
   state = rebuildState(cwd);
   assert.equal(state.consecutiveFailures, 1); // restarts from zero
+});
+
+test("legacy rows without a confidence field replay through rebuildState and the audit", () => {
+  const cwd = tempCwd();
+  appendLedgerEntry(cwd, {
+    type: "config",
+    segment: 1,
+    name: "s",
+    metricName: "time_ms",
+    direction: "lower",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 1,
+    status: "keep",
+    metric: 42,
+    description: "baseline",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 2,
+    status: "keep",
+    metric: 40,
+    description: "improved",
+  });
+  const state = rebuildState(cwd, { maxIterations: 20 });
+  assert.equal(state.runs.length, 2);
+  assert.equal(state.runs[0].confidence, undefined); // legacy row: absent, tolerated
+  assert.equal(state.baseline, 42);
+  assert.equal(state.best, 40);
+  assert.deepEqual(validateLedger(state.runs, state.config), []);
 });

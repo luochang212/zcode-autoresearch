@@ -37,6 +37,9 @@ export interface LedgerRun {
   commit?: string | null;
   checksFailed?: boolean;
   failedGuard?: boolean;
+  /** confidence snapshot at record time (log_experiment); absent on legacy
+   *  rows and whenever the computation had too little data to judge. */
+  confidence?: ConfidenceSnapshot | null;
   asi?: Asi | null;
   timestamp?: string;
   /** merged in by rebuildState: the config entry this run belongs to. */
@@ -74,6 +77,12 @@ export interface RunLike {
 export interface Confidence {
   confidence: number;
   level: "red" | "yellow" | "green";
+}
+
+/** Confidence snapshot persisted on run rows by log_experiment. */
+export interface ConfidenceSnapshot {
+  level: Confidence["level"];
+  value: number;
 }
 
 /** Session state rebuilt from the ledger (see ledger.rebuildState). */

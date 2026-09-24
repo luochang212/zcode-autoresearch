@@ -18,6 +18,8 @@ import {
   unwrapMeasureCommand,
   median,
   detectDoomLoop,
+  computeConfidence,
+  isBetter,
 } from "./lib/experiment.ts";
 import {
   autoPaths,
@@ -41,6 +43,7 @@ import {
   broadcastDashboardUpdate,
 } from "./lib/dashboard-server.ts";
 import type {
+  Confidence,
   Direction,
   LedgerRun,
   RunStatus,
@@ -158,6 +161,35 @@ function sessionState() {
     consecutiveFailures: consecutiveFailures(),
   });
 }
+
+/**
+ * Confidence over a segment's runs (design D4): the same aggregation
+ * rebuildState performs (baseline = first valid metric, best = best keep,
+ * MAD over the finite values), kept next to the server so the ledger snapshot
+ * and the returned confidence share a single computation.
+ */
+function confidenceForSegment(
+  runs: LedgerRun[],
+  direction: Direction,
+): Confidence | null {
+  let baseline: number | null = null;
+  let best: number | null = null;
+  const values: number[] = [];
+  for (const r of runs) {
+    if (baseline == null && r.metric != null) baseline = r.metric;
+    if (r.status === "keep" && r.metric != null) {
+      if (best == null || isBetter(r.metric, best, direction)) best = r.metric;
+    }
+    if (r.metric != null && Number.isFinite(r.metric)) values.push(r.metric);
+  }
+  if (values.length === 0) return null;
+  return computeConfidence({ values, baseline, best });
+}
+
+// Revisit nudge (design D2): the standing check that keeps a discard from
+// being forever. Advisory only, so a single fixed string covers every trigger.
+const REVISIT_NUDGE =
+  "revisit check: before choosing the next experiment, check whether the latest result invalidates a previous discard's rollback reason (see the asi.rollback field on the discard/checks_failed rows in the ledger); if yes: name what changed and weigh a targeted retry of that discard (annotate it with asi.revisits_run: <run number>); if no: move on; verification reruns for measurement noise are separate and do not carry the annotation.";
 
 function truncateTail(
   text: unknown,
@@ -891,6 +923,20 @@ async function toolLogExperiment(
     ...(status === "checks_failed" ? { checksFailed: true } : {}),
     timestamp: new Date().toISOString(),
   };
+  // Confidence snapshot (design D4): computed once over "existing runs + this
+  // entry" before the ledger write; the return value below reuses the same
+  // computation so the row and the response can never disagree. A crash row
+  // carries metric null and simply contributes nothing to the values.
+  const confSnapshot = confidenceForSegment(
+    [...state.runs, entry],
+    state.config?.direction ?? "lower",
+  );
+  if (confSnapshot) {
+    entry.confidence = {
+      level: confSnapshot.level,
+      value: Number(confSnapshot.confidence.toFixed(2)),
+    };
+  }
 
   appendLedgerEntry(cwd, entry);
   // The pending run is now accounted for — clear the keep-gate state.
@@ -906,12 +952,24 @@ async function toolLogExperiment(
   });
   const baseline = nextState.baseline;
   const best = nextState.best;
-  const conf = nextState.confidence;
+  // Single source (design D4): the same snapshot written into the ledger row,
+  // not a second computation over the rewritten state.
+  const conf = confSnapshot;
   const delta =
     metric != null && baseline != null
       ? (metric - baseline) *
         (nextState.config?.direction === "higher" ? 1 : -1)
       : null;
+
+  // Revisit nudge trigger (design D2): a discard/checks_failed row with a
+  // rollback reason in the current segment may have been invalidated by the
+  // latest result. Advisory; the field is omitted when there is nothing to
+  // revisit (no rows, or rows without reasons).
+  const revisitWorthy = state.runs.some((r) => {
+    if (r.status !== "discard" && r.status !== "checks_failed") return false;
+    const reason = r.asi?.rollback;
+    return typeof reason === "string" && reason.trim() !== "";
+  });
 
   return {
     ok: true,
@@ -931,6 +989,7 @@ async function toolLogExperiment(
     doom_loop: detectDoomLoop(nextState.runs)?.doomLoop ?? false,
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
+    ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
     next_action_hint:
       nextState.runs.length >=
       (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
