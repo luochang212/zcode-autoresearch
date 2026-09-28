@@ -1,29 +1,10 @@
 ---
 name: adrkit-validate
-description: Use when checking whether ADR files follow the ADR Kit format, especially before accepting a proposal or committing.
+description: Use when checking ADR record format before implementation, rejection, archival, or commit.
 ---
 
 # ADR Kit Validate
 
-## Overview
+Run `adrkit validate [name]` for one record or `adrkit validate` for the repository. All four lifecycle folders are checked. A fresh proposal or record template intentionally fails until required sections contain real content. Fix the exact reported requirement; do not add placeholder prose merely to pass. Validate again after every lifecycle move.
 
-Run the machine checks for one record or the whole repository.
-
-## Steps
-
-```bash
-adrkit validate [name] [--all]
-```
-
-- With no `name`, the whole repository is validated.
-- `name` resolves by title, file name, or decision number.
-
-## Rules
-
-- Treat any non-OK output as a blocker for `adrkit accept`.
-- A `front matter must include "raised-by"` or `"decided-by"` issue on a
-  record that lacks the field is not yours to repair on a hunch: the value
-  comes from whoever knows where that choice came from — your own judgment, or
-  the person who directed it — so ask when you do not.
-- `adrkit validate` checks durable decisions only; a draft in `adr/.drafts/`
-  is validated by `adrkit accept` right before it is promoted.
+Repository-wide validation also checks the archive seal: `adr/archived/MANIFEST.json` must cover exactly the archived records and match their bytes. When it reports drift — edited bytes, an unsealed file, a missing file, a malformed or missing manifest — restore the sealed bytes, the manifest entry, or the empty manifest; never re-seal changed archived content to make the check pass. Before pushing, `adrkit validate --base <git-ref>` additionally proves the archive only grew since that ref: entries sealed at the base must remain byte-identical, so a coordinated edit of an archived file and its hash still fails. A base that carries no readable manifest fails.
