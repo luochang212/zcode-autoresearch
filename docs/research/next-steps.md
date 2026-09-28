@@ -59,7 +59,7 @@
 
 ## 5. 决策记录
 
-- **ADR-4**（`adr/decisions/4-next-steps-*.md`）：不可行项维持平台硬顶（auto-resume/widget/overlay/settle），确定性 compaction 升级为"低成本变相"（memory-inject 增强，P0）；下一步优先 P0 两件（memory-inject 增强 + doom-loop 检测），随后 P1 决策引擎与信任预检——生态借鉴聚焦"确定性逻辑"，避开平台不可行区。
+- **ADR-4**（`adr/implemented/4-next-steps-*.md`）：不可行项维持平台硬顶（auto-resume/widget/overlay/settle），确定性 compaction 升级为"低成本变相"（memory-inject 增强，P0）；下一步优先 P0 两件（memory-inject 增强 + doom-loop 检测），随后 P1 决策引擎与信任预检——生态借鉴聚焦"确定性逻辑"，避开平台不可行区。
 
 ## 附录：证据索引
 

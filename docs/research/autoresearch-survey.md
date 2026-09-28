@@ -329,10 +329,10 @@ zcode-autoresearch/
 
 ## 7. 关键决策记录
 
-本研究产出的关键决策已用 adr-kit 记录（详见 `adr/decisions/`）：
+本研究产出的关键决策已用 adr-kit 记录（详见 `adr/implemented/`）：
 
-- **ADR-1**（`adr/decisions/1-…-mcp-tools-skill-hooks-architecture.md`）：zcode autoresearch 插件采用「MCP 工具承载机制 + skill 承载流程 + hooks 承载护栏与续跑」的形态（§6.1）。形态可行性经 §4.1 运行验证：MCP 长驻、hooks 协议（Stop 续跑 3 次上限、PreToolUse deny）均确认，续跑策略按"无会话注入 API"修订（§6.2-1）。
-- **ADR-2**（`adr/decisions/2-…-commit-on-keep-discard-working-tree-otherwise.md`）：实验回滚采用「keep 才 commit、非 keep 丢弃工作区改动（豁免 `.auto/`）」语义（§6.2-2）。
+- **ADR-1**（`adr/implemented/1-…-mcp-tools-skill-hooks-architecture.md`）：zcode autoresearch 插件采用「MCP 工具承载机制 + skill 承载流程 + hooks 承载护栏与续跑」的形态（§6.1）。形态可行性经 §4.1 运行验证：MCP 长驻、hooks 协议（Stop 续跑 3 次上限、PreToolUse deny）均确认，续跑策略按"无会话注入 API"修订（§6.2-1）。
+- **ADR-2**（`adr/implemented/2-…-commit-on-keep-discard-working-tree-otherwise.md`）：实验回滚采用「keep 才 commit、非 keep 丢弃工作区改动（豁免 `.auto/`）」语义（§6.2-2）。
 
 ## 附录：证据索引
 

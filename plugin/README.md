@@ -4,7 +4,7 @@
 
 Let the ZCode coding agent iterate autonomously on a fixed, mechanical metric: modify code → run the benchmark → keep improvements, revert regressions → repeat.
 
-Based on research into [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) (see `docs/research/autoresearch-survey.md`). Architecture decisions live in `adr/decisions/`.
+Based on research into [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) (see `docs/research/autoresearch-survey.md`). Architecture decisions live in `adr/implemented/`.
 
 ## Security and side effects
 

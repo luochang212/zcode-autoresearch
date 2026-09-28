@@ -42,7 +42,7 @@
 
 ### Requirement: 关键决策必须沉淀为 ADR
 
-研究产出的关键结论（如推荐形态、核心机制取舍）SHALL 以 adr-kit 记录为编号决策（`adrkit decide`），报告 MUST 引用对应 ADR 编号。
+研究产出的关键结论（如推荐形态、核心机制取舍）SHALL 以 adr-kit 记录为编号决策（`adrkit record`），报告 MUST 引用对应 ADR 编号。
 
 #### Scenario: 报告与 ADR 互相引用
 

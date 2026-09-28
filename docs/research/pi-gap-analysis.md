@@ -143,7 +143,7 @@
 
 ## 5. 决策记录
 
-- **ADR-3**（`adr/decisions/3-pi-gap-catch-up-priority-*.md`）：追平优先级——里程碑 1（迭代钩子/clear/ASI 提炼/停摆参数）先行；平台不可行项（compaction 摘要、无限 auto-resume、widget/overlay）明确放弃，以 memory-inject、Stop 3 次窗口、静态 dashboard 作为最终形态。
+- **ADR-3**（`adr/implemented/3-pi-gap-catch-up-priority-*.md`）：追平优先级——里程碑 1（迭代钩子/clear/ASI 提炼/停摆参数）先行；平台不可行项（compaction 摘要、无限 auto-resume、widget/overlay）明确放弃，以 memory-inject、Stop 3 次窗口、静态 dashboard 作为最终形态。
 
 ## 附录：证据索引
 
