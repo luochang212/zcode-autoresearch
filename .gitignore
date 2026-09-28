@@ -1,4 +1,5 @@
-archived/
+# 根目录草稿本（adrkit 0.14 的 adr/archived/ 是受封条保护的正式目录，必须进 git）
+/archived/
 node_modules/
 *.tgz
 .DS_Store

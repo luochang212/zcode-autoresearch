@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: implemented
 date: 2026-08-28
 raised-by: agent
 decided-by: human

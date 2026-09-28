@@ -1,44 +1,38 @@
 # Architecture Decision Records
 
-This directory is an ADR Kit repository. Each record is plain Markdown with a
-machine-checkable header. Decisions are durable; proposals are ephemeral drafts.
+Records follow the lifecycle folders proposed/, implemented/, rejected/, and
+archived/. The folders are a context budget as well as a lifecycle:
+implemented/ is current authority and is read in full; proposed/ is intent and
+is checked; rejected/ is anti-pattern memory and is checked;
+archived/ is lowest-value frozen history and is not read by default.
 
-## Folders
+A proposal is unshipped even when its direction has been settled. Implemented
+records describe shipped decisions and receive stable ADR numbers. A rejection
+is a durable terminal record of a declined proposal: it is removed only when
+another record owns the warning it blocks, never for appearing stale —
+rejections are unnumbered and unsealed, so removing a redundant one cannot
+reuse a number or break the archive. Archived records
+are frozen history, not current authority. Each one is
+sealed in adr/archived/MANIFEST.json; adrkit validate checks the seal, and
+adrkit validate --base <git-ref> proves the archive only grows.
 
-| Folder       | Meaning                                                                                                         |
-| ------------ | --------------------------------------------------------------------------------------------------------------- |
-| `decisions/` | Decisions, numbered sequentially, immutable history (accepted or superseded)                                    |
-| `.drafts/`   | Proposal drafts, gitignored and ephemeral - promote one with `adrkit accept` or discard it with `adrkit reject` |
+Never delete a numbered decision: its stable N may be referenced elsewhere.
+Implemented records may refresh factual paths, symbols, and defaults, but a
+changed choice needs a new record. Archive or supersede rather than erase it.
 
-Rejection is recorded in a decision's `Alternatives considered` section, never
-as a standalone record.
+The canonical header includes status, date, and created: YYYY-MM-DD (the
+birth date, never re-stamped). Numbered records declare raised-by: human | agent
+and decided-by: human | agent; these are provenance declarations, not proof
+of approval. Optional tags: [frontend] classify records by theme.
 
-## Record format
+Use adrkit propose for unshipped work, adrkit implement after it ships, and
+adrkit record for an already-shipped decision. Use adrkit reject with a reason
+for a proposal that will not ship. A full replacement archives the old
+implemented record through adrkit supersede; adrkit archive also retires
+implemented guidance whose rationale is no longer needed in the active set.
 
-Every record starts with a YAML front matter block:
-
-```markdown
----
-status: accepted | superseded
-date: YYYY-MM-DD
-created: YYYY-MM-DD
-commit: abc1234
-tags: [frontend]
----
-
-# ADR: N <title>
-```
-
-Decisions use `# ADR: N <title>` and require `Problem`, `Decision`,
-`Alternatives considered`, and `Consequences`. Superseded decisions add
-`superseded-by: N`. The `date` field records when the current status was
-reached; the CLI stamps it at every lifecycle move, alongside the git `commit`
-the decision was recorded against. `created` is the birth date, stamped once
-and never re-stamped, so the time axis survives later lifecycle moves.
-Optional `tags` (kebab-case keywords) let `adrkit graph` group and filter
-decisions by theme. Drafts (`adr/.drafts/`, `status:
-proposed`) require `Problem`, `Proposal`, `Alternatives considered`,
-`Acceptance criteria`, and `Risks`; `adrkit accept` promotes one into a
-decision, and `adrkit reject` discards it without leaving a record.
-
-Run `adrkit validate` to check every record.
+Run adrkit list to discover records. Read the relevant implemented/ records in
+full, check the relevant proposed/ records for intent and the rejected/ records
+for the bad cases they warn against, and consult archived/ only when a task
+cites history. Do not decide relevance by title alone.
+Run adrkit validate to check the repository.
