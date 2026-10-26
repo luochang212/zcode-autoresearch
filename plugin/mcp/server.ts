@@ -21,6 +21,7 @@ import {
   computeConfidence,
   isBetter,
 } from "./lib/experiment.ts";
+import { resolveBash, killTree } from "./lib/bash.ts";
 import {
   autoPaths,
   appendLedgerEntry,
@@ -67,6 +68,8 @@ interface RunOutcome {
   outputTail: string;
   logFile: string | null;
   timedOut: boolean;
+  /** Set when the command could not be spawned at all (missing bash, resolveBash throw). */
+  spawnError?: string;
 }
 
 interface HookOutcome {
@@ -217,11 +220,28 @@ const KILL_GRACE_MS = 5_000;
 function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const proc = spawn("bash", ["-c", command], {
-      cwd,
-      detached: true, // own process group so we can kill the tree
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(resolveBash(), ["-c", command], {
+        cwd,
+        detached: true, // own process group so we can kill the tree
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (err) {
+      // resolveBash throws when no usable bash exists (e.g. Windows without
+      // Git Bash) — surface it instead of leaving the tool call hanging.
+      resolve({
+        exitCode: null,
+        signal: null,
+        durationMs: 0,
+        output: "",
+        outputTail: "",
+        logFile: null,
+        timedOut: false,
+        spawnError: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
     const chunks: Buffer[] = []; // full output, only while under the threshold
     let totalBytes = 0;
     let logFile: string | null = null;
@@ -273,10 +293,21 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     };
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
+    // Windows + MSYS child processes: taskkill kills the bash wrapper but a
+    // forked MSYS binary (e.g. sleep) can survive the /T walk and hold the
+    // stdio pipes open, so "close" never fires. After a timeout kill, fall
+    // back to "exit" — the buffer already holds everything needed to judge
+    // the run. resolve is idempotent, so a late close is a no-op.
     let didTimeout = false;
     let killTimer: NodeJS.Timeout | null = null;
     const kill = () => {
       didTimeout = true;
+      if (process.platform === "win32") {
+        // Windows cannot address process groups via negative pids (ESRCH);
+        // taskkill /T /F walks and kills the whole child tree instead.
+        if (proc.pid != null) killTree(proc.pid);
+        return;
+      }
       try {
         if (proc.pid != null) process.kill(-proc.pid, "SIGTERM");
       } catch {
@@ -293,7 +324,23 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
       }, KILL_GRACE_MS);
     };
     const timer = setTimeout(kill, timeoutMs);
-    proc.on("close", (code, signal) => {
+    // A spawn failure (bash missing, cwd gone) otherwise never fires
+    // "close" and would hang the tool call — resolve it as spawnError.
+    proc.on("error", (err) => {
+      clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve({
+        exitCode: null,
+        signal: null,
+        durationMs: Date.now() - started,
+        output: "",
+        outputTail: "",
+        logFile: null,
+        timedOut: false,
+        spawnError: err.message,
+      });
+    });
+    const finalize = (code: number | null, signal: NodeJS.Signals | null) => {
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
       const elapsed = Date.now() - started;
@@ -307,6 +354,12 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
         logFile,
         timedOut: didTimeout,
       });
+    };
+    proc.on("close", (code, signal) => finalize(code, signal));
+    proc.on("exit", (code, signal) => {
+      if (!didTimeout) return; // normal path: wait for close (stdio drained)
+      // Timeout-kill path: give close a short grace, then fall back to exit.
+      setTimeout(() => finalize(code, signal), KILL_GRACE_MS);
     });
   });
 }
@@ -449,7 +502,20 @@ function runHookRaw(
 ): Promise<HookOutcome> {
   return new Promise((resolve) => {
     const started = Date.now();
-    const proc = spawn("bash", [scriptPath], { cwd });
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(resolveBash(), [scriptPath], { cwd });
+    } catch (err) {
+      resolve({
+        exitCode: null,
+        timedOut: false,
+        stdout: "",
+        stderr: "",
+        durationMs: 0,
+        spawnError: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
     const chunks: Buffer[] = [];
     let total = 0;
     let stderrTail = "";
@@ -465,13 +531,18 @@ function runHookRaw(
     let didTimeout = false;
     const timer = setTimeout(() => {
       didTimeout = true;
+      if (process.platform === "win32") {
+        // proc.kill cannot reach the hook's child tree on Windows; walk it.
+        if (proc.pid != null) killTree(proc.pid);
+        return;
+      }
       try {
         proc.kill("SIGKILL");
       } catch {
         /* gone */
       }
     }, HOOK_TIMEOUT_MS);
-    proc.on("close", (code) => {
+    const finalize = (code: number | null) => {
       clearTimeout(timer);
       resolve({
         exitCode: code,
@@ -480,6 +551,11 @@ function runHookRaw(
         stderr: stderrTail,
         durationMs: Date.now() - started,
       });
+    };
+    proc.on("close", (code) => finalize(code));
+    proc.on("exit", (code) => {
+      if (!didTimeout) return;
+      setTimeout(() => finalize(code), 1_000);
     });
     proc.on("error", (err) => {
       clearTimeout(timer);
@@ -690,6 +766,12 @@ async function toolRunExperiment(
   let last: RunOutcome | null = null;
   for (let i = 0; i < repeat; i++) {
     last = await runCommand(rawCommand, timeoutMs);
+    if (last.spawnError) {
+      return {
+        ok: false,
+        error: `run_experiment could not start the benchmark: ${last.spawnError}`,
+      };
+    }
     const { metrics, primary } = parseMetricLines(last.output, metricName);
     runs.push({
       run: i + 1,
