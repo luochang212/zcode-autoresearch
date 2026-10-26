@@ -67,6 +67,35 @@ test("guard-frozen denies writes to frozen scripts, allows others", () => {
   assert.equal(allow, "");
 });
 
+test("guard-frozen denies deep-goal edits, allows charter and ideas", () => {
+  const cwd = tempCwd();
+  const goal = runHook(
+    "guard-frozen.ts",
+    cwd,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "Edit",
+      tool_input: { file_path: join(cwd, ".auto/goal.md") },
+    }),
+  );
+  const g = JSON.parse(goal);
+  assert.equal(g.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(g.hookSpecificOutput.permissionDecisionReason, /deep goal/);
+
+  for (const editable of [".auto/prompt.md", ".auto/ideas.md"]) {
+    const allow = runHook(
+      "guard-frozen.ts",
+      cwd,
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "Edit",
+        tool_input: { file_path: join(cwd, editable) },
+      }),
+    );
+    assert.equal(allow, "", `${editable} must stay editable`);
+  }
+});
+
 test("memory-inject injects ledger progress when runs exist, silent otherwise", () => {
   const cwd = tempCwd();
   // no ledger -> no output

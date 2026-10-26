@@ -43,6 +43,57 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 - Reset everything with `clear_experiments` (`/autoresearch:clear`).
 - When done, run `export_dashboard` for a live URL + static report, then `/autoresearch:finalize` to split kept experiments into topic branches.
 
+## Harness editing (second-order loop)
+
+The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence, without ever moving the root. Discipline adapted from Harness² (google-research/harness2, arXiv:2610.14224): contrast-first edit rows, confounded-preferring verdicts, experience records that may honestly be `NO_ENTRY`.
+
+### Root vs surface
+
+- **Root (immutable)**: `.auto/goal.md` — the user's deep goal, recorded verbatim at setup. The PreToolUse hook denies any write to it. Every surface goal statement is a representation of the root and must not contradict it.
+- **Surface (revisable with evidence)**: `prompt.md` surface sections (What's Been Tried, scope wording, Off Limits refinements — never the verbatim goal quote), `ideas.md`, `.auto/hooks/` config, repeat/segment choices.
+- **Not an edit**: replacing the metric proxy or the optimization target is a root-level re-representation decision — `init_experiment` opens a new segment instead; the frozen scripts never move.
+
+### The edit step
+
+Trigger: `plateau`, `doom_loop`, consecutive-failure threshold, every ~8 runs, or segment end.
+
+1. **Compare executions** in the ledger: which hypothesis families kept failing, whether crashes cluster on one component, whether checks fail on the same class of change, whether the charter's Off-Limits or scope wording is steering away from productive ground.
+2. **Write edit rows before touching anything**:
+
+   ```text
+   component: prompt.md/What's Been Tried
+   candidates: this edit
+   change: <what the edit actually does>
+   observed: <the ledger contrast it rests on, with run numbers>
+   verdict: helped | hurt | no observed effect | confounded
+   ```
+
+   Prefer `confounded` whenever one edit touches several components and no execution isolates one of them. A confounded row is a useful record; an invented attribution poisons every later edit.
+
+3. **Apply small edits** to the editable surfaces only. KEEP_BASE: an edit the evidence does not argue for is a regression — it costs context and buys nothing. No edit is a valid outcome.
+4. **Record experience** (segment end): at most one lesson per segment in `.auto/experience.md`:
+
+   ```markdown
+   ## <segment N> <date>
+
+   - cue: <the shape of situation this applies to — not this task's facts>
+   - lesson: <the transferable operation, naming the component>
+   - evidence: <edit rows / run numbers behind it>
+   - confidence: high | medium | low, and why
+   ```
+
+   Write `NO_ENTRY` when no concrete, reusable behavioral contrast exists — the edit rows above are still worth keeping. Cross-project reuse of a lesson is a hypothesis: re-verify before relying on it.
+
+### Writing discipline
+
+Three kinds of content — label them and keep them out of each other's lanes:
+
+- **workspace fact**: verified in this workspace, labelled as such ("in this repo, the slow path is the sync fs write in src/cache.ts:88"). Facts do not transfer; the label says so.
+- **procedure**: the reusable operation ("profile before guessing; move the hot path off the request thread"). Written to transfer.
+- **too generic**: "be thorough", "optimize more" — changes no behavior, banned from `ideas.md` and `experience.md`.
+
+A named component beats prose: a rule worth keeping lives in `ideas.md`, a hook, or a skill — not in an always-on paragraph that is paid for on every run.
+
 ## Unattended continuation
 
 If the user authorized unattended operation, scheduled wake-up turns re-enter this loop protocol from step 1 (Review) using only `.auto/` facts; when the session is inactive or off, a wake turn idles with one cheap reply. See `references/unattended.md` for the authorization requirement, CronCreate parameters, the wake prompt template, and cleanup.

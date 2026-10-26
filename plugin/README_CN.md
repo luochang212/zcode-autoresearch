@@ -38,7 +38,7 @@
 
 或让 skill 自动触发（描述含 "autoresearch"、"自主优化" 等）。一次完整循环：
 
-1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 写 `.auto/prompt.md` 章程 → 建实验分支 `git checkout -b autoresearch/<tag>`。
+1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 逐字记录用户深层目标到 `.auto/goal.md`（冻结，hook 拒写）→ 写 `.auto/prompt.md` 章程（目标段逐字引用 goal.md）→ 建实验分支 `git checkout -b autoresearch/<tag>`。
 2. `init_experiment`（metric_name、direction）→ 跑一次 baseline。
 3. **循环**：一次聚焦改动 → `run_experiment` → `log_experiment`（keep 自动 commit / 非 keep 自动回滚，`.auto/` 豁免）。
 
@@ -56,7 +56,7 @@
 
 - **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
-- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` 的写入。
+- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` 的写入（goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示）。
 - **工具门禁（近似）**：无会话时 PermissionRequest hook deny 实验工具（仅覆盖经权限询问的调用）。
 - **自动激活提示**：SessionStart 检测活动会话时注入续跑引导；`/autoresearch:off` 可暂停（`autoresearchOff: true`）。
 - **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。

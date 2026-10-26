@@ -20,9 +20,11 @@ Set a goal, pick a mechanical metric, and let the loop iterate. The plugin's MCP
 ## Session state (all under `.auto/`)
 
 - `log.jsonl`: append-only ledger of config rows + run rows. Single source of truth.
-- `prompt.md`: the session charter (goal / metric / scope / Off Limits / What's Been Tried). Update "What's Been Tried" as you go.
+- `goal.md`: the deep goal, recorded **verbatim** from the user at setup. Frozen — the PreToolUse hook denies writes; the harness-edit step cannot touch it.
+- `prompt.md`: the session charter (goal quote / metric / scope / Off Limits / What's Been Tried). Its Goal section quotes `goal.md` verbatim. Update "What's Been Tried" as you go.
 - `measure.sh`: the benchmark; prints `METRIC name=value` lines.
 - `checks.sh`: optional correctness gate, run after a passing benchmark.
+- `experience.md`: cross-segment lessons — at most one per segment (`cue` / `lesson` / `evidence` / `confidence`), or `NO_ENTRY`. Survives `clear`; reviewed into the project AGENTS.md at finalize.
 - `config.json`: optional `{ "maxIterations": N }` override.
 - `ideas.md`: optional backlog of hypotheses.
 
@@ -39,8 +41,21 @@ For each iteration, exactly one pass through:
    - weigh keep against simplicity: all else equal, prefer the simpler implementation. A tiny improvement that adds ugly complexity is usually not worth keeping; a deletion that matches or beats the previous metric is a clear win
    - pass `asi` with `{ hypothesis, next_action_hint, rollback }`; it is the only memory that survives a revert. When deliberately retrying a previously discarded idea because its rollback reason no longer holds, add `revisits_run: <run number>` to `asi` so the dashboard marks it as a grounded revisit (`↻ Revisiting #N`); verification reruns for measurement noise are not revisits and get no annotation.
      4b. **The ledger is audited**: `log_experiment` rejects writes that break invariants. A keep that does not actually improve, a discarded improvement without a failed guard, broken run numbering, or a crash with un-rolled-back changes are all hard errors, not advice. (`.auto/config.json` `auditBypass: true` disables this; only use it knowingly.)
-5. **Read `confidence`, `plateau` and `doom_loop` from the log result**: low-confidence (red/yellow) improvements are "directional": keep them with a note, or re-measure with `repeat:3` before structural changes. If `plateau: true`, stop re-litigating the last 1%; either confirm with `repeat:3`, start a new segment (`init_experiment`), or summarize. If `doom_loop: true`, you are repeating/oscillating between the same hypotheses; stop repeating and do a research pass first (re-read `prompt.md` What's Been Tried, related docs, prior near-misses), then pick a structurally different direction.
+5. **Read `confidence`, `plateau` and `doom_loop` from the log result**: low-confidence (red/yellow) improvements are "directional": keep them with a note, or re-measure with `repeat:3` before structural changes. If `plateau: true`, stop re-litigating the last 1%; either confirm with `repeat:3`, start a new segment (`init_experiment`), or summarize. If `doom_loop: true`, you are repeating/oscillating between the same hypotheses; stop repeating and do a research pass first (re-read `prompt.md` What's Been Tried, related docs, prior near-misses), then pick a structurally different direction. **Trigger the harness-edit step** when `plateau` or `doom_loop` fires, when consecutive failures hit the threshold, every ~8 runs, or at segment end (see Harness editing below).
 6. If `iteration cap` reached → `init_experiment` again for a new target, or stop and summarize.
+
+## Harness editing (second-order loop)
+
+The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence. The deep goal in `.auto/goal.md` is the root and never changes; everything else in the harness is a revisable representation of it.
+
+Trigger: `plateau`, `doom_loop`, consecutive-failure threshold, every ~8 runs, or segment end. Then:
+
+1. **Edit rows first**: for each candidate change write `{component, change, observed, verdict}` before touching anything. `verdict` is `helped` / `hurt` / `no observed effect` / `confounded`; prefer `confounded` when one edit touches several components and no execution isolates the cause — an honest "confounded" is a useful record, an invented attribution poisons every later edit.
+2. **Editable surfaces only**: `prompt.md` surface sections (the verbatim quote of `goal.md` stays untouched), `ideas.md`, `.auto/hooks/` config, repeat/segment choices. `.auto/goal.md`, `measure.sh`, `checks.sh` are frozen (the hook denies goal writes). Replacing the metric proxy or the optimization target is not an edit — `init_experiment` for a new segment.
+3. **KEEP_BASE**: an edit the evidence does not argue for is a regression. No edit is a valid outcome.
+4. **Experience**: at segment end add at most one lesson to `.auto/experience.md` — `{cue, lesson, evidence, confidence}`, `evidence` citing run numbers — or `NO_ENTRY` when no behavioral contrast supports one. Distinguish workspace facts (verified here, labelled here) from transferable procedure; "be thorough" is not a lesson.
+
+Full protocol: `references/loop-protocol.md` → Harness editing.
 
 ## Dashboard
 
