@@ -6,14 +6,14 @@
 
 ## 仓库结构
 
-| 目录             | 内容                                                                                                                                                                   | 性质               |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| `plugin/`        | 插件本体：`.zcode-plugin/`、`mcp/`（server + lib）、`hooks/`、`skills/`、`commands/`、`scripts/`、`tests/`                                                             | 可修改             |
-| `openspec/`      | `specs/`（主规范）、`changes/`（活动）、`changes/archive/`（已归档）                                                                                                   | 走 change 流程修改 |
-| `adr/`           | adr-kit 0.28 四文件夹生命周期：`implemented/`（现役决策，全文读）、`proposed/`（未落地提案）、`rejected/`（反模式记忆）、`archived/`（封存历史，`MANIFEST.json` 封条） | 走 adrkit 追加     |
-| `docs/research/` | 研究报告（survey / field-test / pi-gap / next-steps）                                                                                                                  | 可补充             |
-| `assets/`        | README 用图（banner 等），SVG 源文件直接入库                                                                                                                           | 可修改             |
-| `archived/`      | 外部仓库 clone、临时资料与草稿（仓库的草稿本，往里丢东西不用犹豫）                                                                                                     | 可改、不进 git     |
+| 目录             | 内容                                                                                                                                                                        | 性质               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| `plugin/`        | 插件本体：`.zcode-plugin/`、`mcp/`（server + lib）、`hooks/`、`skills/`、`commands/`、`scripts/`、`tests/`                                                                  | 可修改             |
+| `openspec/`      | `specs/`（主规范）、`changes/`（活动）、`changes/archive/`（已归档）                                                                                                        | 走 change 流程修改 |
+| `adr/`           | adr-kit 0.28 四文件夹生命周期：`implemented/`（现役决策，全文读）、`proposed/`（未落地提案）、`rejected/`（反模式记忆）、`archived/`（退役历史，普通 git 历史，勿静默手改） | 走 adrkit 追加     |
+| `docs/research/` | 研究报告（survey / field-test / pi-gap / next-steps）                                                                                                                       | 可补充             |
+| `assets/`        | README 用图（banner 等），SVG 源文件直接入库                                                                                                                                | 可修改             |
+| `archived/`      | 外部仓库 clone、临时资料与草稿（仓库的草稿本，往里丢东西不用犹豫）                                                                                                          | 可改、不进 git     |
 
 ## 按任务找入口
 
@@ -27,11 +27,11 @@
 
 ## 铁律
 
-1. **根目录 `archived/` 是草稿本**：临时资料夹——外部仓库 clone、调研残留、随手草稿都放这里，**可随意修改**；但**不进 git**。注意 `.gitignore` 写的是 `/archived/`（仅锚定根目录）：`adr/archived/` 是 adrkit 的封存决策目录，带封条、**必须进 git**，两者无关。正式内容别只存在根目录草稿本。
+1. **根目录 `archived/` 是草稿本**：临时资料夹——外部仓库 clone、调研残留、随手草稿都放这里，**可随意修改**；但**不进 git**。注意 `.gitignore` 写的是 `/archived/`（仅锚定根目录）：`adr/archived/` 是 adrkit 的退役决策目录（0.24 起无封条、无 MANIFEST），普通 git 历史、**必须进 git**，两者无关。正式内容别只存在根目录草稿本。
 2. **零第三方依赖**：插件所有代码只允许 Node（≥24）标准库（`plugin/` 无 `package.json` 依赖、无 `node_modules`、无 `npm install` 流程）。hooks 与 MCP server 都是 `.ts`，由 Node 原生剥离类型直接运行（无构建步骤）。仓库根 `package.json` 仅存开发工具 devDependencies，不进 `plugin/`，不违反本条。
 3. **隐私卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。
 4. **插件改动走 openspec change**：任何行为变更先 `openspec new change`（propose → specs/design/tasks → `openspec validate --strict` → apply → archive），归档时 delta specs 合并进 `openspec/specs/`。
-5. **关键决策用 adrkit**：以下四类必须进 `adr/implemented/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。已落地决策：`adrkit record "<title>" --raised-by human|agent --decided-by human|agent` 生成于 `adr/implemented/`（两个声明须如实标注：谁把决策摆上桌面、谁的判断拍板），补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`；未落地方向先 `adrkit propose`，落地后 `adrkit implement` 转正拿编号；否决用 `adrkit reject`（进 `adr/rejected/` 留作反模式记忆）；退役/替换用 `adrkit archive`/`adrkit supersede`（进 `adr/archived/`，受 `MANIFEST.json` 封条保护，勿手改）。
+5. **关键决策用 adrkit**：以下四类必须进 `adr/implemented/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。已落地决策：`adrkit record "<title>" --raised-by human|agent --decided-by human|agent` 生成于 `adr/implemented/`（两个声明须如实标注：谁把决策摆上桌面、谁的判断拍板），补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`；未落地方向先 `adrkit propose`，落地后 `adrkit implement` 转正拿编号；否决用 `adrkit reject`（进 `adr/rejected/` 留作反模式记忆）；退役/替换用 `adrkit archive`/`adrkit supersede`（进 `adr/archived/`，普通 git 历史，勿静默手改）。
 6. **测试必须通过**：根目录 `npm test`（= 插件单测 `npm run test:plugin`，即 `cd plugin && node --test tests/*.test.ts`，加上 marketplace 契约检查 `npm run test:contract`；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
 7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `/archived/`（仅根目录草稿本）、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`。
 
@@ -39,7 +39,7 @@
 
 At the start of a coding, design, or review task, if `adr/` exists, run `adrkit list`. The four folders are a context budget: read the relevant `implemented/` records in full with `adrkit show <N>` or their files; check the relevant `proposed/` records for intent and the relevant `rejected/` records for the bad cases they warn against (a rejection is durable: it leaves only when another record owns its warning); treat `archived/` as frozen history and read it only when a task explicitly cites it. Do not judge relevance by title alone: inspect tags, paths, relationships, and task scope. Compare constraints with current code; explain conflicts or changed assumptions before choosing a different approach. Mention relevant ADR numbers and verify affected behavior. Re-read on a new or resumed task, or when scope changes. Read a `## Deliberation` appendix only when its decision is in play.
 
-Before creating a record, compare it with the active records covering the same choice or mechanism: extend a duplicate, fully replace through `adrkit supersede --by` in the same change, or link a partial overlap while the older record stays active. When shipping or reviewing, keep each active record's realization facts — paths, names, defaults — aligned with shipped code; a changed choice is a new record with an explicit relationship, not a rewrite of old rationale. Archived records are sealed in `adr/archived/MANIFEST.json`, never edited, and not read by default.
+Before creating a record, compare it with the active records covering the same choice or mechanism: extend a duplicate, fully replace through `adrkit supersede --by` in the same change, or link a partial overlap while the older record stays active. When shipping or reviewing, keep each active record's realization facts — paths, names, defaults — aligned with shipped code; a changed choice is a new record with an explicit relationship, not a rewrite of old rationale. Archived records are ordinary Git-tracked history, never edited silently, and not read by default.
 
 Record an ADR when an architectural choice constrains future work and its rationale is not evident from code. Record genuine alternatives and trade-offs, not invented template filler. Use `adrkit propose` for unshipped work, `adrkit implement` after it ships, and `adrkit record` for an already-shipped decision. `raised-by` declares who introduced the choice; `decided-by` declares whose judgment settled it. The CLI neither infers nor verifies shipping or provenance.
 
