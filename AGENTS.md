@@ -10,7 +10,7 @@
 | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
 | `plugin/`        | 插件本体：`.zcode-plugin/`、`mcp/`（server + lib）、`hooks/`、`skills/`、`commands/`、`scripts/`、`tests/`                                                             | 可修改             |
 | `openspec/`      | `specs/`（主规范）、`changes/`（活动）、`changes/archive/`（已归档）                                                                                                   | 走 change 流程修改 |
-| `adr/`           | adr-kit 0.14 四文件夹生命周期：`implemented/`（现役决策，全文读）、`proposed/`（未落地提案）、`rejected/`（反模式记忆）、`archived/`（封存历史，`MANIFEST.json` 封条） | 走 adrkit 追加     |
+| `adr/`           | adr-kit 0.28 四文件夹生命周期：`implemented/`（现役决策，全文读）、`proposed/`（未落地提案）、`rejected/`（反模式记忆）、`archived/`（封存历史，`MANIFEST.json` 封条） | 走 adrkit 追加     |
 | `docs/research/` | 研究报告（survey / field-test / pi-gap / next-steps）                                                                                                                  | 可补充             |
 | `assets/`        | README 用图（banner 等），SVG 源文件直接入库                                                                                                                           | 可修改             |
 | `archived/`      | 外部仓库 clone、临时资料与草稿（仓库的草稿本，往里丢东西不用犹豫）                                                                                                     | 可改、不进 git     |
