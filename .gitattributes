@@ -1,0 +1,20 @@
+# 换行符策略：仓库与工作区一律 LF。
+#
+# 仓库在 Windows 也会被检出（插件用户与维护者都在用）；core.autocrlf=true
+# 会把检出文件转成 CRLF，带 shebang 的 .sh（measure.sh/checks.sh/finalize.sh、
+# hooks 示例）会以 bad interpreter 失败，Prettier（endOfLine: lf）也会全库报错。
+# 本文件覆盖系统级 core.autocrlf=true。Windows 进程兼容逻辑见 plugin/mcp/lib/bash.ts。
+* text=auto eol=lf
+
+# 二进制类型：禁止任何换行转换
+*.png          binary
+*.jpg          binary
+*.jpeg         binary
+*.gif          binary
+*.ico          binary
+*.zip          binary
+*.pdf          binary
+
+# Windows 原生脚本保持 CRLF
+*.bat          text eol=crlf
+*.cmd          text eol=crlf

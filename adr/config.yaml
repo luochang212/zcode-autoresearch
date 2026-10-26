@@ -6,7 +6,7 @@
 #   Conventions that decision records should respect.
 
 # AI tool integrations written by adrkit init --tools.
-tools: [ agents ]
+tools: [agents]
 
 # Workflow subset for agent integrations, written by `adrkit update
 # --workflows <list>`. adrkit 0.5.0+ consumes this key: a bare `adrkit

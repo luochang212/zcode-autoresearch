@@ -18,21 +18,35 @@ import { resolveBash, killTree } from "../mcp/lib/bash.ts";
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SERVER = join(ROOT, "mcp", "server.ts");
 
-test("resolveBash: posix shortcut", { skip: process.platform === "win32" }, () => {
-  assert.equal(resolveBash(), "bash");
-});
+test(
+  "resolveBash: posix shortcut",
+  { skip: process.platform === "win32" },
+  () => {
+    assert.equal(resolveBash(), "bash");
+  },
+);
 
-test("resolveBash: excludes System32/WindowsApps WSL launcher", { skip: process.platform !== "win32" }, () => {
-  const bash = resolveBash();
-  assert.match(bash, /bash\.exe$/i);
-  assert.doesNotMatch(bash, /\\Windows\\(System32|SysWOW64|WindowsApps)\\/i);
-});
+test(
+  "resolveBash: excludes System32/WindowsApps WSL launcher",
+  { skip: process.platform !== "win32" },
+  () => {
+    const bash = resolveBash();
+    assert.match(bash, /bash\.exe$/i);
+    assert.doesNotMatch(bash, /\\Windows\\(System32|SysWOW64|WindowsApps)\\/i);
+  },
+);
 
-test("killTree reports whether the tree was alive", { skip: process.platform !== "win32" }, () => {
-  const sleeper = spawn("ping", ["-n", "30", "127.0.0.1"], { stdio: "ignore" });
-  assert.equal(killTree(sleeper.pid!), true, "live tree must be killable");
-  assert.equal(killTree(sleeper.pid!), false, "dead tree must report gone");
-});
+test(
+  "killTree reports whether the tree was alive",
+  { skip: process.platform !== "win32" },
+  () => {
+    const sleeper = spawn("ping", ["-n", "30", "127.0.0.1"], {
+      stdio: "ignore",
+    });
+    assert.equal(killTree(sleeper.pid!), true, "live tree must be killable");
+    assert.equal(killTree(sleeper.pid!), false, "dead tree must report gone");
+  },
+);
 
 // End-to-end on the real server: a hanging benchmark + 2s timeout must come
 // back killed well before the benchmark's own 60s elapse. Before the fix
@@ -40,7 +54,10 @@ test("killTree reports whether the tree was alive", { skip: process.platform !==
 test("run_experiment timeout kills the benchmark tree promptly", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "ar-kill-"));
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
-  execFileSync("git", ["config", "user.email", "t@t"], { cwd, stdio: "ignore" });
+  execFileSync("git", ["config", "user.email", "t@t"], {
+    cwd,
+    stdio: "ignore",
+  });
   execFileSync("git", ["config", "user.name", "t"], { cwd, stdio: "ignore" });
   mkdirSync(join(cwd, ".auto"), { recursive: true });
   writeFileSync(
@@ -81,9 +98,17 @@ test("run_experiment timeout kills the benchmark tree promptly", async () => {
       const i = id++;
       pending.set(i, resolve);
       proc.stdin.write(
-        JSON.stringify({ jsonrpc: "2.0", id: i, method: "tools/call", params: { name, arguments: args } }) + "\n",
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: i,
+          method: "tools/call",
+          params: { name, arguments: args },
+        }) + "\n",
       );
-      setTimeout(() => reject(new Error("tool call hung (kill path broken)")), 30_000);
+      setTimeout(
+        () => reject(new Error("tool call hung (kill path broken)")),
+        30_000,
+      );
     });
 
   try {

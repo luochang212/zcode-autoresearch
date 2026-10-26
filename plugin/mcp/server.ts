@@ -3,6 +3,11 @@
 // Tools: init_experiment / run_experiment / log_experiment / export_dashboard.
 // Design: experiment/autoresearch + ADR-1 (MCP tools carry mechanism).
 import { spawn } from "node:child_process";
+import type {
+  ChildProcessByStdio,
+  ChildProcessWithoutNullStreams,
+} from "node:child_process";
+import type { Readable } from "node:stream";
 import {
   appendFileSync,
   existsSync,
@@ -220,7 +225,7 @@ const KILL_GRACE_MS = 5_000;
 function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
   return new Promise((resolve) => {
     const started = Date.now();
-    let proc: ReturnType<typeof spawn>;
+    let proc: ChildProcessByStdio<null, Readable, Readable>;
     try {
       proc = spawn(resolveBash(), ["-c", command], {
         cwd,
@@ -502,7 +507,7 @@ function runHookRaw(
 ): Promise<HookOutcome> {
   return new Promise((resolve) => {
     const started = Date.now();
-    let proc: ReturnType<typeof spawn>;
+    let proc: ChildProcessWithoutNullStreams;
     try {
       proc = spawn(resolveBash(), [scriptPath], { cwd });
     } catch (err) {
