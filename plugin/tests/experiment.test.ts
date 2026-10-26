@@ -329,6 +329,45 @@ test("detectDoomLoop flags repeats and oscillation, not normal progress", () => 
   assert.equal(detectDoomLoop([run("a"), run("a")]), null);
 });
 
+test("detectDoomLoop ignores infra-failure rows when scanning the window", () => {
+  const run = (d: string, infra?: boolean) => ({
+    description: d,
+    ...(infra ? { asi: { infra: true } } : {}),
+  });
+  // The same hypothesis crashing over and over with asi.infra: true (network
+  // outage retries) is environment noise, not the agent thrashing.
+  assert.equal(
+    detectDoomLoop([
+      run("try the sieve", true),
+      run("try the sieve", true),
+      run("try the sieve", true),
+      run("try the sieve", true),
+    ]),
+    null,
+  );
+  // Infra rows are removed before the window is taken, so a real repeat
+  // interleaved with infra noise still triggers.
+  assert.equal(
+    detectDoomLoop([
+      run("try the sieve", true),
+      run("try the sieve"),
+      run("try the sieve"),
+      run("try the sieve"),
+    ])?.pattern,
+    "repeat",
+  );
+  // Non-infra oscillation keeps the existing behavior.
+  assert.equal(
+    detectDoomLoop([
+      run("sieve approach"),
+      run("bitpacking"),
+      run("sieve approach v2"),
+      run("bitpacking v2"),
+    ])?.pattern,
+    "oscillate",
+  );
+});
+
 test("isStopReached: noop neither counts as a failure nor keeps the streak", () => {
   const mk = (status: string) => ({ status });
   // [discard, crash, noop]: trailing failure streak is 0 — no stop

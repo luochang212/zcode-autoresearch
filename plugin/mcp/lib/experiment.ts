@@ -199,12 +199,17 @@ export function directionLabel(run: RunLike): string {
  * hypotheses. Returns { doomLoop, pattern } or null.
  * - repeat: last 3 runs have similar normalized hypotheses.
  * - oscillate: last 4 runs are [X, Y, X, Y] (X~X, Y~Y, X!~Y).
+ * Rows annotated `asi.infra: true` (infrastructure failure: network outage,
+ * missing dependency, platform throttling) are dropped before the window is
+ * taken — a hypothesis interrupted repeatedly by a broken environment is not
+ * the agent thrashing between ideas.
  */
 export function detectDoomLoop(
   runs: RunLike[],
   { window = 6 } = {},
 ): { doomLoop: boolean; pattern: "repeat" | "oscillate" } | null {
   const norm = runs
+    .filter((r) => r?.asi?.infra !== true)
     .filter((r) => r.description || r?.asi?.hypothesis)
     .slice(-window)
     .map((r) => normalizeHypothesis(r.asi?.hypothesis || r.description))

@@ -1082,7 +1082,7 @@ async function toolLogExperiment(
       (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
         ? "iteration cap reached; run init_experiment for a new segment, or /autoresearch off"
         : detectDoomLoop(nextState.runs)
-          ? "doom loop detected (repeated/oscillating hypotheses); stop repeating and try a structurally different direction"
+          ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
           : nextState.consecutiveFailures >= nextState.failureThreshold
             ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
             : nextState.plateau
