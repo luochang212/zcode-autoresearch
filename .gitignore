@@ -4,3 +4,4 @@ node_modules/
 *.tgz
 .DS_Store
 .husky/_
+.idea/
