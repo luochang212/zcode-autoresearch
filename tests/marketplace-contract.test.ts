@@ -38,6 +38,7 @@ const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const LOCALE = /^[a-z]{2}(-[A-Za-z0-9]+)*$/;
 const CATEGORIES = new Set([
+  "游戏/3D",
   "developer-tools",
   "productivity",
   "utilities",
@@ -50,6 +51,8 @@ const REQUIRED_LOCALES = ["en", "zh-CN"];
 const MAX_PLUGIN_FILES = 5000;
 const MAX_PLUGIN_BYTES = 256 * 1024 * 1024;
 const TEMPLATE_DIRS = new Set(["example-plugin"]);
+// 上游 2026-10 目录重构：官方插件在 plugins/，社区投稿在 external_plugins/。
+const PLUGIN_ROOTS = ["plugins", "external_plugins"];
 // build_dist.py 会拒绝打包的字节码；本仓库零依赖铁律额外禁止 node_modules。
 const FORBIDDEN_DIRS = new Set(["__pycache__", "node_modules"]);
 const FORBIDDEN_SUFFIXES = new Set([".pyc", ".pyo", ".tgz"]);
@@ -238,7 +241,6 @@ function upstreamProblems(clone: string): string[] {
 
   const seen = new Set<string>();
   const registered = new Set<string>();
-  const pluginsRoot = join(clone, "plugins");
 
   entries.forEach((entry, i) => {
     let label = `marketplace.json plugins[${i}]`;
@@ -274,17 +276,22 @@ function upstreamProblems(clone: string): string[] {
     }
 
     const source = typeof entry["source"] === "string" ? entry["source"] : "";
+    const sourceRoot = PLUGIN_ROOTS.find((root) =>
+      source.startsWith(`./${root}/`),
+    );
     if (
-      !source.startsWith("./plugins/") ||
+      sourceRoot === undefined ||
       source.split("/").length !== 3 ||
       source.includes("..")
     ) {
-      err(`${label}: source must be exactly ./plugins/<name>`);
+      err(
+        `${label}: source must be exactly ./plugins/<name> or ./external_plugins/<name>`,
+      );
       return;
     }
 
     const pluginDir = join(clone, source.slice(2));
-    registered.add(basename(pluginDir));
+    registered.add(source.slice(2));
     const dirStat = lstatSync(pluginDir, { throwIfNoEntry: false });
     if (dirStat === undefined || !dirStat.isDirectory()) {
       err(`${label}: source directory ${source} does not exist`);
@@ -295,8 +302,8 @@ function upstreamProblems(clone: string): string[] {
         `${label}: directory name '${basename(pluginDir)}' does not match plugin name`,
       );
     }
-    if (dirname(resolve(pluginDir)) !== resolve(pluginsRoot)) {
-      err(`${label}: source resolves outside plugins/`);
+    if (dirname(resolve(pluginDir)) !== resolve(join(clone, sourceRoot))) {
+      err(`${label}: source resolves outside ${sourceRoot}/`);
       return;
     }
     problems.push(...treeProblems(pluginDir, label));
@@ -336,17 +343,51 @@ function upstreamProblems(clone: string): string[] {
     }
   });
 
-  for (const child of readdirSync(pluginsRoot, { withFileTypes: true })) {
-    if (child.isSymbolicLink()) {
-      err(`plugins/${child.name}: symlink (not allowed)`);
-    } else if (
-      child.isDirectory() &&
-      !registered.has(child.name) &&
-      !TEMPLATE_DIRS.has(child.name)
-    ) {
+  // Retain withdrawn source trees without making them installable catalog
+  // entries (upstream mirrors these via marketplace.json unlistedPlugins).
+  const unlisted = marketplace["unlistedPlugins"];
+  if (unlisted !== undefined && !Array.isArray(unlisted)) {
+    err("marketplace.json: 'unlistedPlugins' must be a list");
+  }
+  for (const u of Array.isArray(unlisted) ? (unlisted as Json[]) : []) {
+    const usource = typeof u["source"] === "string" ? u["source"] : "";
+    const uRoot = PLUGIN_ROOTS.find((root) => usource.startsWith(`./${root}/`));
+    if (uRoot === undefined || usource.split("/").length !== 3) {
       err(
-        `plugins/${child.name}: directory not registered in marketplace.json`,
+        "marketplace.json unlistedPlugins: source must be exactly ./plugins/<name> or ./external_plugins/<name>",
       );
+      continue;
+    }
+    if (registered.has(usource.slice(2))) {
+      err(
+        "marketplace.json unlistedPlugins: source is already listed or unlisted",
+      );
+      continue;
+    }
+    registered.add(usource.slice(2));
+    if (
+      lstatSync(join(clone, usource.slice(2)), { throwIfNoEntry: false }) ===
+      undefined
+    ) {
+      err("marketplace.json unlistedPlugins: source directory does not exist");
+    }
+  }
+
+  for (const root of PLUGIN_ROOTS) {
+    const pluginsRoot = join(clone, root);
+    if (!existsSync(pluginsRoot)) continue;
+    for (const child of readdirSync(pluginsRoot, { withFileTypes: true })) {
+      if (child.isSymbolicLink()) {
+        err(`${root}/${child.name}: symlink (not allowed)`);
+      } else if (
+        child.isDirectory() &&
+        !registered.has(`${root}/${child.name}`) &&
+        !(root === "plugins" && TEMPLATE_DIRS.has(child.name))
+      ) {
+        err(
+          `${root}/${child.name}: directory not registered in marketplace.json`,
+        );
+      }
     }
   }
 
@@ -447,7 +488,11 @@ describe(
     });
 
     it("clone 内 autoresearch 包无字节码、无 node_modules、无个人路径泄漏", () => {
-      const pluginDir = join(FORK_CLONE, "plugins", "autoresearch");
+      const marketplace = readJson(join(FORK_CLONE, "marketplace.json"));
+      const entries = marketplace["plugins"] as Json[];
+      const entry = entries.find((p) => p["name"] === "autoresearch");
+      assert.ok(entry, "clone marketplace.json 缺少 autoresearch 条目");
+      const pluginDir = join(FORK_CLONE, String(entry["source"]).slice(2));
       assert.deepStrictEqual(forbiddenArtifacts(pluginDir), []);
       assert.deepStrictEqual(personalPathLeaks(pluginDir), []);
     });
