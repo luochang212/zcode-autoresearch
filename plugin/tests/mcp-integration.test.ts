@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import {
+  chmodSync,
   mkdtempSync,
   writeFileSync,
   appendFileSync,
@@ -60,8 +61,14 @@ function tempRepo(opts: { withMeasure?: boolean; name?: string } = {}) {
   return cwd;
 }
 
+// chmod(1) is not on PATH on Windows runners; fs.chmodSync sets the POSIX exec
+// bit where it exists and is a harmless mode write where it does not.
+function makeExecutable(...files: string[]) {
+  for (const file of files) chmodSync(file, 0o755);
+}
+
 function connect(cwd: string): McpClient {
-  const proc = spawn("node", [SERVER], { cwd });
+  const proc = spawn(process.execPath, [SERVER], { cwd });
   let id = 0;
   let buf = "";
   const pending = new Map<number, (msg: JsonRpcResponse) => void>();
@@ -137,11 +144,10 @@ test("iteration hooks: before runs before benchmark, after after logging, steer 
     join(cwd, ".auto", "hooks", "after.sh"),
     '#!/usr/bin/env bash\necho "AFTER-STEER"\n',
   );
-  execFileSync("chmod", [
-    "+x",
+  makeExecutable(
     join(cwd, ".auto", "hooks", "before.sh"),
     join(cwd, ".auto", "hooks", "after.sh"),
-  ]);
+  );
 
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -167,7 +173,7 @@ test("iteration hooks: failing hook surfaces an error steer but never blocks the
     join(cwd, ".auto", "hooks", "before.sh"),
     '#!/usr/bin/env bash\ncat > /dev/null\necho "hook exploded" >&2\nexit 3\n',
   );
-  execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "before.sh")]);
+  makeExecutable(join(cwd, ".auto", "hooks", "before.sh"));
 
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -193,11 +199,10 @@ test("iteration hooks: payload carries asi (last_run and run_entry)", async () =
     join(cwd, ".auto", "hooks", "after.sh"),
     '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));if(p.run_entry&&p.run_entry.asi)console.log("next:"+p.run_entry.asi.next_action_hint)\'\n',
   );
-  execFileSync("chmod", [
-    "+x",
+  makeExecutable(
     join(cwd, ".auto", "hooks", "before.sh"),
     join(cwd, ".auto", "hooks", "after.sh"),
-  ]);
+  );
 
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -235,7 +240,7 @@ test("iteration hooks: every fire appends a type:hook ledger entry", async () =>
     join(cwd, ".auto", "hooks", "before.sh"),
     "#!/usr/bin/env bash\ncat > /dev/null\nexit 2\n",
   );
-  execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "before.sh")]);
+  makeExecutable(join(cwd, ".auto", "hooks", "before.sh"));
 
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -774,7 +779,7 @@ test("asi.revisits_run passes through to ledger and after hook, unvalidated", as
     join(cwd, ".auto", "hooks", "after.sh"),
     '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));if(p.run_entry&&p.run_entry.asi)console.log("revisits:"+p.run_entry.asi.revisits_run)\'\n',
   );
-  execFileSync("chmod", ["+x", join(cwd, ".auto", "hooks", "after.sh")]);
+  makeExecutable(join(cwd, ".auto", "hooks", "after.sh"));
   const runRows = () =>
     readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
       .split("\n")

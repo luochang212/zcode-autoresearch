@@ -8,12 +8,13 @@ import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { RunLike } from "../mcp/lib/types.ts";
+import { resolveBash } from "../mcp/lib/bash.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const EX = join(ROOT, "hooks", "examples");
 
 function runExample(name: string, cwd: string, stdin: string): string {
-  return execFileSync("bash", [join(EX, name)], {
+  return execFileSync(resolveBash(), [join(EX, name)], {
     input: stdin,
     encoding: "utf8",
   });

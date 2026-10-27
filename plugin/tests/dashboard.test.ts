@@ -96,7 +96,7 @@ function tempRepo() {
 }
 
 function connect(cwd: string): McpClient {
-  const proc = spawn("node", [SERVER], { cwd });
+  const proc = spawn(process.execPath, [SERVER], { cwd });
   let id = 0;
   let buf = "";
   const pending = new Map<number, (msg: JsonRpcResponse) => void>();
