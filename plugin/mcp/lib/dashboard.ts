@@ -136,12 +136,12 @@ function renderTrendSvg(
     .map((p) => {
       const cls = p.run.status === "keep" ? "dk" : "dh"; // discard / crash / checks_failed / noop → hollow red
       return (
-        `<circle class="${cls}" cx="${x(p.ordinal).toFixed(1)}" cy="${y(p.run.metric as number).toFixed(1)}" r="${dotR}"/>` +
+        `<a href="#run-${p.ordinal}" aria-label="实验 ${p.ordinal}: ${escapeHtml(p.run.description ?? "")}，${escapeHtml(fmtMetric(p.run.metric))}"><title>#${p.ordinal} · ${escapeHtml(fmtMetric(p.run.metric))} · ${escapeHtml(p.run.description ?? "")}</title><circle class="${cls}" cx="${x(p.ordinal).toFixed(1)}" cy="${y(p.run.metric as number).toFixed(1)}" r="${dotR}"/></a>` +
         `<text class="dv" x="${x(p.ordinal).toFixed(1)}" y="${(y(p.run.metric as number) - labelLift).toFixed(1)}" text-anchor="middle" font-size="${labelFont}">#${p.ordinal}</text>`
       );
     })
     .join("");
-  return `<svg class="${svgCls}" viewBox="0 0 ${W} ${H}" role="img" aria-label="metric trend (${variant})">
+  return `<svg class="${svgCls}" viewBox="0 0 ${W} ${H}" role="group" aria-label="metric trend (${variant})">
 ${ticks}
 ${baseLine}
 <polyline class="ln" points="${poly.join(" ")}" stroke-width="${lineW}"/>
@@ -219,10 +219,12 @@ function renderBody(
   }
 </div>`
     : "";
+  const noop = history.runs.filter((r) => r.status === "noop").length;
   const metaItems = [
     `${history.totalRuns} experiments`,
     `${history.kept} kept`,
-    `${history.totalRuns - history.kept} reverted`,
+    `${history.totalRuns - history.kept - noop} reverted`,
+    `${noop} no-op`,
   ];
   if (conf) {
     const verdict = CONF_VERDICT[conf.level] ?? escapeHtml(conf.level);
@@ -254,7 +256,7 @@ function renderBody(
       typeof revisits === "number" && Number.isInteger(revisits) && revisits > 0
         ? revisits
         : null;
-    rows.push(`<div class="run">
+    rows.push(`<div class="run" id="run-${i + 1}" data-status="${r.status === "keep" ? "keep" : r.status === "noop" ? "noop" : "reverted"}" tabindex="-1">
   <div class="r-no">${i + 1}</div>
   <div class="r-stamp ${badge.cls}">${badge.label}</div>
   <div class="r-metric">${fmtMetric(r.metric)}${r.metric != null && current?.metricUnit ? `<span class="u">${escapeHtml(current.metricUnit)}</span>` : ""}</div>
@@ -273,11 +275,21 @@ function renderBody(
   const body =
     history.totalRuns === 0
       ? `<p class="empty">暂无实验记录。</p>`
-      : `${trend ? `<figure class="chart">${trend}</figure>` : ""}
-<div class="ledger">
+      : `${trend ? `<figure class="chart"><figcaption><span>度量趋势 <small>全部实验 · ${escapeHtml(current?.metricName ?? "metric")}</small></span><span class="legend">● 保留 · ○ 未保留</span></figcaption>${trend}</figure>` : ""}
+<section class="history"><div class="history-title"><h2>实验记录 <span>${history.totalRuns}</span></h2><div class="filters" hidden aria-label="筛选实验">${[
+          ["all", "全部"],
+          ["keep", "保留"],
+          ["reverted", "回退"],
+          ["noop", "无改动"],
+        ]
+          .map(
+            ([key, label]) =>
+              `<button type="button" data-filter="${key}" aria-pressed="${key === "all"}">${label}</button>`,
+          )
+          .join("")}</div></div><div class="ledger">
 <div class="l-head"><span>#</span><span>状态</span><span>metric</span><span>Δ vs baseline</span><span>假设与结论</span><span>commit</span></div>
 ${rows.join("\n")}
-</div>`;
+</div></section>`;
 
   return `<!doctype html>
 <html lang="zh-CN">
@@ -408,12 +420,69 @@ ${rows.join("\n")}
     .footer { margin-top: 2rem; padding: 1.1rem 0 2rem; }
     .footer span + span { display: none; }
   }
+
+  /* Report hierarchy: quiet surfaces, one accent, evidence gets the width. */
+  .wrap { max-width: 1160px; padding-inline: clamp(20px, 4vw, 48px); }
+  .hero { padding-top: clamp(40px, 6vw, 80px); padding-bottom: 32px; }
+  h1 { font-size: clamp(2rem, 1.4rem + 2vw, 3.2rem); max-width: 24ch; margin-bottom: 16px; letter-spacing: -.025em; }
+  .metric-context { color: var(--muted); font: 12px var(--mono); margin: 0 0 32px; overflow-wrap: anywhere; }
+  .metric-context span { font-family: var(--sans); margin-left: 16px; }
+  .result { display: grid; grid-template-columns: auto 48px auto 1fr; gap: 24px; align-items: end; margin-bottom: 28px; }
+  .fig .n { font-family: var(--sans); font-size: clamp(24px, 1rem + 2vw, 40px); font-weight: 400; letter-spacing: -.045em; font-variant-numeric: tabular-nums; }
+  .fig .l { margin-top: 10px; font-size: 10px; }
+  .fig.delta { justify-self: end; }
+  .fig.delta .n { font-size: clamp(44px, 2rem + 4vw, 80px); font-weight: 600; line-height: .95; }
+  .arr { width: 40px; align-self: end; margin-bottom: calc(22px + clamp(24px, 1rem + 2vw, 40px) * .55); }
+  .chart { margin: 32px 0 40px; padding: 20px 20px 12px; border-radius: 4px; }
+  figcaption { display: flex; justify-content: space-between; gap: 16px; font-size: 13px; font-weight: 600; margin: 0 4px 24px; }
+  figcaption small, .legend { font: 11px var(--sans); color: var(--muted); }
+  figcaption small { margin-left: 12px; }
+  .chart a circle { stroke-width: 2; }
+  .chart a:hover circle, .chart a:focus-visible circle { stroke: var(--accent); stroke-width: 5; }
+  .history-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
+  h2 { font-size: 16px; font-weight: 600; margin: 0; }
+  h2 span { font: 12px var(--mono); color: var(--muted); margin-left: 8px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 4px; }
+  [hidden] { display: none !important; }
+  button { font: 12px var(--sans); color: var(--muted); border: 1px solid transparent; background: transparent; border-radius: 4px; padding: 8px 12px; cursor: pointer; min-height: 40px; }
+  button[aria-pressed="true"] { color: var(--fg); background: var(--panel); border-color: var(--line); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .l-head, .run { grid-template-columns: 2rem 5rem 6rem 7rem minmax(0, 1fr) 5rem; column-gap: 16px; }
+  .l-head { font-weight: 400; letter-spacing: .04em; }
+  .l-head span:nth-child(2), .l-head span:nth-child(5) { font-family: var(--sans); letter-spacing: normal; }
+  .run { padding-block: 20px; scroll-margin-top: 24px; }
+  .run:target { background: var(--accent-soft); outline: 1px solid var(--accent); outline-offset: 6px; }
+  .r-no { font: 12px var(--mono); }
+  .r-metric { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+  .r-delta { text-align: right; }
+  .d { font-size: 12px; }
+  .r-desc { font-size: 14px; line-height: 1.7; }
+  .r-commit { color: var(--muted); font-size: 11px; }
+  .r-commit code { background: none; padding: 0; }
+  @media (max-width: 760px) {
+    .result { grid-template-columns: auto 28px auto; gap: 16px; }
+    .fig.delta { grid-column: 1 / -1; justify-self: start; margin-top: 12px; }
+    .fig.delta .n { font-size: 56px; }
+    .arr { width: 28px; }
+    .history-title { align-items: start; flex-direction: column; gap: 12px; }
+    .chart { padding: 16px 8px 8px; }
+    figcaption { flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    figcaption small { display: block; margin: 6px 0 0; }
+    .run { grid-template-columns: 24px 1fr 1fr; grid-template-areas: "no stamp commit" "desc desc desc" "metric metric delta"; gap: 10px; padding-block: 20px; }
+    .r-desc { color: var(--fg); font-size: 14px; }
+    .r-metric { justify-self: start; text-align: left; }
+    .r-metric .u { display: inline; }
+    .r-commit { justify-self: end; }
+    .meta { font-family: var(--sans); }
+  }
+  @media print { .filters { display: none; } .run[hidden] { display: grid !important; } .chart { break-inside: avoid; } }
+
 </style>
 </head>
 <body>
 <div class="wrap">
   <header class="hero">
-    <h1>${escapeHtml(name)}</h1>${heroMetrics}
+    <h1>${escapeHtml(name)}</h1><p class="metric-context">${escapeHtml(current?.metricName ?? "metric")}${current?.metricUnit ? ` / ${escapeHtml(current.metricUnit)}` : ""}<span>${direction === "higher" ? "越高越好" : "越低越好"}</span></p>${heroMetrics}
   </header>
 ${body}
   <footer class="footer">${footer}
@@ -438,6 +507,24 @@ ${body}
 </script>`
       : ""
   }
+<script>
+(function () {
+  var filters = document.querySelector('.filters');
+  if (!filters) return;
+  filters.hidden = false;
+  function apply(key) {
+    document.querySelectorAll('[data-filter]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.filter === key)); });
+    document.querySelectorAll('.run').forEach(function (r) { r.hidden = key !== 'all' && r.dataset.status !== key; });
+  }
+  filters.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-filter]');
+    if (b) apply(b.dataset.filter);
+  });
+  document.querySelectorAll('.chart a').forEach(function (a) {
+    a.addEventListener('click', function () { apply('all'); });
+  });
+})();
+</script>
 </body>
 </html>`;
 }

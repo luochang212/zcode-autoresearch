@@ -311,7 +311,7 @@ test("renderer: result-first hero metrics, dual theme, overflow guards, neutral 
   assert.match(html, /class="meta"/);
   assert.match(
     html,
-    /5 experiments<span class="dot"> · <\/span>3 kept<span class="dot"> · <\/span>2 reverted/,
+    /5 experiments<span class="dot"> · <\/span>3 kept<span class="dot"> · <\/span>1 reverted<span class="dot"> · <\/span>1 no-op/,
   );
   assert.match(html, /<span class="conf-green">PASS<\/span> 2\.67× noise/);
   assert.doesNotMatch(html, /class="band"/);
@@ -529,4 +529,24 @@ test("rebuildHistory: footer follows ledger order after clock rollback", () => {
   const history = rebuildHistory(entries);
   assert.equal(history.lastRunAt, runs[1].timestamp);
   assert.match(renderDashboard(history), /autoresearch · 2026-10-27/);
+});
+
+test("renderer: evidence links, escaped labels and accessible filters", () => {
+  const entries = entriesWithRuns([
+    ["keep", 100],
+    ["discard", 110],
+    ["noop", null],
+  ]);
+  const config = entries[0];
+  if (config.type === "config") config.metricUnit = "ms";
+  const run = entries[1];
+  if (run.type === "run") run.description = '<img src=x onerror="bad()">';
+  const html = renderDashboard(rebuildHistory(entries));
+  assert.match(html, /time_ms \/ ms/);
+  assert.match(html, /href="#run-1"/);
+  assert.match(html, /&lt;img src=x onerror=&quot;bad\(\)&quot;&gt;/);
+  assert.doesNotMatch(html, /<img src=x/);
+  assert.match(html, /data-filter="all" aria-pressed="true"/);
+  assert.match(html, /class="filters" hidden/);
+  assert.match(html, /id="run-3" data-status="noop"/);
 });
