@@ -371,7 +371,11 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
 }
 
 async function runChecks(checksFile: string) {
-  const res = await runCommand(`bash ${checksFile}`, CHECKS_TIMEOUT_MS);
+  // The path goes through `bash -c`, where backslashes are escape characters —
+  // a Windows absolute path would be eaten into a nonexistent one (exit 127,
+  // read as "checks failed"). Forward slashes are valid on both platforms.
+  const posix = checksFile.replaceAll("\\", "/");
+  const res = await runCommand(`bash '${posix}'`, CHECKS_TIMEOUT_MS);
   return {
     failed: res.exitCode !== 0,
     exitCode: res.exitCode,
@@ -389,6 +393,10 @@ const HOOK_MAX_BYTES = 8 * 1024;
 
 function isExecutable(file: string): boolean {
   if (!existsSync(file)) return false;
+  // NTFS carries no Unix exec bits: Node's stat mode is always 0666, so the
+  // bit test below would make iteration hooks unreachable on Windows. The
+  // spawn goes through bash anyway, so existence is the opt-in there.
+  if (process.platform === "win32") return true;
   try {
     return (statSync(file).mode & 0o111) !== 0;
   } catch {
