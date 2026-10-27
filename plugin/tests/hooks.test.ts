@@ -2,7 +2,13 @@
 // These protect the hook runner path (not exercised by headless CLI).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -640,4 +646,37 @@ test("permission-gate denies experiment tools without a session, allows with one
     ),
     "",
   );
+});
+
+// The tests above spawn hook scripts directly by path, so a renamed script
+// would stay green here while the installed plugin silently loses the hook:
+// nothing else checks hooks.json (local suite, upstream validate.py, upstream
+// artifact tests all skip it). Assert every plugin-root reference in the
+// manifest resolves to a real file.
+test("hooks.json references point to existing files", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(HOOKS, "hooks.json"), "utf8"),
+  ) as unknown;
+  const refs = new Set<string>();
+  const REF = /\$\{ZCODE_PLUGIN_ROOT\}\/([^\s"'`]+)/g;
+  const walk = (value: unknown): void => {
+    if (typeof value === "string") {
+      for (const match of value.matchAll(REF)) refs.add(match[1]);
+    } else if (Array.isArray(value)) {
+      value.forEach(walk);
+    } else if (value && typeof value === "object") {
+      Object.values(value).forEach(walk);
+    }
+  };
+  walk(manifest);
+  assert.ok(
+    refs.size > 0,
+    "no ZCODE_PLUGIN_ROOT references found in hooks.json; the scan itself broke",
+  );
+  for (const ref of refs) {
+    assert.ok(
+      existsSync(join(ROOT, ref)),
+      `hooks.json references missing file: ${ref}`,
+    );
+  }
 });
