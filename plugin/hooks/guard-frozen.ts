@@ -7,6 +7,7 @@
 import { resolve, relative } from "node:path";
 import { existsSync } from "node:fs";
 import { resolveWorkCwd } from "../mcp/lib/paths.ts";
+import { FROZEN_FILES, FROZEN_REASONS, frozenKey } from "../mcp/lib/frozen.ts";
 
 interface PreToolUseInput {
   tool_input?: { file_path?: string; path?: string };
@@ -14,21 +15,6 @@ interface PreToolUseInput {
 }
 
 const cwd = resolveWorkCwd(process.argv[2] || process.cwd());
-const FROZEN = new Set([
-  ".auto/measure.sh",
-  ".auto/checks.sh",
-  ".auto/goal.md",
-  ".auto/scope.md",
-]);
-const FROZEN_REASON: Record<string, string> = {
-  ".auto/measure.sh":
-    "the benchmark metric must not change during the loop. If you really need a new metric, start over: init_experiment with a new target.",
-  ".auto/checks.sh": "the correctness gate must not change during the loop.",
-  ".auto/goal.md":
-    "the deep goal is the root the loop serves; it was recorded verbatim from the user and cannot be rewritten. Surface-goal wording is revisable via the harness-edit step's editable surfaces, or a new segment via init_experiment.",
-  ".auto/scope.md":
-    "the scope boundary was agreed with the user and cannot be changed by the loop — widening or narrowing it is the user's call: ask them to edit this file, or init_experiment for a new segment.",
-};
 
 let raw = "";
 process.stdin.setEncoding("utf8");
@@ -47,11 +33,11 @@ if (!fp) process.exit(0);
 
 let rel: string;
 try {
-  rel = relative(cwd, resolve(cwd, fp));
+  rel = frozenKey(relative(cwd, resolve(cwd, fp)));
 } catch {
   process.exit(0);
 }
-if (!FROZEN.has(rel)) process.exit(0);
+if (!FROZEN_FILES.has(rel)) process.exit(0);
 // Frozen means "immutable once recorded", not "never written": setup creates
 // these files (goal/scope verbatim from the user) before any segment exists.
 // What the guard blocks is rewriting a record already on disk.
@@ -63,7 +49,7 @@ process.stdout.write(
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
       permissionDecisionReason: `[autoresearch] ${rel} is frozen: ${
-        FROZEN_REASON[rel] ?? "frozen session file."
+        FROZEN_REASONS[rel] ?? "frozen session file."
       }`,
     },
   }),
