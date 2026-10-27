@@ -207,8 +207,7 @@ export function rebuildHistory(entries: LedgerEntry[]): SessionHistory {
       runs.push(e);
       if (firstMetric == null && e.metric != null && Number.isFinite(e.metric))
         firstMetric = e.metric;
-      if (e.timestamp && (!lastRunAt || e.timestamp > lastRunAt))
-        lastRunAt = e.timestamp;
+      lastRunAt = e.timestamp ?? null;
     }
   }
   // Best over keep runs, direction-aware by the latest config.

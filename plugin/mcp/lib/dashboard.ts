@@ -50,7 +50,7 @@ function overallPct(
 ): { text: string; cls: string } | null {
   if (first == null || best == null || !Number.isFinite(first) || first === 0)
     return null;
-  const pct = ((best - first) / first) * 100;
+  const pct = ((best - first) / Math.abs(first)) * 100;
   const improved = direction === "higher" ? pct > 0 : pct < 0;
   if (Math.abs(pct) < 1e-9) return { text: "±0%", cls: "neut" };
   const text = `${pct > 0 ? "+" : "−"}${Number(Math.abs(pct).toFixed(1))}%`;

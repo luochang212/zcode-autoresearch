@@ -499,3 +499,34 @@ test("renderer: revisits_run marker renders only for positive integers", () => {
   // the live dashboard shares the same render path
   assert.match(renderLiveDashboard(rebuildHistory(entries)), /↻ Revisiting #3/);
 });
+
+test("renderer: negative baselines preserve improvement direction", () => {
+  for (const [direction, best, text] of [
+    ["lower", -20, "−100%"],
+    ["higher", -5, "+50%"],
+  ] as const) {
+    const entries = entriesWithRuns([
+      ["keep", -10],
+      ["keep", best],
+    ]);
+    const config = entries[0];
+    if (config.type === "config") config.direction = direction;
+    const html = renderDashboard(rebuildHistory(entries));
+    assert.ok(
+      html.includes(`<div class="fig delta up"><div class="n">${text}</div>`),
+    );
+  }
+});
+
+test("rebuildHistory: footer follows ledger order after clock rollback", () => {
+  const entries = entriesWithRuns([
+    ["keep", 10],
+    ["keep", 9],
+  ]);
+  const runs = entries.filter((e): e is LedgerRun => e.type === "run");
+  runs[0].timestamp = "2026-10-28T01:00:00.000Z";
+  runs[1].timestamp = "2026-10-27T23:00:00.000Z";
+  const history = rebuildHistory(entries);
+  assert.equal(history.lastRunAt, runs[1].timestamp);
+  assert.match(renderDashboard(history), /autoresearch · 2026-10-27/);
+});
