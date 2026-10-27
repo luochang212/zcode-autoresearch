@@ -34,6 +34,7 @@
 5. **关键决策用 adrkit**：以下四类必须进 `adr/implemented/`——平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定；单 change 内的实现取舍留在 change 的 design.md，不双写。已落地决策：`adrkit record "<title>" --raised-by human|agent --decided-by human|agent` 生成于 `adr/implemented/`（两个声明须如实标注：谁把决策摆上桌面、谁的判断拍板），补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`；未落地方向先 `adrkit propose`，落地后 `adrkit implement` 转正拿编号；否决用 `adrkit reject`（进 `adr/rejected/` 留作反模式记忆）；退役/替换用 `adrkit archive`/`adrkit supersede`（进 `adr/archived/`，普通 git 历史，勿静默手改）。
 6. **测试必须通过**：根目录 `npm test`（= 插件单测 `npm run test:plugin`，即 `cd plugin && node --test tests/*.test.ts`，加上 marketplace 契约检查 `npm run test:contract`；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
 7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `/archived/`（仅根目录草稿本）、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`。
+8. **版本与发布**：版本号双写 `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`，由 `tests/marketplace-contract.test.ts` 守护。正式分发以上游 `zai-org/zcode-plugins` 市场为准；本仓库可作为开发源被添加为市场（跟随 `main`，非稳定版）。每次发布在已发布快照上打 annotated tag + GitHub Release，**不挂构建产物**（市场 zip 是唯一权威包）；当前基线 `v0.1.0` = 上游落地提交 `d5690038`，未发布改动用 `git diff v0.1.0..HEAD -- plugin/` 对比。
 
 ## Reading architecture decisions
 
@@ -46,8 +47,10 @@ Record an ADR when an architectural choice constrains future work and its ration
 ## 插件架构速览（改动前先读）
 
 - **`plugin/mcp/server.ts`**：JSON-RPC stdio server，工具 init/run/log/export/clear；账本 `.auto/log.jsonl` 为 append-only 事实源。
-- **`plugin/mcp/lib/`**：纯函数模块——`experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir）。
+- **`plugin/mcp/lib/`**：纯函数模块——`experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir）、`bash`（跨平台 bash 定位/进程树终止/shell 引用）、`frozen`（写保护文件集合与路径键归一化）。
 - **护栏四层**：checks（输出正确）→ 审计不变量（账本自洽）→ 漂移检测（基准 hash）→ 次级度量约束（代价维度）。
+- **冻结语义**：写保护覆盖 `.auto/measure.sh`、`.auto/checks.sh`、`.auto/goal.md`、`.auto/scope.md`；冻结指「记录后不可改」，setup 首次创建放行、已存在则拒改（`frozen.ts` 是唯一事实源）。
+- **规程层**：`skills/autoresearch/SKILL.md` 与 `references/loop-protocol.md` 定义循环规程与 harness 编辑步（二阶循环：有账本证据才改 surface，`goal.md`/`scope.md` 是根与围栏；segment 末至多写一条 `experience.md`，finalize 前人工并入项目 `AGENTS.md`）。
 - **hooks/**：zcode hook 脚本（Stop 续跑、PreToolUse 写保护、记忆注入、权限门禁、SessionStart）。
 - **技能与命令**：`skills/autoresearch/`（循环规程 + references）、`skills/autoresearch-hooks/`（钩子教学）、`commands/`（autoresearch/export/clear/off/finalize）。
 

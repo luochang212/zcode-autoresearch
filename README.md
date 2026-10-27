@@ -38,6 +38,9 @@ This repository is itself a plugin marketplace (`marketplace.json` points to `pl
 
 The agent will then guide you through setup and enter the loop.
 
+> [!NOTE]
+> The published version is **v0.1.0** ([Releases](https://github.com/luochang212/zcode-autoresearch/releases)); the official ZCode marketplace carries that release. Pointing at this repository tracks `main`, which may contain unreleased work.
+
 ## 😇 Guardrails: How the Agent Is Kept Honest
 
 The biggest risk of an autonomous loop is the agent faking results to "score points". Four structural guardrails reject any violation:

@@ -38,6 +38,9 @@
 
 之后 agent 会引导完成 setup 并进入循环。
 
+> [!NOTE]
+> 已发布版本是 **v0.1.0**（见 [Releases](https://github.com/luochang212/zcode-autoresearch/releases)），官方 ZCode 市场提供的就是这一版。指向本仓库安装会跟随 `main`，其中可能包含尚未发布的改动。
+
 ## 😇 护栏：怎么防止 agent 造假
 
 自主循环最大的风险是 agent 为了「跑分」造假。四层结构性护栏，违规即拒收：
