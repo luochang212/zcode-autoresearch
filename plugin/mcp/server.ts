@@ -26,7 +26,7 @@ import {
   computeConfidence,
   isBetter,
 } from "./lib/experiment.ts";
-import { resolveBash, killTreeOrWrapper } from "./lib/bash.ts";
+import { resolveBash, killTreeOrWrapper, quoteShellArg } from "./lib/bash.ts";
 import {
   autoPaths,
   appendLedgerEntry,
@@ -373,9 +373,13 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
 async function runChecks(checksFile: string) {
   // The path goes through `bash -c`, where backslashes are escape characters —
   // a Windows absolute path would be eaten into a nonexistent one (exit 127,
-  // read as "checks failed"). Forward slashes are valid on both platforms.
+  // read as "checks failed"). Forward slashes are valid on both platforms;
+  // quoteShellArg keeps apostrophes in the project path from ending the quote.
   const posix = checksFile.replaceAll("\\", "/");
-  const res = await runCommand(`bash '${posix}'`, CHECKS_TIMEOUT_MS);
+  const res = await runCommand(
+    `bash ${quoteShellArg(posix)}`,
+    CHECKS_TIMEOUT_MS,
+  );
   return {
     failed: res.exitCode !== 0,
     exitCode: res.exitCode,

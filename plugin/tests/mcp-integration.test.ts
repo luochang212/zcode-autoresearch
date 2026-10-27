@@ -36,8 +36,11 @@ interface McpClient {
   close(): void;
 }
 
-function tempRepo(opts: { withMeasure?: boolean } = {}) {
-  const cwd = mkdtempSync(join(tmpdir(), "ar-mcp-"));
+function tempRepo(opts: { withMeasure?: boolean; name?: string } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "ar-mcp-"));
+  // Nested name lets a test put the repo behind a hostile path segment.
+  const cwd = opts.name ? join(root, opts.name) : root;
+  mkdirSync(cwd, { recursive: true });
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
   execFileSync("git", ["config", "user.email", "t@t"], {
     cwd,
@@ -441,6 +444,25 @@ test("checks gate: keep rejected after failed checks, allowed again after a pass
     });
     assert.equal(good.ok, true);
     assert.equal(typeof good.commit, "string");
+  });
+});
+
+test("checks: a project path containing a single quote still runs checks.sh", async () => {
+  const cwd = tempRepo({ name: "project's dir" });
+  writeFileSync(
+    join(cwd, ".auto", "checks.sh"),
+    "#!/usr/bin/env bash\necho RAN > checks-ran\n",
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    const checks = run.checks as Record<string, unknown>;
+    assert.equal(checks.ran, true);
+    assert.equal(checks.failed, false);
+    assert.equal(checks.exit_code, 0);
+    assert.equal(existsSync(join(cwd, "checks-ran")), true);
   });
 });
 

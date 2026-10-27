@@ -1,4 +1,5 @@
-// Windows process semantics for the two spawn sites in server.ts.
+// Bash invocation details shared by the two spawn sites in server.ts:
+// shell-argument quoting and Windows process semantics.
 //
 // Two facts make a naive `spawn("bash", …)` wrong on Windows:
 // 1. Two unrelated bash.exe ship on a typical Windows box — Git Bash's
@@ -45,6 +46,15 @@ export function resolveBash(): string {
   }
   cachedBash = resolved;
   return resolved;
+}
+
+// Single-quote a value for `bash -c`. Paths reach runCommand inside a shell
+// string, where an unquoted apostrophe (e.g. "Alex's project") ends the
+// quoting early and the command dies with a syntax error; the checks gate
+// would read that nonzero exit as "checks failed". Inside single quotes bash
+// treats every character literally, so only the quote itself needs escaping.
+export function quoteShellArg(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 // Windows equivalent of killing the process group: taskkill /T walks the
