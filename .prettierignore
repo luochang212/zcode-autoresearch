@@ -2,5 +2,8 @@
 archived/
 node_modules/
 
+# Vendored reference snapshot shipped with the adrkit-visualize skill.
+.agents/skills/adrkit-visualize/examples/
+
 # Lockfile: machine-managed, slow to pretty-print.
 package-lock.json
