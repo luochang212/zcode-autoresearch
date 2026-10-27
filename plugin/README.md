@@ -13,7 +13,7 @@ This plugin executes code and operates on a git repository. Enabling it grants c
 - **Runs commands**: `run_experiment` executes the benchmark script you author (`.auto/measure.sh`) and, when present, the correctness gate (`.auto/checks.sh`);
 - **Runs git operations automatically**: `git commit` on keep, automatic rollback on non-keep (`.auto/` is exempt from rollback);
 - **Installs ZCode hooks**: Stop (loop continuation), PreToolUse (frozen-file write protection), PermissionRequest (experiment-tool gating), UserPromptSubmit/SessionStart (ledger memory injection);
-- **Serves a local HTTP dashboard** on 127.0.0.1 via `export_dashboard`;
+- **Serves a local HTTP dashboard** on 127.0.0.1 via `export_dashboard` (editorial archive page: full experiment history, trend across segments, light/dark themes);
 - **Writes session state** to `.auto/` files (`log.jsonl`, `config.json`) in the project directory.
 
 No third-party npm dependencies: the MCP server and hooks are Node-stdlib TypeScript scripts (Node ≥24, types stripped natively, no build step).

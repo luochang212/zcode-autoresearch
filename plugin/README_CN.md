@@ -23,7 +23,7 @@
 - **执行命令**：`run_experiment` 运行你编写的基准脚本 `.auto/measure.sh`，以及存在时的正确性门禁 `.auto/checks.sh`；
 - **自动执行 git 操作**：keep 时自动 `git commit`，非 keep 时自动回滚（`.auto/` 豁免回滚）；
 - **安装 ZCode hooks**：Stop（循环续跑）、PreToolUse（冻结文件写保护）、PermissionRequest（实验工具门禁）、UserPromptSubmit/SessionStart（账本记忆注入）；
-- **启动本地 HTTP dashboard**：`export_dashboard` 监听 127.0.0.1；
+- **启动本地 HTTP dashboard**：`export_dashboard` 监听 127.0.0.1，编辑部式档案页呈现全部实验历史（跨 segment 趋势、亮暗双主题）；
 - **写入会话状态**：项目目录下的 `.auto/`（`log.jsonl`、`config.json`）。
 
 ## 用法
