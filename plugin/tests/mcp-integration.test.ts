@@ -788,6 +788,26 @@ test("asi.revisits_run passes through to ledger and after hook, unvalidated", as
   });
 });
 
+test("asi.infra passes through to the ledger unvalidated (infra crash)", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const log = await s.tool("log_experiment", {
+      status: "crash",
+      description: "network outage during dependency fetch",
+      asi: { hypothesis: "parallel build", infra: true },
+    });
+    assert.equal(log.ok, true);
+    const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l))
+      .filter((r) => r.type === "run");
+    assert.equal(rows[0]?.asi?.infra, true);
+  });
+});
+
 test("confidence snapshot: ledger row matches the returned value, crash row safe", async () => {
   const cwd = tempRepo();
   await withServer(cwd, async (s) => {
