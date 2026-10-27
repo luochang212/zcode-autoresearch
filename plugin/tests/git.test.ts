@@ -23,6 +23,9 @@ function gitInit(cwd: string): void {
     ["init", "-q"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
+    // Developers on Windows often have core.autocrlf=true globally; checkout
+    // would then smudge LF back to CRLF and break the exact-content assertions.
+    ["config", "core.autocrlf", "false"],
   ])
     execFileSync("git", a, { cwd, stdio: "ignore" });
 }
