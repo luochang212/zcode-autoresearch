@@ -36,6 +36,15 @@ export function shortHash(cwd: string): string {
   return git(cwd, ["rev-parse", "--short=7", "HEAD"]);
 }
 
+/** Short HEAD hash for the dashboard footer pin; null outside a repo / on failure. */
+export function safeShortHash(cwd: string): string | null {
+  try {
+    return isGitRepo(cwd) ? shortHash(cwd) : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Commit all tracked+untracked changes as one experiment, excluding the
  * `.auto/` session dir (ledger noise must not ride along, and a keep with

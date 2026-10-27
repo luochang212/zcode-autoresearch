@@ -4,8 +4,9 @@ import { createServer } from "node:http";
 import type { Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { rebuildState, readSessionConfig } from "./ledger.ts";
+import { readLedger, rebuildHistory } from "./ledger.ts";
 import { renderLiveDashboard } from "./dashboard.ts";
+import { safeShortHash } from "./git.ts";
 
 const clients = new Set<ServerResponse>();
 let server: Server | null = null;
@@ -63,11 +64,9 @@ function start(workCwd: string): Promise<{ port: number; url: string }> {
       return;
     }
     if (url.pathname === "/" || url.pathname === "") {
-      const state = rebuildState(workCwd, {
-        maxIterations: Number(readSessionConfig(workCwd).maxIterations) || 20,
-      });
+      const history = rebuildHistory(readLedger(workCwd));
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(renderLiveDashboard(state));
+      res.end(renderLiveDashboard(history, { pin: safeShortHash(workCwd) }));
       return;
     }
     res.writeHead(404);

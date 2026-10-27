@@ -9,6 +9,8 @@ import {
 import { join } from "node:path";
 import { computeConfidence, isBetter, detectPlateau } from "./experiment.ts";
 import type {
+  Confidence,
+  LedgerConfig,
   LedgerEntry,
   LedgerRun,
   SessionConfig,
@@ -164,6 +166,82 @@ export function rebuildState(
     state.plateau = false;
   }
   return state;
+}
+
+// ---------------------------------------------------------------------------
+// Full-session history (archive dashboard only; loop control stays on
+// rebuildState's segment-scoped view)
+// ---------------------------------------------------------------------------
+
+/**
+ * Flat whole-ledger view: the session reads as one run sequence. A config row
+ * never splits the display — it only refreshes the title/metric/direction
+ *口径 (the latest config wins).
+ */
+export interface SessionHistory {
+  config: LedgerConfig | null;
+  runs: LedgerRun[];
+  totalRuns: number;
+  kept: number;
+  firstMetric: number | null;
+  bestMetric: number | null;
+  lastRunAt: string | null;
+  confidence: Confidence | null;
+}
+
+/**
+ * Pure view over the whole ledger, flattened. Runs keep their ledger order
+ * regardless of config rows; the latest config row supplies the display
+ *口径 (name, metric, direction, unit). A run before any config row is
+ * rendered with the neutral fallbacks (hand-written ledgers).
+ */
+export function rebuildHistory(entries: LedgerEntry[]): SessionHistory {
+  const runs: LedgerRun[] = [];
+  let config: LedgerConfig | null = null;
+  let firstMetric: number | null = null;
+  let lastRunAt: string | null = null;
+  for (const e of entries) {
+    if (e.type === "config") {
+      config = e;
+    } else if (e.type === "run") {
+      runs.push(e);
+      if (firstMetric == null && e.metric != null && Number.isFinite(e.metric))
+        firstMetric = e.metric;
+      if (e.timestamp && (!lastRunAt || e.timestamp > lastRunAt))
+        lastRunAt = e.timestamp;
+    }
+  }
+  // Best over keep runs, direction-aware by the latest config.
+  const dir = config?.direction ?? "lower";
+  let bestMetric: number | null = null;
+  for (const r of runs) {
+    if (r.status !== "keep" || r.metric == null || !Number.isFinite(r.metric))
+      continue;
+    if (bestMetric == null || isBetter(r.metric, bestMetric, dir))
+      bestMetric = r.metric;
+  }
+  // Confidence over all measured values against the global baseline/best.
+  const values = runs
+    .map((r) => r.metric)
+    .filter((v): v is number => v != null && Number.isFinite(v));
+  const confidence =
+    config && values.length > 0
+      ? computeConfidence({
+          values,
+          baseline: firstMetric,
+          best: bestMetric,
+        })
+      : null;
+  return {
+    config,
+    runs,
+    totalRuns: runs.length,
+    kept: runs.filter((r) => r.status === "keep").length,
+    firstMetric,
+    bestMetric,
+    lastRunAt,
+    confidence,
+  };
 }
 
 /**

@@ -30,6 +30,8 @@ import { resolveBash, killTreeOrWrapper, quoteShellArg } from "./lib/bash.ts";
 import {
   autoPaths,
   appendLedgerEntry,
+  readLedger,
+  rebuildHistory,
   rebuildState,
   readSessionConfig,
   writeDashboard,
@@ -40,6 +42,7 @@ import {
   isGitRepo,
   isDirty,
   currentBranch,
+  safeShortHash,
 } from "./lib/git.ts";
 import { renderDashboard } from "./lib/dashboard.ts";
 import { resolveWorkCwd } from "./lib/paths.ts";
@@ -1118,15 +1121,15 @@ async function toolClearExperiments() {
 }
 
 async function toolExportDashboard() {
-  const state = sessionState();
-  const html = renderDashboard(state);
+  const history = rebuildHistory(readLedger(cwd));
+  const html = renderDashboard(history, { pin: safeShortHash(cwd) });
   writeDashboard(cwd, html);
   const info = await ensureDashboardServer(cwd);
   return {
     ok: true,
     file: paths.dashboard,
     url: info?.url ?? null,
-    experiments: state.runs.length,
+    experiments: history.totalRuns,
     message: info
       ? `live dashboard at ${info.url} (auto-refreshes on each experiment); static copy at ${paths.dashboard}`
       : `static dashboard written to ${paths.dashboard}`,
