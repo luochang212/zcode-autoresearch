@@ -21,7 +21,8 @@ Set a goal, pick a mechanical metric, and let the loop iterate. The plugin's MCP
 
 - `log.jsonl`: append-only ledger of config rows + run rows. Single source of truth.
 - `goal.md`: the deep goal, recorded **verbatim** from the user at setup. Frozen — the PreToolUse hook denies writes; the harness-edit step cannot touch it.
-- `prompt.md`: the session charter (goal quote / metric / scope / Off Limits / What's Been Tried). Its Goal section quotes `goal.md` verbatim. Update "What's Been Tried" as you go.
+- `scope.md`: the user-agreed scope boundary (files in scope + off limits). Frozen the same way — widening or narrowing it is the user's call, not the loop's.
+- `prompt.md`: the session charter (goal quote / metric / scope quote / What's Been Tried). Its Goal section quotes `goal.md`, its scope section quotes `scope.md`, both verbatim. Update "What's Been Tried" as you go.
 - `measure.sh`: the benchmark; prints `METRIC name=value` lines.
 - `checks.sh`: optional correctness gate, run after a passing benchmark.
 - `experience.md`: cross-segment lessons — at most one per segment (`cue` / `lesson` / `evidence` / `confidence`), or `NO_ENTRY`. Survives `clear`; reviewed into the project AGENTS.md at finalize.
@@ -46,12 +47,12 @@ For each iteration, exactly one pass through:
 
 ## Harness editing (second-order loop)
 
-The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence. The deep goal in `.auto/goal.md` is the root and never changes; everything else in the harness is a revisable representation of it.
+The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence. The deep goal in `.auto/goal.md` is the root and the scope boundary in `.auto/scope.md` is the fence — neither ever changes by the loop's hand; everything else in the harness is a revisable representation of them.
 
 Trigger: `plateau`, `doom_loop`, consecutive-failure threshold, every ~8 runs, or segment end. Then:
 
 1. **Edit rows first**: for each candidate change write `{component, change, observed, verdict}` before touching anything. `verdict` is `helped` / `hurt` / `no observed effect` / `confounded`; prefer `confounded` when one edit touches several components and no execution isolates the cause — an honest "confounded" is a useful record, an invented attribution poisons every later edit.
-2. **Editable surfaces only**: `prompt.md` surface sections (the verbatim quote of `goal.md` stays untouched), `ideas.md`, `.auto/hooks/` config, repeat/segment choices. `.auto/goal.md`, `measure.sh`, `checks.sh` are frozen (the hook denies goal writes). Replacing the metric proxy or the optimization target is not an edit — `init_experiment` for a new segment.
+2. **Editable surfaces only**: `prompt.md` surface sections (the verbatim quotes of `goal.md` and `scope.md` stay untouched), `ideas.md`, `.auto/hooks/` config, repeat/segment choices. `.auto/goal.md`, `.auto/scope.md`, `measure.sh`, `checks.sh` are frozen (the hook denies goal and scope writes). If evidence says a wider — or narrower — scope would help, do not touch the boundary: ask the user to edit `scope.md`, or `init_experiment` for a new segment. Replacing the metric proxy or the optimization target is not an edit either — `init_experiment` for a new segment.
 3. **KEEP_BASE**: an edit the evidence does not argue for is a regression. No edit is a valid outcome.
 4. **Experience**: at segment end add at most one lesson to `.auto/experience.md` — `{cue, lesson, evidence, confidence}`, `evidence` citing run numbers — or `NO_ENTRY` when no behavioral contrast supports one. Distinguish workspace facts (verified here, labelled here) from transferable procedure; "be thorough" is not a lesson.
 

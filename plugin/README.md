@@ -56,7 +56,7 @@ Or let the skill trigger on its own (descriptions containing "autoresearch", "au
 
 - **Benchmark locking**: when `.auto/measure.sh` exists, `run_experiment` only executes that script (validated after stripping env/time/nice wrappers).
 - **Correctness backpressure**: when `.auto/checks.sh` exists, it runs automatically after a passing benchmark; a failing gate forbids keep and rolls back.
-- **Write protection**: a PreToolUse hook denies writes to `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` (the deep-goal record: the root the loop serves stays immutable while the harness-edit step revises its surface representations).
+- **Write protection**: a PreToolUse hook denies writes to `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` (the deep-goal record: the root the loop serves stays immutable while the harness-edit step revises its surface representations) / `.auto/scope.md` (the user-agreed scope boundary: the loop works inside the fence, it never redraws it — widening or narrowing is the user's edit or a new segment).
 - **Tool gating (approximate)**: a PermissionRequest hook denies experiment tools when there is no session (only covers calls that go through the permission prompt).
 - **Auto-resume hint**: SessionStart injects a continuation hint when an active session is detected; `/autoresearch:off` pauses it (`autoresearchOff: true`).
 - **Memory injection**: UserPromptSubmit/SessionStart hooks inject an aggregated summary (progress + deduped tried directions + best trajectory + discard reasons with rollback rationale + ASI distillation) so progress survives compaction; repeated/oscillating attempts (doom-loop) trigger a hint to switch direction.

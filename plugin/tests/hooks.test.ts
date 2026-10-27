@@ -82,6 +82,19 @@ test("guard-frozen denies deep-goal edits, allows charter and ideas", () => {
   assert.equal(g.hookSpecificOutput.permissionDecision, "deny");
   assert.match(g.hookSpecificOutput.permissionDecisionReason, /deep goal/);
 
+  const scope = runHook(
+    "guard-frozen.ts",
+    cwd,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "Edit",
+      tool_input: { file_path: join(cwd, ".auto/scope.md") },
+    }),
+  );
+  const s = JSON.parse(scope);
+  assert.equal(s.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(s.hookSpecificOutput.permissionDecisionReason, /scope boundary/);
+
   for (const editable of [".auto/prompt.md", ".auto/ideas.md"]) {
     const allow = runHook(
       "guard-frozen.ts",

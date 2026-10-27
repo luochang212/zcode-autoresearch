@@ -50,14 +50,15 @@ The loop optimizes the target code; this step lets the loop revise its **own har
 ### Root vs surface
 
 - **Root (immutable)**: `.auto/goal.md` — the user's deep goal, recorded verbatim at setup. The PreToolUse hook denies any write to it. Every surface goal statement is a representation of the root and must not contradict it.
-- **Surface (revisable with evidence)**: `prompt.md` surface sections (What's Been Tried, scope wording, Off Limits refinements — never the verbatim goal quote), `ideas.md`, `.auto/hooks/` config, repeat/segment choices.
-- **Not an edit**: replacing the metric proxy or the optimization target is a root-level re-representation decision — `init_experiment` opens a new segment instead; the frozen scripts never move.
+- **Fence (immutable)**: `.auto/scope.md` — the user-agreed scope boundary (files in scope + off limits), frozen the same way. The loop may work inside it, never redraw it: widening or narrowing is the user's edit or a new segment.
+- **Surface (revisable with evidence)**: `prompt.md` surface sections (What's Been Tried, metric/proxy wording, strategy notes — never the verbatim goal or scope quotes), `ideas.md`, `.auto/hooks/` config, repeat/segment choices.
+- **Not an edit**: replacing the metric proxy, the optimization target, or the scope boundary is a root-level decision — `init_experiment` opens a new segment instead (or the user edits `scope.md`); the frozen scripts never move.
 
 ### The edit step
 
 Trigger: `plateau`, `doom_loop`, consecutive-failure threshold, every ~8 runs, or segment end.
 
-1. **Compare executions** in the ledger: which hypothesis families kept failing, whether crashes cluster on one component, whether checks fail on the same class of change, whether the charter's Off-Limits or scope wording is steering away from productive ground.
+1. **Compare executions** in the ledger: which hypothesis families kept failing, whether crashes cluster on one component, whether checks fail on the same class of change, whether the charter's strategy notes are steering away from productive ground. If the evidence points at the scope boundary itself (a needed file is off limits, or in-scope files are dead weight), do not touch it — say so to the user and propose the boundary change; only the user edits `scope.md`, or `init_experiment` opens a re-scoped segment.
 2. **Write edit rows before touching anything**:
 
    ```text
