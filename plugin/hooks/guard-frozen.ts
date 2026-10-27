@@ -5,6 +5,7 @@
 // The matcher limits this to Write|Edit|ApplyPatch; path filtering happens
 // here, per zcode docs.
 import { resolve, relative } from "node:path";
+import { existsSync } from "node:fs";
 import { resolveWorkCwd } from "../mcp/lib/paths.ts";
 
 interface PreToolUseInput {
@@ -51,6 +52,10 @@ try {
   process.exit(0);
 }
 if (!FROZEN.has(rel)) process.exit(0);
+// Frozen means "immutable once recorded", not "never written": setup creates
+// these files (goal/scope verbatim from the user) before any segment exists.
+// What the guard blocks is rewriting a record already on disk.
+if (!existsSync(resolve(cwd, rel))) process.exit(0);
 
 process.stdout.write(
   JSON.stringify({

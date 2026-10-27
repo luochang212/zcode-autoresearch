@@ -40,8 +40,10 @@ const cfgLine: LedgerConfig = {
   direction: "lower",
 };
 
-test("guard-frozen denies writes to frozen scripts, allows others", () => {
+test("guard-frozen denies rewrites of existing frozen scripts, allows others", () => {
   const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "measure.sh"), "#!/usr/bin/env bash\n");
   const deny = runHook(
     "guard-frozen.ts",
     cwd,
@@ -67,8 +69,52 @@ test("guard-frozen denies writes to frozen scripts, allows others", () => {
   assert.equal(allow, "");
 });
 
+// Frozen means "immutable once recorded", not "never written": setup creates
+// the goal/scope/script files before any segment exists. The regression this
+// pins: the guard used to deny even that first creation (deny-on-absent),
+// contradicting setup-guide's Write instructions with a deny reason that
+// spoke of a record that did not exist yet.
+test("guard-frozen allows first creation of frozen files, denies rewrites", () => {
+  const cwd = tempCwd();
+  for (const target of [
+    ".auto/measure.sh",
+    ".auto/checks.sh",
+    ".auto/goal.md",
+    ".auto/scope.md",
+  ]) {
+    const allow = runHook(
+      "guard-frozen.ts",
+      cwd,
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "Write",
+        tool_input: { file_path: join(cwd, target) },
+      }),
+    );
+    assert.equal(allow, "", `${target} creation must pass the guard`);
+  }
+
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "goal.md"), "user goal\n");
+  const deny = runHook(
+    "guard-frozen.ts",
+    cwd,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      tool_input: { file_path: join(cwd, ".auto/goal.md") },
+    }),
+  );
+  const d = JSON.parse(deny);
+  assert.equal(d.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(d.hookSpecificOutput.permissionDecisionReason, /deep goal/);
+});
+
 test("guard-frozen denies deep-goal edits, allows charter and ideas", () => {
   const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "goal.md"), "user goal\n");
+  writeFileSync(join(cwd, ".auto", "scope.md"), "# Files in scope\n");
   const goal = runHook(
     "guard-frozen.ts",
     cwd,

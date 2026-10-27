@@ -24,7 +24,7 @@ ms=$(( (end - start) / 1000000 ))
 echo "METRIC time_ms=$ms"
 ```
 
-`run_experiment` will refuse to run anything else while this file exists, so treat it as frozen.
+`run_experiment` will refuse to run anything else while this file exists, so treat it as frozen — frozen means _immutable once recorded_: the PreToolUse hook denies rewrites, while creating it here is the intended setup step.
 
 ## 3. Create `.auto/checks.sh` (optional but recommended)
 
@@ -46,7 +46,7 @@ Write the user's deep goal **verbatim** — their words, not a paraphrase — in
 <the user's goal statement, exactly as they framed it>
 ```
 
-This file is the root the whole loop serves. It is **frozen**: the PreToolUse hook denies any write to it, including from the harness-edit step. Everything else (metric proxy, charter wording, direction pool) is a revisable representation of this root; if evidence shows the representation is wrong, revise the representation — or `init_experiment` for a new segment — never the root.
+This file is the root the whole loop serves. It is **frozen** once recorded: the PreToolUse hook denies any rewrite of it — including from the harness-edit step — while the setup-time creation above is the intended exception. Everything else (metric proxy, charter wording, direction pool) is a revisable representation of this root; if evidence shows the representation is wrong, revise the representation — or `init_experiment` for a new segment — never the root.
 
 ## 5. Record the scope boundary (`.auto/scope.md`)
 
@@ -62,7 +62,7 @@ src/**, .auto/prompt.md
 .auto/measure.sh, .auto/checks.sh, .auto/goal.md, .auto/scope.md, docs/**
 ```
 
-This file is the **fence** around the loop, frozen exactly like the root: the hook denies writes, and the harness-edit step cannot redraw it — widening _or_ narrowing is the user's edit, or a new segment via `init_experiment`. If evidence says the boundary itself is wrong, say so to the user and propose the change.
+This file is the **fence** around the loop, frozen exactly like the root: the hook denies rewrites (setup-time creation is the exception), and the harness-edit step cannot redraw it — widening _or_ narrowing is the user's edit, or a new segment via `init_experiment`. If evidence says the boundary itself is wrong, say so to the user and propose the change.
 
 ## 6. Write `.auto/prompt.md` (the charter)
 
