@@ -6,6 +6,7 @@ decided-by: human
 created: 2026-08-28
 commit: 9720d48
 tags: [plugin-architecture, typescript, tooling]
+paths: [plugin/**, tsconfig.json]
 ---
 
 # ADR: 6 TypeScript 迁移：Node ≥24 原生 type stripping，无构建步骤

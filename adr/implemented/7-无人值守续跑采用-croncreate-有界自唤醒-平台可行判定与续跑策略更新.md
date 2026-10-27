@@ -6,6 +6,7 @@ decided-by: human
 created: 2026-09-24
 commit: dfe9595
 tags: [platform-feasibility, unattended-runs, continuation, scheduling]
+paths: [plugin/hooks/**, plugin/skills/autoresearch/**]
 ---
 
 # ADR: 7 无人值守续跑采用 CronCreate 有界自唤醒：平台可行判定与续跑策略更新

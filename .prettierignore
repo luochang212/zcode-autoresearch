@@ -5,5 +5,8 @@ node_modules/
 # Vendored reference snapshot shipped with the adrkit-visualize skill.
 .agents/skills/adrkit-visualize/examples/
 
+# adrkit-managed config (rewritten on every adrkit update).
+adr/config.yaml
+
 # Lockfile: machine-managed, slow to pretty-print.
 package-lock.json

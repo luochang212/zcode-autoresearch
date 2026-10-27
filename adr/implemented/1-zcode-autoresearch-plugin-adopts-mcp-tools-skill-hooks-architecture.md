@@ -4,6 +4,7 @@ date: 2026-08-27
 raised-by: agent
 decided-by: human
 created: 2026-08-27
+paths: [plugin/**]
 ---
 
 # ADR: 1 zcode autoresearch plugin adopts MCP tools + skill + hooks architecture

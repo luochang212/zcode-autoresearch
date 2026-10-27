@@ -5,6 +5,7 @@ raised-by: agent
 decided-by: human
 created: 2026-08-27
 commit: de30744
+paths: [plugin/mcp/**]
 ---
 
 # ADR: 5 guardrail layer semantics: audit invariants, drift detection, secondary-metric constraints

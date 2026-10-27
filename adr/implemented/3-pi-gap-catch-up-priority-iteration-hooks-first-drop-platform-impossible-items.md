@@ -4,6 +4,7 @@ date: 2026-08-27
 raised-by: agent
 decided-by: human
 created: 2026-08-27
+paths: [plugin/hooks/**, plugin/skills/**]
 ---
 
 # ADR: 3 pi-gap catch-up priority: iteration hooks first, drop platform-impossible items

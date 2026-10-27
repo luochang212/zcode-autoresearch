@@ -4,6 +4,7 @@ date: 2026-08-27
 raised-by: agent
 decided-by: human
 created: 2026-08-27
+paths: [plugin/hooks/**, plugin/mcp/**]
 ---
 
 # ADR: 4 next steps: low-cost variants first (memory-inject, doom-loop), keep platform hard-limits
