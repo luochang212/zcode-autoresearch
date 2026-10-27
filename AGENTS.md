@@ -20,6 +20,7 @@
 - 改插件**行为** → openspec change 流程，主规范在 `openspec/specs/`
 - 查插件清单/市场字段 → `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`；契约从仓库文件推导，不从记忆；与上游硬校验的一致性由 `tests/marketplace-contract.test.ts` 守护
 - 查插件使用细节（MCP 工具参数、`.auto/` 会话状态、护栏机制）→ `plugin/README.md`（英文）/ `plugin/README_CN.md`（中文）
+- 改 dashboard 页面 → 先读 `docs/design/dashboard.md`（数据口径、文案边界、视觉与交互验收）；行为仍走 openspec change。
 - 懂设计取舍与已否决方向 → `adr/implemented/`（现役决策）与 `adr/rejected/`（已否决反模式）
 - 背景研究 → `docs/research/`
 
