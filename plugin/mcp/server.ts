@@ -26,7 +26,7 @@ import {
   computeConfidence,
   isBetter,
 } from "./lib/experiment.ts";
-import { resolveBash, killTree } from "./lib/bash.ts";
+import { resolveBash, killTreeOrWrapper } from "./lib/bash.ts";
 import {
   autoPaths,
   appendLedgerEntry,
@@ -309,8 +309,9 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
       didTimeout = true;
       if (process.platform === "win32") {
         // Windows cannot address process groups via negative pids (ESRCH);
-        // taskkill /T /F walks and kills the whole child tree instead.
-        if (proc.pid != null) killTree(proc.pid);
+        // taskkill /T /F walks and kills the whole child tree instead. If the
+        // walk fails, kill the wrapper so the timeout still settles.
+        killTreeOrWrapper(proc.pid, () => proc.kill());
         return;
       }
       try {
@@ -537,8 +538,9 @@ function runHookRaw(
     const timer = setTimeout(() => {
       didTimeout = true;
       if (process.platform === "win32") {
-        // proc.kill cannot reach the hook's child tree on Windows; walk it.
-        if (proc.pid != null) killTree(proc.pid);
+        // proc.kill cannot reach the hook's child tree on Windows; walk it,
+        // falling back to the wrapper if the walk fails.
+        killTreeOrWrapper(proc.pid, () => proc.kill("SIGKILL"));
         return;
       }
       try {

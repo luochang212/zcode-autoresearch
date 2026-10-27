@@ -61,3 +61,19 @@ export function killTree(pid: number): boolean {
     return false;
   }
 }
+
+// Kill the wrapper when the tree walk fails. A failed taskkill means the
+// child tree outlives the timeout and the caller waits for an "exit" that may
+// never come; killing the wrapper is the lesser failure.
+export function killTreeOrWrapper(
+  pid: number | undefined,
+  killWrapper: () => void,
+  treeKiller: (pid: number) => boolean = killTree,
+): void {
+  if (pid == null || treeKiller(pid)) return;
+  try {
+    killWrapper();
+  } catch {
+    /* already gone */
+  }
+}

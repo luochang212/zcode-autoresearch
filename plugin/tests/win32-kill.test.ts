@@ -13,7 +13,7 @@ import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveBash, killTree } from "../mcp/lib/bash.ts";
+import { resolveBash, killTree, killTreeOrWrapper } from "../mcp/lib/bash.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SERVER = join(ROOT, "mcp", "server.ts");
@@ -47,6 +47,41 @@ test(
     assert.equal(killTree(sleeper.pid!), false, "dead tree must report gone");
   },
 );
+
+test(
+  "killTree is a no-op on POSIX (callers keep group-kill semantics)",
+  { skip: process.platform === "win32" },
+  () => {
+    assert.equal(killTree(process.pid), false);
+  },
+);
+
+// No win32 host needed: the fallback decision is injected. A failed taskkill
+// used to leave the tree alive and the tool call waiting for a close that
+// never comes; the wrapper kill must fire instead.
+test("killTreeOrWrapper falls back to the wrapper when the walk fails", () => {
+  let wrapperKills = 0;
+  const wrapper = () => wrapperKills++;
+
+  killTreeOrWrapper(123, wrapper, () => false);
+  assert.equal(wrapperKills, 1, "failed walk must kill the wrapper");
+
+  killTreeOrWrapper(123, wrapper, () => true);
+  assert.equal(wrapperKills, 1, "successful walk must not double-kill");
+
+  killTreeOrWrapper(undefined, wrapper, () => false);
+  assert.equal(wrapperKills, 1, "no pid means nothing to kill");
+
+  assert.doesNotThrow(() =>
+    killTreeOrWrapper(
+      1,
+      () => {
+        throw new Error("already gone");
+      },
+      () => false,
+    ),
+  );
+});
 
 // End-to-end on the real server: a hanging benchmark + 2s timeout must come
 // back killed well before the benchmark's own 60s elapse. Before the fix
