@@ -1,0 +1,5 @@
+# Mirror CI before pushing (typecheck + tests). Bypass with `git push --no-verify`.
+# Lint/format/shell syntax already ran in pre-commit; this catches type errors
+# and test failures a step earlier than the CI run.
+npm run typecheck
+npm test

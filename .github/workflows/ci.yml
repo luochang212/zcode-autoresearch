@@ -4,13 +4,27 @@ on:
   push:
     branches: [main]
   pull_request:
+  # A force-pushed head cannot produce a green run for the rewritten commit;
+  # dispatch re-runs CI on demand.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   lint-and-test:
-    runs-on: ubuntu-latest
+    name: lint + test (${{ matrix.os }}, node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Windows is a supported user platform: bash resolution, taskkill and
+        # path normalization have their own branches, unreachable on Linux.
+        os: [ubuntu-latest, windows-latest]
         node-version: [24]
     steps:
       - uses: actions/checkout@v4
