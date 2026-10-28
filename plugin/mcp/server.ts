@@ -390,8 +390,16 @@ async function runChecks(checksFile: string) {
     `bash ${quoteShellArg(posix)}`,
     CHECKS_TIMEOUT_MS,
   );
+  // A verdict exists only when the script ran to completion: exit 0 = pass,
+  // 1..125 = deliberate fail. 126/127 (not executable / not found), null
+  // (killed by signal) and large fatal codes (Windows 0xC000013A) mean the
+  // gate never produced a judgment. Those are infra, not correctness
+  // failures, and must not block keeps — a broken interpreter would
+  // otherwise turn every checks run into a veto (evidence 2026-10-28).
+  const verdict = res.exitCode !== null && res.exitCode < 126;
   return {
-    failed: res.exitCode !== 0,
+    verdict,
+    failed: verdict && res.exitCode !== 0,
     exitCode: res.exitCode,
     durationMs: res.durationMs,
     outputTail: truncateTail(res.outputTail, 80, 4096),
@@ -465,7 +473,7 @@ function writeBenchmarkHashes(hashes: {
 /**
  * Persist the checks outcome of the latest run_experiment so log_experiment's
  * keep gate works even across an MCP server restart (pi `runtime.lastRunChecks`
- * equivalent, but on disk). `failed` is true only when checks ran and failed.
+ * equivalent, but on disk). `failed` is true only when checks produced a verdict and it was negative; a checks script that never produced a verdict (not executed / killed) is infra and must not veto keeps.
  */
 function setPendingChecksFailed(failed: boolean): void {
   patchSessionConfig({ pendingChecksFailed: failed });
@@ -830,6 +838,7 @@ async function toolRunExperiment(
 
   // Correctness backpressure: .auto/checks.sh runs once, after the last run.
   let checks: {
+    verdict: boolean;
     failed: boolean;
     exitCode: number | null;
     durationMs: number;
@@ -878,6 +887,7 @@ async function toolRunExperiment(
     checks: checks
       ? {
           ran: true,
+          verdict: checks.verdict,
           failed: checks.failed,
           exit_code: checks.exitCode,
           output_tail: checks.outputTail,

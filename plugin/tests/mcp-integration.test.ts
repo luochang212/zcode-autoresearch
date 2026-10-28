@@ -475,6 +475,52 @@ test("checks gate: keep rejected after failed checks, allowed again after a pass
   });
 });
 
+test("checks gate: a checks script that never produced a verdict does not block keeps", async () => {
+  const cwd = tempRepo();
+  // exit 127 = the gate never ran (interpreter missing / script not found).
+  // Evidence 2026-10-28: a WSL-alias bash turned every checks invocation into
+  // 127, and the old rule read that as "checks failed" — vetoing every keep.
+  writeFileSync(
+    join(cwd, ".auto", "checks.sh"),
+    "#!/usr/bin/env bash\nexit 127\n",
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    appendFileSync(join(cwd, "code.js"), "// change\n");
+    const r1 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    const checks = r1.checks as Record<string, unknown>;
+    assert.equal(checks.verdict, false);
+    assert.equal(checks.failed, false);
+    // keep goes through: infra must not veto, the ledger carries the outcome
+    const keep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "kept despite checks infra (no verdict)",
+    });
+    assert.equal(keep.ok, true);
+    // contrast: a real verdict (exit 1) still vetoes keeps
+    writeFileSync(
+      join(cwd, ".auto", "checks.sh"),
+      "#!/usr/bin/env bash\nexit 1\n",
+    );
+    const r2 = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    const checks2 = r2.checks as Record<string, unknown>;
+    assert.equal(checks2.verdict, true);
+    assert.equal(checks2.failed, true);
+    const bad = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 43,
+      description: "keep despite failed checks",
+    });
+    assert.equal(bad.ok, false);
+    assert.match(String(bad.error), /correctness checks/);
+  });
+});
+
 test("checks: a project path containing a single quote still runs checks.sh", async () => {
   const cwd = tempRepo({ name: "project's dir" });
   writeFileSync(
