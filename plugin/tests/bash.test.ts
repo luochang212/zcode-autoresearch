@@ -53,15 +53,20 @@ test("spawnEnv restores coreutils a slim GUI PATH takes away", (t) => {
   const entry = unixToolsPathEntry(bashPath);
   assert.ok(entry, `resolved bash ${bashPath} should live under usr\\bin`);
   // Stand-in for a GUI-launched server env: System32 present, Git coreutils not.
-  const slim = { ...process.env, PATH: "C:\\Windows\\System32" };
+  // Build the slim PATH under the env block's real key casing — a literal
+  // `PATH:` on a `Path`-keyed env would coexist as a second, distinct key.
+  const pathKey =
+    Object.keys(process.env).find((k) => k.toLowerCase() === "path") ?? "PATH";
+  const slim = { ...process.env, [pathKey]: "C:\\Windows\\System32" };
   const without = execFileSync(bashPath, ["-c", "command -v head || true"], {
     encoding: "utf8",
     env: slim,
   }).trim();
   assert.equal(without, "", "premise: slim PATH cannot resolve head");
   const patched = spawnEnv(bashPath, slim);
-  assert.ok(patched.PATH?.startsWith(`${entry};`));
-  assert.ok(patched.PATH?.includes("C:\\Windows\\System32"));
+  const patchedPath = patched[pathKey] ?? "";
+  assert.ok(patchedPath.startsWith(`${entry};`));
+  assert.ok(patchedPath.includes("C:\\Windows\\System32"));
   const found = execFileSync(bashPath, ["-c", "command -v head"], {
     encoding: "utf8",
     env: patched,
