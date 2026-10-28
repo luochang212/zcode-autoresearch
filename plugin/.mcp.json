@@ -11,7 +11,7 @@
         "AR_CHECKS_TIMEOUT_MS": "${user_config.checksTimeoutMs}"
       },
       "enabled": true,
-      "timeoutMs": 60000
+      "timeoutMs": 600000
     }
   }
 }
