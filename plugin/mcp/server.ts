@@ -642,6 +642,9 @@ function hookSessionPayload(state: SessionState) {
     baseline_metric: state.baseline ?? null,
     best_metric: state.best ?? null,
     run_count: state.runs.length,
+    // pi contract parity: pi's SessionSnapshot exposes the session name as
+    // `goal`; its shipped example hooks (qmd-search, external-search) read it.
+    goal: state.config?.name ?? null,
     started_at_epoch:
       Number.isFinite(createdMs) && createdMs > 0
         ? Math.floor(createdMs / 1000)

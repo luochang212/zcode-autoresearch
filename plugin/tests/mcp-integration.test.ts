@@ -233,6 +233,29 @@ test("iteration hooks: payload carries asi (last_run and run_entry)", async () =
   });
 });
 
+test("iteration hooks: session payload carries the session name as goal (pi contract)", async () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
+  // pi's shipped example hooks read .session.goal (qmd-search, external-search);
+  // mirror one to prove the field survives the payload on zcode too.
+  writeFileSync(
+    join(cwd, ".auto", "hooks", "before.sh"),
+    '#!/usr/bin/env bash\nnode -e \'const p=JSON.parse(require("fs").readFileSync(0,"utf8"));console.log("goal:"+p.session.goal)\'\n',
+  );
+  makeExecutable(join(cwd, ".auto", "hooks", "before.sh"));
+
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", {
+      name: "optimize sort speed",
+      metric_name: "time_ms",
+    });
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run.before_steer, "goal:optimize sort speed");
+  });
+});
+
 test("iteration hooks: every fire appends a type:hook ledger entry", async () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
