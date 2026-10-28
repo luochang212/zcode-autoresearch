@@ -471,8 +471,8 @@ body:not(.interactive) .workspace { display: block; height: auto; overflow: auto
 .ctx-facts dt { margin-bottom: 8px; font-size: .625rem; color: var(--muted); }
 .ctx-facts dd { margin: 0; color: var(--fg); font-size: .8125rem; font-weight: 550; overflow-wrap: anywhere; }
 .ctx-facts time { font: 500 .75rem/1.7 var(--font-mono); font-variant-numeric: tabular-nums; }
-.ctx-relations { display: grid; gap: 10px; margin: 18px 0 0; }
-.ctx-relations>div { display: grid; grid-template-columns: 4.5em minmax(0,1fr); gap: 12px; align-items: baseline; }
+.ctx-relations { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 10px 12px; margin: 18px 0 0; align-items: baseline; }
+.ctx-relations>div { display: contents; }
 .ctx-relations dt { color: var(--muted); font-size: .6875rem; }
 .ctx-relations dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin: 0; }
 .ctx-relations .record-pill { min-height: 28px; padding: 3px 9px; color: var(--accent); font-family: var(--font-mono); background: var(--bg); }
@@ -746,8 +746,8 @@ html{scroll-padding-top:68px}.archive-masthead{padding:0 24px}.masthead-inner{ma
 .ctx-facts dt { margin-bottom: 8px; font-size: .625rem; color: var(--muted); }
 .ctx-facts dd { margin: 0; color: var(--fg); font-size: .8125rem; font-weight: 550; overflow-wrap: anywhere; }
 .ctx-facts time { font: 500 .75rem/1.7 var(--font-mono); font-variant-numeric: tabular-nums; }
-.ctx-relations { display: grid; gap: 10px; margin: 18px 0 0; }
-.ctx-relations>div { display: grid; grid-template-columns: 4.5em minmax(0,1fr); gap: 12px; align-items: baseline; }
+.ctx-relations { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 10px 12px; margin: 18px 0 0; align-items: baseline; }
+.ctx-relations>div { display: contents; }
 .ctx-relations dt { color: var(--muted); font-size: .6875rem; }
 .ctx-relations dd { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-width: 0; margin: 0; }
 .ctx-relations .record-pill { min-height: 28px; padding: 3px 9px; color: var(--accent); font-family: var(--font-mono); background: var(--bg); }
@@ -778,8 +778,7 @@ html{scroll-padding-top:68px}.archive-masthead{padding:0 24px}.masthead-inner{ma
 :root[data-atlas-theme="signal"] .ctx-facts dt { font-family: var(--font-mono); }
 :root[data-atlas-theme="signal"] .ctx-facts dd { color: var(--accent); }
 :root[data-atlas-theme="signal"] .ctx-facts time { color: var(--fg); }
-:root[data-atlas-theme="signal"] .ctx-relations { grid-template-columns: minmax(0,1fr); gap: 12px; margin-top: 20px; }
-:root[data-atlas-theme="signal"] .ctx-relations>div { display: grid; grid-template-columns: 4.5em minmax(0,1fr); align-items: baseline; gap: 12px; }
+:root[data-atlas-theme="signal"] .ctx-relations { gap: 12px; margin-top: 20px; }
 :root[data-atlas-theme="signal"] .ctx-relations dt { font-family: var(--font-mono); }
 :root[data-atlas-theme="signal"] .ctx-relations .record-pill { background: #15303a; border-color: #4d8b98; border-radius: 5px; }
 :root[data-atlas-theme="signal"] #reader-body { line-height: 1.85; color: #cbd4e0; }
