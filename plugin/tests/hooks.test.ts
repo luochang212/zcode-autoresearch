@@ -596,58 +596,6 @@ test("session-start respects autoresearchOff set in the project config under wor
   assert.match(out.hookSpecificOutput.additionalContext, /autoresearch 会话/);
 });
 
-test("permission-gate denies experiment tools without a session, allows with one", () => {
-  const cwd = tempCwd();
-  // no session → deny init_experiment
-  const deny = JSON.parse(
-    runHook(
-      "permission-gate.ts",
-      cwd,
-      JSON.stringify({
-        hook_event_name: "PermissionRequest",
-        tool_name: "run_experiment",
-      }),
-    ),
-  );
-  assert.equal(deny.hookSpecificOutput.decision.behavior, "deny");
-  assert.match(deny.hookSpecificOutput.decision.message, /没有实验会话/);
-  // non-experiment tool → silent
-  assert.equal(
-    runHook(
-      "permission-gate.ts",
-      cwd,
-      JSON.stringify({
-        hook_event_name: "PermissionRequest",
-        tool_name: "Bash",
-      }),
-    ),
-    "",
-  );
-  // with a session → allow (silent)
-  seedLedger(cwd, [
-    cfgLine,
-    {
-      type: "run",
-      run: 1,
-      segment: 1,
-      status: "keep",
-      metric: 1,
-      description: "b",
-    },
-  ]);
-  assert.equal(
-    runHook(
-      "permission-gate.ts",
-      cwd,
-      JSON.stringify({
-        hook_event_name: "PermissionRequest",
-        tool_name: "log_experiment",
-      }),
-    ),
-    "",
-  );
-});
-
 // The tests above spawn hook scripts directly by path, so a renamed script
 // would stay green here while the installed plugin silently loses the hook:
 // nothing else checks hooks.json (local suite, upstream validate.py, upstream

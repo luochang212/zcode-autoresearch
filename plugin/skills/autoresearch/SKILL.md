@@ -14,7 +14,7 @@ Set a goal, pick a mechanical metric, and let the loop iterate. The plugin's MCP
 3. **Never keep a run whose checks failed.**
 4. **Only touch files inside the agreed scope**; one focused change per experiment.
    4b. **Benchmark drift**: if `run_experiment` returns `benchmark_drift: true`, the frozen benchmark (measure.sh/checks.sh) changed since the session started, so metrics are no longer comparable. Start a new segment (`init_experiment`) or confirm the change with the user; do not keep comparing old and new numbers.
-5. **Do not start experiment tools without a session**: the PermissionRequest gate denies them when `.auto/log.jsonl` is missing; call `/autoresearch:autoresearch` first.
+5. **Do not start experiment tools without a session**: `log_experiment` refuses without one (tool-internal check) and a stray session is easy to create but confusing to clean up; call `/autoresearch:autoresearch` first.
 6. To pause auto-resume hints: `/autoresearch:off` (writes `autoresearchOff: true`); resume with `/autoresearch:autoresearch`.
 
 ## Session state (all under `.auto/`)

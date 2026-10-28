@@ -34,22 +34,6 @@
         ]
       }
     ],
-    "PermissionRequest": [
-      {
-        "hooks": [
-          {
-            "type": "process",
-            "command": "node",
-            "args": [
-              "${ZCODE_PLUGIN_ROOT}/hooks/permission-gate.ts",
-              "${ZCODE_PROJECT_DIR}"
-            ],
-            "timeoutMs": 5000,
-            "statusMessage": "autoresearch: gating experiment tools…"
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
       {
         "hooks": [

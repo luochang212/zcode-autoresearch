@@ -22,7 +22,7 @@
 
 - **执行命令**：`run_experiment` 运行你编写的基准脚本 `.auto/measure.sh`，以及存在时的正确性门禁 `.auto/checks.sh`；
 - **自动执行 git 操作**：keep 时自动 `git commit`，非 keep 时自动回滚（`.auto/` 豁免回滚）；
-- **安装 ZCode hooks**：Stop（循环续跑）、PreToolUse（冻结文件写保护）、PermissionRequest（实验工具门禁）、UserPromptSubmit/SessionStart（账本记忆注入）；
+- **安装 ZCode hooks**：Stop（循环续跑）、PreToolUse（冻结文件写保护）、UserPromptSubmit/SessionStart（账本记忆注入）；
 - **启动本地 HTTP dashboard**：`export_dashboard` 监听 127.0.0.1，编辑部式档案页呈现全部实验历史（跨 segment 趋势、亮暗双主题）；
 - **写入会话状态**：项目目录下的 `.auto/`（`log.jsonl`、`config.json`）。
 
@@ -57,7 +57,6 @@
 - **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
 - **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外——冻结指「记录后不可改写」；goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界——循环在栏内工作，扩围/收围由用户手改或新 segment）。
-- **工具门禁（近似）**：无会话时 PermissionRequest hook deny 实验工具（仅覆盖经权限询问的调用）。
 - **自动激活提示**：SessionStart 检测活动会话时注入续跑引导；`/autoresearch:off` 可暂停（`autoresearchOff: true`）。
 - **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。
 - **循环续跑**：Stop hook 在循环未结束时 `decision:block`（zcode 平台限制连续 3 次窗口）。
@@ -78,10 +77,9 @@ plugin/
 │   ├── server.ts              # JSON-RPC 换行协议 + 5 个工具
 │   └── lib/                    # 纯逻辑：experiment / ledger / git / validate / dashboard / dashboard-server / html / paths
 ├── hooks/
-│   ├── hooks.json              # Stop / PreToolUse / PermissionRequest / UserPromptSubmit / SessionStart
+│   ├── hooks.json              # Stop / PreToolUse / UserPromptSubmit / SessionStart
 │   ├── stop-continue.ts       # 循环未结束 → block
 │   ├── guard-frozen.ts        # 冻结文件写保护 → deny
-│   ├── permission-gate.ts     # 实验工具门禁 → deny
 │   ├── memory-inject.ts       # 账本尾行注入
 │   ├── session-start.ts       # 会话恢复提示
 │   └── examples/               # 6 个现成的 before/after 迭代钩子示例
