@@ -26,7 +26,12 @@ import {
   computeConfidence,
   isBetter,
 } from "./lib/experiment.ts";
-import { resolveBash, killTreeOrWrapper, quoteShellArg } from "./lib/bash.ts";
+import {
+  resolveBash,
+  killTreeOrWrapper,
+  quoteShellArg,
+  spawnEnv,
+} from "./lib/bash.ts";
 import {
   autoPaths,
   appendLedgerEntry,
@@ -230,10 +235,12 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     const started = Date.now();
     let proc: ChildProcessByStdio<null, Readable, Readable>;
     try {
-      proc = spawn(resolveBash(), ["-c", command], {
+      const bashPath = resolveBash();
+      proc = spawn(bashPath, ["-c", command], {
         cwd,
         detached: true, // own process group so we can kill the tree
         stdio: ["ignore", "pipe", "pipe"],
+        env: spawnEnv(bashPath),
       });
     } catch (err) {
       // resolveBash throws when no usable bash exists (e.g. Windows without
@@ -525,7 +532,8 @@ function runHookRaw(
     const started = Date.now();
     let proc: ChildProcessWithoutNullStreams;
     try {
-      proc = spawn(resolveBash(), [scriptPath], { cwd });
+      const bashPath = resolveBash();
+      proc = spawn(bashPath, [scriptPath], { cwd, env: spawnEnv(bashPath) });
     } catch (err) {
       resolve({
         exitCode: null,
@@ -623,12 +631,21 @@ function logHookEntry(stage: "before" | "after", r: HookOutcome): void {
 }
 
 function hookSessionPayload(state: SessionState) {
+  // Wall-clock hooks (budget fuses etc.) need the segment start; handing it
+  // over here spares them from parsing the ledger's internal row format.
+  const createdMs = state.config?.createdAt
+    ? Date.parse(state.config.createdAt)
+    : NaN;
   return {
     metric_name: state.config?.metricName ?? null,
     direction: state.config?.direction ?? "lower",
     baseline_metric: state.baseline ?? null,
     best_metric: state.best ?? null,
     run_count: state.runs.length,
+    started_at_epoch:
+      Number.isFinite(createdMs) && createdMs > 0
+        ? Math.floor(createdMs / 1000)
+        : null,
   };
 }
 

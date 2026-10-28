@@ -4,7 +4,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { resolveBash, quoteShellArg } from "../mcp/lib/bash.ts";
+import {
+  resolveBash,
+  quoteShellArg,
+  unixToolsPathEntry,
+  spawnEnv,
+} from "../mcp/lib/bash.ts";
 
 function expand(value: string): string {
   return execFileSync(
@@ -26,4 +31,40 @@ test("quoteShellArg round-trips paths literally through bash -c", () => {
   ]) {
     assert.equal(expand(value), value);
   }
+});
+
+test("unixToolsPathEntry only trusts the usr/bin bash layout", (t) => {
+  if (process.platform !== "win32") return t.skip("win32-only behavior");
+  assert.equal(
+    unixToolsPathEntry("C:\\Program Files\\Git\\usr\\bin\\bash.exe"),
+    "C:\\Program Files\\Git\\usr\\bin",
+  );
+  // Git's cmd wrapper directory and arbitrary install roots carry no coreutils.
+  assert.equal(
+    unixToolsPathEntry("C:\\Program Files\\Git\\cmd\\bash.exe"),
+    null,
+  );
+  assert.equal(unixToolsPathEntry("D:\\tools\\bin\\bash.exe"), null);
+});
+
+test("spawnEnv restores coreutils a slim GUI PATH takes away", (t) => {
+  if (process.platform !== "win32") return t.skip("win32-only behavior");
+  const bashPath = resolveBash();
+  const entry = unixToolsPathEntry(bashPath);
+  assert.ok(entry, `resolved bash ${bashPath} should live under usr\\bin`);
+  // Stand-in for a GUI-launched server env: System32 present, Git coreutils not.
+  const slim = { ...process.env, PATH: "C:\\Windows\\System32" };
+  const without = execFileSync(bashPath, ["-c", "command -v head || true"], {
+    encoding: "utf8",
+    env: slim,
+  }).trim();
+  assert.equal(without, "", "premise: slim PATH cannot resolve head");
+  const patched = spawnEnv(bashPath, slim);
+  assert.ok(patched.PATH?.startsWith(`${entry};`));
+  assert.ok(patched.PATH?.includes("C:\\Windows\\System32"));
+  const found = execFileSync(bashPath, ["-c", "command -v head"], {
+    encoding: "utf8",
+    env: patched,
+  }).trim();
+  assert.match(found, /head(\.exe)?$/i);
 });

@@ -12,7 +12,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveBash, killTree, killTreeOrWrapper } from "../mcp/lib/bash.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -32,7 +32,52 @@ test(
   () => {
     const bash = resolveBash();
     assert.match(bash, /bash\.exe$/i);
-    assert.doesNotMatch(bash, /\\Windows\\(System32|SysWOW64|WindowsApps)\\/i);
+    assert.doesNotMatch(
+      bash,
+      /(\\Windows\\(System32|SysWOW64|WindowsApps)|\\Microsoft\\WindowsApps)\\/i,
+    );
+  },
+);
+
+test(
+  "resolveBash: refuses the per-user WindowsApps WSL alias (GUI default PATH)",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    // Registry-only PATH of a GUI-launched server: Git\cmd carries no
+    // bash.exe, so the only "bash" hits are the two WSL stubs (System32 and
+    // the per-user %LOCALAPPDATA% alias). Resolving the alias hands scripts
+    // to WSL — "/bin/bash: <path>: No such file or directory", exit 127 —
+    // so resolveBash must throw loudly instead (evidence 2026-10-28).
+    const bashUrl = pathToFileURL(join(ROOT, "mcp", "lib", "bash.ts")).href;
+    const guiPath = [
+      "C:\\Windows\\System32",
+      "C:\\Program Files\\Git\\cmd",
+      join(process.env.LOCALAPPDATA ?? "", "Microsoft", "WindowsApps"),
+    ].join(";");
+    const out = execFileSync(
+      process.execPath,
+      [
+        "--eval",
+        `const { execFileSync } = require("node:child_process");
+let hits = [];
+try { hits = execFileSync("where.exe", ["bash"], { encoding: "utf8" }).trim().split(/\\r?\\n/).filter(Boolean); } catch {}
+console.log("HITS:" + JSON.stringify(hits));
+import(${JSON.stringify(bashUrl)}).then((m) => { try { console.log("RESOLVED:" + m.resolveBash()); } catch (e) { console.log("THREW:" + (e && e.message)); } });`,
+      ],
+      { env: { ...process.env, PATH: guiPath }, encoding: "utf8" },
+    );
+    // A bare THREW would also pass when where.exe itself failed to run
+    // (hits = []), proving nothing about the filter; require the alias to
+    // be among the hits first, and skip on machines that have no alias.
+    const hits = JSON.parse(
+      out.match(/HITS:(\[[^\]]*\])/)?.[1] ?? "[]",
+    ) as string[];
+    if (!hits.some((h) => /\\Microsoft\\WindowsApps\\bash\.exe$/i.test(h))) {
+      return t.skip(
+        "per-user WindowsApps WSL alias not present on this machine",
+      );
+    }
+    assert.match(out, /THREW:no usable bash\.exe/);
   },
 );
 

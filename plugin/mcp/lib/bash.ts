@@ -12,13 +12,21 @@
 //    fails with ESRCH and the tree survives the timeout, hanging the tool
 //    call until the benchmark finishes naturally.
 import { execFileSync } from "node:child_process";
+import { dirname } from "node:path";
 
 let cachedBash: string | null = null;
 
-// System32/SysWOW64 hosts the WSL launcher, WindowsApps a store stub —
-// neither accepts Git-Bash-style scripts with predictable path semantics.
+// WSL's launcher masquerades as bash.exe in three places: the system copies
+// (System32/SysWOW64) and the store's app-execution aliases — machine-wide
+// (C:\Windows\WindowsApps) and per-user (%LOCALAPPDATA%\Microsoft\WindowsApps,
+// on every default Windows user PATH). None accept Git-Bash-style scripts:
+// handing one a repo path fails with "/bin/bash: <path>: No such file or
+// directory" (exit 127), and a benchmark command would silently run under
+// WSL path semantics instead.
 function isWslOrStub(path: string): boolean {
-  return /\\Windows\\(System32|SysWOW64|WindowsApps)\\/i.test(path);
+  return /(\\Windows\\(System32|SysWOW64|WindowsApps)|\\Microsoft\\WindowsApps)\\/i.test(
+    path,
+  );
 }
 
 export function resolveBash(): string {
@@ -41,7 +49,7 @@ export function resolveBash(): string {
   const resolved = gitBash ?? usable[0];
   if (!resolved) {
     throw new Error(
-      "no usable bash.exe on PATH (install Git for Windows; the WSL launcher in System32 is excluded)",
+      "no usable bash.exe on PATH (install Git for Windows; the WSL launchers in System32 and the WindowsApps aliases are excluded)",
     );
   }
   cachedBash = resolved;
@@ -86,4 +94,28 @@ export function killTreeOrWrapper(
   } catch {
     /* already gone */
   }
+}
+
+// Git for Windows keeps its coreutils (head, grep, date…) next to bash.exe
+// in <root>\usr\bin; prepend that directory to spawned shells so benchmark
+// and hook scripts keep coreutils. No-op under plain PATH semantics —
+// usr\bin must already be on the server's PATH for resolveBash to land
+// there — kept as cheap defense for hosts that curate child environments.
+export function unixToolsPathEntry(bashPath: string): string | null {
+  if (process.platform !== "win32") return null;
+  const dir = dirname(bashPath);
+  return /usr[\\/]bin$/i.test(dir) ? dir : null;
+}
+
+export function spawnEnv(
+  bashPath: string,
+  base: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const entry = unixToolsPathEntry(bashPath);
+  if (!entry) return base;
+  // Windows env keys are case-insensitive in spirit but plain objects are
+  // not; reuse the existing key so we never emit both PATH and Path.
+  const pathKey =
+    Object.keys(base).find((key) => key.toLowerCase() === "path") ?? "PATH";
+  return { ...base, [pathKey]: `${entry};${base[pathKey] ?? ""}` };
 }
