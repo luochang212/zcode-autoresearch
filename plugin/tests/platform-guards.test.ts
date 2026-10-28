@@ -78,6 +78,35 @@ test("the MCP server is spawned via process.execPath, never a bare `node`", () =
   );
 });
 
+test("every .sh in the plugin tree is LF-only (no CR bytes)", () => {
+  // CRLF .sh dies on real POSIX bash (`set: pipefail\r: invalid option
+  // name`) while Git Bash tolerates it, so behavior tests stay green on
+  // Windows and the breakage only surfaces on WSL2/Linux/macOS. Worktree
+  // residue from before .gitattributes landed did exactly that: 13 WSL2
+  // test failures (2026-10-29). This guard keeps the bytes machine-checked.
+  const shFiles: string[] = [];
+  const walk = (dir: string): void => {
+    for (const name of readdirSync(dir)) {
+      const file = join(dir, name);
+      if (statSync(file).isDirectory()) {
+        walk(file);
+      } else if (name.endsWith(".sh")) {
+        shFiles.push(file);
+      }
+    }
+  };
+  walk(ROOT);
+  assert.ok(shFiles.length > 0, "expected .sh fixtures to exist");
+  const offenders = shFiles
+    .filter((file) => readFileSync(file, "utf8").includes("\r"))
+    .map((file) => relative(ROOT, file).replaceAll("\\", "/"));
+  assert.deepEqual(
+    offenders,
+    [],
+    `CRLF .sh files (fatal under POSIX bash, tolerated by Git Bash):\n${offenders.join("\n")}`,
+  );
+});
+
 test("the frozen write guard reads its file set from lib/frozen.ts", () => {
   const guard = codeLines(join(ROOT, "hooks", "guard-frozen.ts"))
     .map((entry) => entry.text)
