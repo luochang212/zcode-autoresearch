@@ -35,7 +35,7 @@
 
 ### Requirement: checks 正确性背压
 
-当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 跑了且失败为 true，其余为 false），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
+当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 产生**判定**且判定为失败时为 true，其余为 false——判定指脚本运行到完成并以 0（通过）或 1–125（判定失败）退出；126/127（不可执行/不存在）、null（被信号终止）及更大的致命退出码表示门禁未产生判定，属基础设施故障（infra），SHALL NOT 置位该状态（不否决 keep），并 SHALL 在返回中如实呈现 `verdict: false` 供 agent 披露），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
 
 #### Scenario: checks 失败
 
@@ -56,6 +56,11 @@
 
 - **WHEN** checks 失败后 MCP server 进程重启，agent 试图以 keep 记录该轮
 - **THEN** 工具仍拒绝 keep（待记录状态持久化于 `.auto/config.json`）
+
+#### Scenario: checks 未产生判定不否决 keep
+
+- **WHEN** `.auto/checks.sh` 以 127（解释器/脚本缺失）或被信号终止（无判定退出码）结束，agent 以 keep 记录该轮
+- **THEN** keep 放行，返回中 `checks.verdict` 为 false 且 `checks.failed` 为 false（基础设施故障由 agent 在描述中披露，不冒充正确性判定）
 
 ### Requirement: 会话目录写保护
 
@@ -197,17 +202,3 @@ UserPromptSubmit/SessionStart hook SHALL 把 `.auto/log.jsonl` 的会话记忆�
 
 - **WHEN** `.auto/config.json` 含 `autoresearchOff: true`
 - **THEN** SessionStart 不注入续跑提示（会话仍可手动进入）
-
-### Requirement: PermissionRequest 工具门禁
-
-PermissionRequest hook SHALL 在工作区无活动实验会话（`.auto/log.jsonl` 不存在）时，对实验工具（init_experiment、run_experiment、log_experiment、export_dashboard、clear_experiments）的权限询问返回 `deny`（附原因），防止误启动实验循环；存在活动会话时放行。该门禁为近似（仅覆盖经过权限询问路径的调用），工具内检查与 skill 指引为兜底。
-
-#### Scenario: 无会话时拒绝实验工具
-
-- **WHEN** 工作区无 `.auto/log.jsonl` 且实验工具触发权限询问
-- **THEN** hook 返回 deny（decision.behavior=deny + message 说明需先 /autoresearch:autoresearch 建立会话）
-
-#### Scenario: 有会话时放行
-
-- **WHEN** 工作区存在 `.auto/log.jsonl` 且实验工具触发权限询问
-- **THEN** hook 放行（无 deny 输出）
