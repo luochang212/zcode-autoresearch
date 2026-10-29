@@ -5,3 +5,5 @@ node_modules/
 .DS_Store
 .husky/_
 .idea/
+# dsh-parallel-team 运行状态目录（工具自动创建，其 README 自述应被 git 忽略）
+.dsh/
