@@ -12,7 +12,7 @@
 
 1. 添加市场：本地目录 / 本仓库地址。
 2. 在 **Settings → Plugin Management** 安装并启用 `autoresearch`。
-3. 插件提供：MCP 服务（5 个工具）、skill `autoresearch`、5 个命令、5 个 hook。启用插件即授予代码执行信任（官方约定）。
+3. 插件提供：MCP 服务（5 个工具）、skill `autoresearch`、5 个命令、4 个 hook。启用插件即授予代码执行信任（官方约定）。
 
 > 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库 TypeScript 脚本（Node ≥24，类型由 Node 原生剥离，无构建步骤）。
 
@@ -21,8 +21,8 @@
 启用本插件即授予代码执行信任（官方市场约定）。插件会：
 
 - **执行命令**：`run_experiment` 运行你编写的基准脚本 `.auto/measure.sh`，以及存在时的正确性门禁 `.auto/checks.sh`；
-- **自动执行 git 操作**：keep 时自动 `git commit`，非 keep 时自动回滚（`.auto/` 豁免回滚）；
-- **安装 ZCode hooks**：Stop（循环续跑）、PreToolUse（冻结文件写保护）、UserPromptSubmit/SessionStart（账本记忆注入）；
+- **自动执行 git 操作**：keep 时自动 `git commit`，非 keep 时自动回滚（会话状态 `.auto/` 与 `autoresearch-dashboard.html` 不参与 commit/回滚）；
+- **安装 ZCode hooks**：Stop（循环续跑）、PreToolUse（冻结文件写保护）、UserPromptSubmit（账本记忆注入）、SessionStart（续跑提示）；
 - **启动本地 HTTP dashboard**：`export_dashboard` 监听 127.0.0.1，编辑部式档案页呈现全部实验历史（跨 segment 趋势、亮暗双主题）；
 - **写入会话状态**：项目目录下的 `.auto/`（`log.jsonl`、`config.json`）。
 
@@ -31,7 +31,7 @@
 ```
 /autoresearch:autoresearch <目标>   # 进入/恢复 autoresearch 模式（无会话则走 setup）
 /autoresearch:export                # 导出静态 dashboard（autoresearch-dashboard.html）
-/autoresearch:off                   # 暂停循环续跑（autoresearchOff: true）
+/autoresearch:off                   # 暂停循环与其提示（autoresearchOff: true）
 /autoresearch:clear                 # 重置会话账本
 /autoresearch:finalize              # 把 kept 实验整理为干净分支（scripts/finalize.sh）
 ```
@@ -40,31 +40,31 @@
 
 1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 逐字记录用户深层目标到 `.auto/goal.md`（冻结，hook 拒写）→ 写 `.auto/prompt.md` 章程（目标段逐字引用 goal.md）→ 建实验分支 `git checkout -b autoresearch/<tag>`。
 2. `init_experiment`（metric_name、direction）→ 跑一次 baseline。
-3. **循环**：一次聚焦改动 → `run_experiment` → `log_experiment`（keep 自动 commit / 非 keep 自动回滚，`.auto/` 豁免）。
+3. **循环**：一次聚焦改动 → `run_experiment` → `log_experiment`（keep 自动 commit / 非 keep 自动回滚；`.auto/` 与 dashboard 均不计入）。
 
 ## 工具（MCP）
 
-| 工具                | 作用                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                                                                                                                                                                                                                                                                  |
-| `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                                                                                                                                                                                                                                                                        |
-| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/`）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注，环境导致的 crash 以 `asi.infra: true` 标注——infra 行不计入 doom-loop 信号）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
-| `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                                                                                                                                                                                                                                                                       |
-| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                                                                                                                                                                                                                                                                             |
+| 工具                | 作用                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                                                                                                                                                                                                                                                                               |
+| `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                                                                                                                                                                                                                                                                                     |
+| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/` 与 dashboard）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注，环境导致的 crash 以 `asi.infra: true` 标注——infra 行不计入 doom-loop 信号）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
+| `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                                                                                                                                                                                                                                                                                    |
+| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## 护栏
 
 - **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
 - **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外——冻结指「记录后不可改写」；goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界——循环在栏内工作，扩围/收围由用户手改或新 segment）。
-- **自动激活提示**：SessionStart 检测活动会话时注入续跑引导；`/autoresearch:off` 可暂停（`autoresearchOff: true`）。
-- **记忆注入**：UserPromptSubmit/SessionStart hook 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；检测到重复/震荡尝试（doom-loop）时提示换方向。
-- **循环续跑**：Stop hook 在循环未结束时 `decision:block`（zcode 平台限制连续 3 次窗口）。
+- **暂停开关**：`/autoresearch:off` 写入 `autoresearchOff: true`，同时静音 Stop 续跑、记忆注入与 SessionStart 提示；`init_experiment`/`clear_experiments` 与 resume 命令会清除标记。
+- **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
+- **循环续跑**：Stop hook 在循环未结束且未暂停时 `decision:block`（zcode 平台限制连续 3 次窗口）。
 - **迭代钩子**：`.auto/hooks/before.sh`（基准前）与 `after.sh`（记录后）每次实验自动执行（fail-open，30s 超时，stdout→`*_steer`）。
 - **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/` 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 即用（node 解析，无 jq 依赖）。
 - **止损**：连续失败达 `.auto/config.json` 的 `consecutiveFailures`（默认 3，可配）时提示停止。
-- **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 字段），违规拒收；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 可显式跳过（不推荐）。
-- **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对；基准中途变更时返回 `benchmark_drift` 警告（防"改基准造假 metric"）。
+- **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 字段），违规拒收；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 会同时跳过审计与次级度量约束（不推荐）。
+- **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对；基准中途变更时返回 `benchmark_drift` 警告（暴露基准改动，不静默接受不可比 metric）。
 - **次级度量约束**（opt-in）：`log_experiment` 支持 `constraints: [{name, maxPct}]`。keep 时校验次级度量不超首轮值的 maxPct%，超界拒收（防"用内存换速度"类 reward hacking）。
 
 ## 目录结构

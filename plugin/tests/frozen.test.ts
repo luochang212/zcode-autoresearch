@@ -28,3 +28,13 @@ test("frozenKey leaves POSIX paths case-sensitive and verbatim", () => {
   assert.equal(frozenKey(".auto/Goal.md", "linux"), ".auto/Goal.md");
   assert.ok(!FROZEN_FILES.has(frozenKey(".auto/Goal.md", "linux")));
 });
+
+test("frozenKey normalizes case on macOS (case-insensitive APFS)", () => {
+  // macOS is POSIX but its default filesystem is case-insensitive; without
+  // this normalization, writing .auto/MEASURE.SH bypasses the guard.
+  for (const target of ["measure.sh", "checks.sh", "goal.md", "scope.md"]) {
+    const upper = `.auto/${target.toUpperCase()}`;
+    assert.equal(frozenKey(upper, "darwin"), `.auto/${target}`);
+    assert.ok(FROZEN_FILES.has(frozenKey(upper, "darwin")));
+  }
+});

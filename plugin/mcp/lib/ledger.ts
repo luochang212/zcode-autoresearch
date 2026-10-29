@@ -111,6 +111,12 @@ export function rebuildState(
       state.runs = [];
       state.baseline = null;
       state.best = null;
+      // A config row is a segment boundary: failure streaks, the previous
+      // run's hook payload and the checks marker must not leak into the new
+      // segment.
+      state.consecutiveFailures = 0;
+      state.lastRun = null;
+      state.lastRunChecksFailed = false;
     } else if (e.type === "run") {
       const run: LedgerRun = {
         ...e,

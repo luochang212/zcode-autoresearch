@@ -1,9 +1,9 @@
 // Frozen session files and the path key the write guard compares.
 //
 // Keys are POSIX-style because that is how .auto/ paths are written
-// everywhere else. path.relative() yields backslashes on Windows and Windows
-// is case-insensitive, so comparing the raw relative path against these keys
-// would silently allow rewrites there.
+// everywhere else. path.relative() yields backslashes on Windows; Windows and
+// macOS default to case-insensitive filesystems, so comparing the raw relative
+// path against these keys would silently allow rewrites there.
 
 export const FROZEN_FILES: ReadonlySet<string> = new Set([
   ".auto/measure.sh",
@@ -31,6 +31,10 @@ export function frozenKey(
   rel: string,
   platform: NodeJS.Platform = process.platform,
 ): string {
-  if (platform !== "win32") return rel;
+  // Windows and macOS default to case-insensitive filesystems. Treating a
+  // case variant as a different path would let .auto/MEASURE.SH slip past
+  // the write guard while opening the same file; lowercasing is the safe
+  // direction (a rare case-sensitive macOS volume only gets a false deny).
+  if (platform !== "win32" && platform !== "darwin") return rel;
   return rel.replace(/\\/g, "/").toLowerCase();
 }

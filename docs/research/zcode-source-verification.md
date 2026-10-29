@@ -27,7 +27,7 @@ ZCode 已开源（github.com/zai-org/ZCode，本地核验版本 v3.14.3，commit
 执行：`configured-runner-callback.ts` / `configured-runner-input.ts`。
 
 - 事件集合：`SessionStart | UserPromptSubmit | PreToolUse | PermissionRequest |
-PostToolUse | PostToolUseFailure | Stop`——插件用的 5 个全部有效。
+PostToolUse | PostToolUseFailure | Stop`——插件当前使用的 4 个（PermissionRequest 门禁已于 2026-10-29 移除）全部有效。
 - **process 型 hook 超时字段是 `timeoutMs`**（`workspaceHookProcessConfigSchema`）；
   `timeout` 属于 `command` 型。插件 hooks.json 的 `timeoutMs: 5000` 正确生效。
 - stdin 兼容层：同时提供 zcode 原生 camelCase（`toolName/toolInput/…`）与 Claude
@@ -40,11 +40,11 @@ last_assistant_message/stop_hook_active/…`）。插件按双拼写读取是正
   additionalContexts，模型在同一 turn 内继续。`continue:true` 亦可触发续跑；
   `continue:false` 对 Stop 事件被显式忽略。
 - PreToolUse：`hookSpecificOutput.permissionDecision ∈ allow/ask/deny` +
-  `permissionDecisionReason`；`hookEventName` 写错事件名会直接抛错——插件 5 个
+  `permissionDecisionReason`；`hookEventName` 写错事件名会直接抛错——插件当前 4 个
   hook 的回写事件名全部正确。
 - PermissionRequest：`hookSpecificOutput.decision` 为
   `{behavior:"allow",permissionUpdates?}|{behavior:"deny",interrupt?,message?}`——
-  插件 permission-gate 的 deny+message 形状吻合。
+  （历史）permission-gate 已于 2026-10-29 移除，当前插件不再注册该 hook。
 - matcher 语义：`a|b|c` 简单列表或正则；PreToolUse 的 matchValue 是工具名，且
   zcode 真实写类工具就是 `Write`/`Edit`（`tool/handlers/{write,edit}.ts`），
   `ApplyPatch` 仅为兼容别名（`tool/compat.ts`）。插件 matcher
@@ -53,7 +53,7 @@ last_assistant_message/stop_hook_active/…`）。插件按双拼写读取是正
   2 = 阻断；其余非零 = hook 失败。插件全部 fail-open 走 exit 0，安全。
 - stdout 上限 `maxOutputBytes = 32768`；插件各 hook 输出远小于此。
 - SessionStart `source ∈ startup|resume|clear|compact`，实际触发仅 startup/resume；
-  插件 matcher `startup|resume` 恰好全覆盖。
+  插件 matcher 为 `startup|resume|compact`（compact 声明存在但当前不 dispatch，保留无副作用）。
 
 ## 插件系统核验
 

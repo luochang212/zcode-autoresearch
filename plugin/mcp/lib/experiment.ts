@@ -43,10 +43,7 @@ export function isBetter(
   return direction === "higher" ? current > best : current < best;
 }
 
-/**
- * MAD-based noise floor for the current segment.
- * Returns null when there are fewer than 3 data points or MAD is 0.
- */
+/** Median of the values (null for an empty list); the noise floor lives in computeConfidence. */
 export function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
@@ -154,12 +151,28 @@ export function isStopReached(
  * Normalize a hypothesis/description for comparison: lowercase, strip
  * non-alphanumerics, sort tokens. Returns null when there is no signal.
  */
+const CJK_RE = /[\u4e00-\u9fff]/;
+
+/**
+ * A long CJK token is a compound ("试埃氏筛变体"), so treating it as one
+ * whitespace-delimited word makes every variant look unrelated. Bigrams keep
+ * the shared prefix/suffix signal without a segmentation dependency; English
+ * tokens keep their existing word-level behavior.
+ */
+function hypothesisTokens(token: string): string[] {
+  if (!CJK_RE.test(token) || token.length <= 2) return [token];
+  const out: string[] = [];
+  for (let i = 0; i < token.length - 1; i++) out.push(token.slice(i, i + 2));
+  return out;
+}
+
 export function normalizeHypothesis(text: unknown): string | null {
   const tokens = String(text ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9\u4e00-\u9fff]+/g, " ")
     .split(/\s+/)
-    .filter((t) => t.length >= 2);
+    .filter((t) => t.length >= 2)
+    .flatMap(hypothesisTokens);
   if (tokens.length === 0) return null;
   return [...tokens].sort().join(" ");
 }

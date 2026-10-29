@@ -58,16 +58,16 @@ After installation, continue the original task; initializing ADR Kit is not itse
 ## 插件架构速览（改动前先读）
 
 - **`plugin/mcp/server.ts`**：JSON-RPC stdio server，工具 init/run/log/export/clear；账本 `.auto/log.jsonl` 为 append-only 事实源。
-- **`plugin/mcp/lib/`**：纯函数模块——`experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir）、`bash`（跨平台 bash 定位/进程树终止/shell 引用）、`frozen`（写保护文件集合与路径键归一化）。
+- **`plugin/mcp/lib/`**：领域逻辑与 IO 辅助——`experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir）、`bash`（跨平台 bash 定位/进程树终止/shell 引用）、`frozen`（写保护文件集合与路径键归一化）。
 - **护栏四层**：checks（输出正确）→ 审计不变量（账本自洽）→ 漂移检测（基准 hash）→ 次级度量约束（代价维度）。
 - **冻结语义**：写保护覆盖 `.auto/measure.sh`、`.auto/checks.sh`、`.auto/goal.md`、`.auto/scope.md`；冻结指「记录后不可改」，setup 首次创建放行、已存在则拒改（`frozen.ts` 是唯一事实源）。
 - **规程层**：`skills/autoresearch/SKILL.md` 与 `references/loop-protocol.md` 定义循环规程与 harness 编辑步（二阶循环：有账本证据才改 surface，`goal.md`/`scope.md` 是根与围栏；segment 末至多写一条 `experience.md`，finalize 前人工并入项目 `AGENTS.md`）。
-- **hooks/**：zcode hook 脚本（Stop 续跑、PreToolUse 写保护、记忆注入、权限门禁、SessionStart）。
+- **hooks/**：zcode hook 脚本（Stop 续跑、PreToolUse 写保护、记忆注入、SessionStart）。
 - **技能与命令**：`skills/autoresearch/`（循环规程 + references）、`skills/autoresearch-hooks/`（钩子教学）、`commands/`（autoresearch/export/clear/off/finalize）。
 
 ## 设计约束（历史决策，改动需谨慎）
 
-- 平台不可行（勿再投入）：无限 auto-resume（zcode 无会话注入）、确定性 compaction（无 PreCompact 事件）、TUI widget/overlay（无 UI 扩展点）——用 Stop 3 次窗口、memory-inject、浏览器 dashboard 作为最终形态（见 ADR-3/4）。
+- 平台不可行（勿再投入）：无限 auto-resume（zcode 无会话注入）、确定性 compaction（无 PreCompact 事件）、TUI widget/overlay（无 UI 扩展点）——用 Stop 3 次窗口、memory-inject、有界 Cron 自唤醒、浏览器 dashboard 作为最终形态（见 ADR-3/4/7）。
 - 信号均 advisory（plateau/doom-loop/drift 警告）除非明确硬校验（审计不变量、次级度量约束）——决策权留 agent 与用户。
 
 ## 常用命令
@@ -82,4 +82,4 @@ openspec validate --strict <change>          # change 校验
 adrkit validate                              # 决策记录校验
 ```
 
-CI（GitHub Actions，`.github/workflows/ci.yml`）在 push/PR 时跑 lint + fmt:check + typecheck + adrkit/openspec validate + test，ubuntu 与 windows 双平台（Windows 分支代码无法在 Linux runner 上执行），Node 24；`concurrency` 取消同 ref 的旧运行。
+CI（GitHub Actions，`.github/workflows/ci.yml`）在 push/PR 时跑 lint + fmt:check + typecheck + adrkit/openspec validate + test，ubuntu / macOS / windows 三平台（Windows 分支代码无法在 Linux runner 上执行，macOS 覆盖 BSD userland 与 bash 3.2），Node 24；`concurrency` 取消同 ref 的旧运行。

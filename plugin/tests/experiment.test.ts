@@ -9,6 +9,7 @@ import {
   detectPlateau,
   median,
   normalizeHypothesis,
+  hypothesesSimilar,
   directionLabel,
   detectDoomLoop,
 } from "../mcp/lib/experiment.ts";
@@ -414,4 +415,31 @@ test("isStopReached: noop neither counts as a failure nor keeps the streak", () 
     ),
     false,
   );
+});
+
+test("CJK hypotheses without spaces dedupe and trigger doom-loop", () => {
+  assert.equal(
+    hypothesesSimilar(
+      normalizeHypothesis("试埃氏筛"),
+      normalizeHypothesis("试埃氏筛变体"),
+    ),
+    true,
+  );
+  assert.equal(
+    hypothesesSimilar(
+      normalizeHypothesis("试 sqrt 截断"),
+      normalizeHypothesis("试 sqrt 截断变体"),
+    ),
+    true,
+  );
+
+  const runs = ["试埃氏筛", "试位运算", "试埃氏筛变体", "试位运算变体"].map(
+    (description, i) => ({
+      run: i + 1,
+      status: "discard",
+      metric: 10,
+      description,
+    }),
+  );
+  assert.equal(detectDoomLoop(runs)?.pattern, "oscillate");
 });

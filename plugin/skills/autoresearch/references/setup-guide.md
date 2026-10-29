@@ -107,7 +107,7 @@ A keep is rejected if `memory_mb` exceeds 105% of the first run's value; "faster
 
 ## 7. Keep session state out of git
 
-`.auto/` and `autoresearch-dashboard.html` are session state, not code, and must never be committed (`git add -A` in `log_experiment` would otherwise drag the ledger into every experiment commit). Add to your `.gitignore`:
+`.auto/` and `autoresearch-dashboard.html` are session state, not code, and must never be committed. `log_experiment` excludes both from keep commits, but your project's unrelated dirty files can still ride along; the ignore also keeps session state out of ordinary `git add`/`git status` use. Add to your `.gitignore`:
 
 ```gitignore
 .auto/
@@ -125,5 +125,5 @@ git commit -m "chore: stop tracking autoresearch session state"
 
 1. Commit a clean baseline first (`git checkout -b autoresearch/<goal>` recommended).
 2. `init_experiment` with name / metric_name / direction.
-3. Run a baseline pass: `run_experiment` → `log_experiment` with the baseline metric.
+3. Run a baseline pass: `run_experiment` → `log_experiment` with the baseline metric as `status:"noop"` (no code change) or `discard` if it equals/worse; a baseline `keep` is rejected because there is nothing to commit.
 4. Then loop: one change → run → log.

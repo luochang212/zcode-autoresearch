@@ -216,3 +216,50 @@ test("legacy rows without a confidence field replay through rebuildState and the
   assert.equal(state.best, 40);
   assert.deepEqual(validateLedger(state.runs, state.config), []);
 });
+
+test("config boundary resets the failure streak and last run", () => {
+  const cwd = tempCwd();
+  appendLedgerEntry(cwd, {
+    type: "config",
+    segment: 1,
+    name: "s1",
+    metricName: "m",
+    direction: "lower",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 1,
+    status: "discard",
+    metric: 10,
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 2,
+    status: "crash",
+    metric: null,
+  });
+  appendLedgerEntry(cwd, {
+    type: "config",
+    segment: 2,
+    name: "s2",
+    metricName: "m",
+    direction: "lower",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 1,
+    status: "discard",
+    metric: 20,
+  });
+
+  const state = rebuildState(cwd, {
+    maxIterations: 20,
+    consecutiveFailures: 3,
+  });
+  assert.equal(state.segment, 2);
+  assert.equal(state.runs.length, 1);
+  assert.equal(state.consecutiveFailures, 1); // not 3 from segment 1
+  assert.equal(state.lastRun?.run, 1);
+  assert.equal(state.lastRun?.status, "discard");
+  assert.equal(state.lastRunChecksFailed, false);
+});

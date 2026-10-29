@@ -22,6 +22,7 @@ function pass(): never {
 let state: SessionState | undefined;
 try {
   const cfg = readSessionConfig(projectCwd);
+  if (cfg.autoresearchOff === true) pass();
   const max = Number(cfg.maxIterations);
   state = rebuildState(cwd, {
     maxIterations: Number.isFinite(max) && max > 0 ? max : 20,

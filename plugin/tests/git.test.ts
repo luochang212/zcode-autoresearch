@@ -7,6 +7,7 @@ import {
   existsSync,
   readFileSync,
   chmodSync,
+  rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -94,6 +95,86 @@ test("commitExperiment excludes the .auto session dir from staging", () => {
   // .auto files stay on disk and untracked-pending (not committed)
   assert.ok(existsSync(join(cwd, ".auto", "log.jsonl")));
 });
+
+test("session dashboard is neither committed nor counted as dirty", () => {
+  const cwd = tempRepo();
+  writeFileSync(
+    join(cwd, "autoresearch-dashboard.html"),
+    "<html>dash</html>\n",
+  );
+
+  assert.equal(isDirty(cwd), false);
+  assert.equal(
+    commitExperiment(cwd, { description: "dashboard only", result: {} }),
+    null,
+  );
+  const files = git(cwd, ["show", "--name-only", "--format=", "HEAD"]);
+  assert.ok(!files.includes("autoresearch-dashboard.html"));
+
+  // A real code change still commits, without the dashboard riding along.
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  const hash = commitExperiment(cwd, {
+    description: "real change",
+    result: {},
+  });
+  assert.ok(hash);
+  assert.ok(
+    !git(cwd, ["show", "--name-only", "--format=", "HEAD"]).includes(
+      "autoresearch-dashboard.html",
+    ),
+  );
+});
+
+for (const mode of ["new", "modified", "deleted"]) {
+  for (const withCode of [false, true]) {
+    test(`keep excludes pre-staged ${mode} session files (code=${withCode})`, () => {
+      const cwd = tempRepo();
+      try {
+        const files = ["autoresearch-dashboard.html", ".auto/log.jsonl"];
+        mkdirSync(join(cwd, ".auto"));
+        if (mode !== "new") {
+          for (const file of files) writeFileSync(join(cwd, file), "old\n");
+          git(cwd, ["add", "-A"]);
+          git(cwd, ["commit", "-qm", "tracked session baseline"]);
+        }
+        for (const file of files) {
+          if (mode === "deleted") rmSync(join(cwd, file));
+          else writeFileSync(join(cwd, file), "session change\n");
+        }
+        git(cwd, ["add", "-A"]);
+        const before = shortHash(cwd);
+        assert.equal(isDirty(cwd), false);
+        if (withCode) writeFileSync(join(cwd, "main.js"), "v2\n");
+        const hash = commitExperiment(cwd, {
+          description: "staged session",
+          result: {},
+        });
+        if (withCode) {
+          assert.ok(hash);
+          assert.equal(
+            git(cwd, ["show", "--name-only", "--format=", "HEAD"]),
+            "main.js",
+          );
+        } else {
+          assert.equal(hash, null);
+          assert.equal(shortHash(cwd), before);
+        }
+        assert.equal(git(cwd, ["diff", "--cached", "--name-only"]), "");
+        for (const file of files) {
+          if (mode === "deleted")
+            assert.equal(existsSync(join(cwd, file)), false);
+          else
+            assert.equal(
+              readFileSync(join(cwd, file), "utf8"),
+              "session change\n",
+            );
+        }
+      } finally {
+        rmSync(cwd, { recursive: true, force: true });
+      }
+    });
+  }
+}
 
 test("rollbackWorkingTree discards changes but keeps .auto/", () => {
   const cwd = tempRepo();

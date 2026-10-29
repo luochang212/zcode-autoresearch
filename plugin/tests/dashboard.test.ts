@@ -212,6 +212,7 @@ test("SSE broadcasts jsonl-updated after log_experiment (live refresh)", async (
     });
     const reader = sseRes.body!.getReader();
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// change\n");
     await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -549,4 +550,18 @@ test("renderer: evidence links, escaped labels and accessible filters", () => {
   assert.match(html, /data-filter="all" aria-pressed="true"/);
   assert.match(html, /class="filters" hidden/);
   assert.match(html, /id="run-3" data-status="noop"/);
+});
+
+test("dashboard tolerates non-string timestamps and escapes HTML", () => {
+  const numeric = entriesWithRuns([["keep", 10]], true);
+  (numeric[1] as unknown as { timestamp: unknown }).timestamp = 123;
+  const html = renderDashboard(rebuildHistory(numeric));
+  assert.doesNotMatch(html, /undefined/);
+  assert.match(html, /autoresearch<\/span>/);
+
+  const xss = entriesWithRuns([["keep", 10]], true);
+  (xss[1] as unknown as { timestamp: unknown }).timestamp = "<b>hi</b>";
+  const escaped = renderDashboard(rebuildHistory(xss));
+  assert.match(escaped, /&lt;b&gt;hi&lt;\/b&gt;/);
+  assert.doesNotMatch(escaped, /<b>hi<\/b>/);
 });

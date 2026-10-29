@@ -11,7 +11,7 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 5. **Decide**: compare the returned `metric` against the segment `baseline`:
    - **improved** → `log_experiment` `status:"keep"`. The tool auto-commits (`experiment: <desc>` + Result JSON).
    - **equal or worse** → `status:"discard"`. Working tree is reverted, `.auto/` survives.
-   - **exit_code ≠ 0 / timed_out** → `status:"crash"` (metric 0). Same revert.
+   - **exit_code ≠ 0 / timed_out** → `status:"crash"` (metric null). Same revert.
    - **checks.failed** → `status:"checks_failed"`. Same revert; never keep.
    - **no actual change made** (e.g. only measured) → `status:"noop"` if you want it recorded, else skip logging.
 6. **Log**: always pass `asi` on non-keep runs: `{ hypothesis, next_action_hint, rollback }`. This survives the revert and drives the next iteration.

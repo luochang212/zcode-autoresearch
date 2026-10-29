@@ -37,7 +37,14 @@ interface McpClient {
   close(): void;
 }
 
-function tempRepo(opts: { withMeasure?: boolean; name?: string } = {}) {
+function tempRepo(
+  opts: {
+    withMeasure?: boolean;
+    withAuto?: boolean;
+    commit?: boolean;
+    name?: string;
+  } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "ar-mcp-"));
   // Nested name lets a test put the repo behind a hostile path segment.
   const cwd = opts.name ? join(root, opts.name) : root;
@@ -48,16 +55,20 @@ function tempRepo(opts: { withMeasure?: boolean; name?: string } = {}) {
     stdio: "ignore",
   });
   execFileSync("git", ["config", "user.name", "t"], { cwd, stdio: "ignore" });
-  mkdirSync(join(cwd, ".auto"), { recursive: true });
-  if (opts.withMeasure !== false) {
-    writeFileSync(
-      join(cwd, ".auto", "measure.sh"),
-      '#!/usr/bin/env bash\necho "METRIC time_ms=42"\n',
-    );
+  if (opts.withAuto !== false) {
+    mkdirSync(join(cwd, ".auto"), { recursive: true });
+    if (opts.withMeasure !== false) {
+      writeFileSync(
+        join(cwd, ".auto", "measure.sh"),
+        '#!/usr/bin/env bash\necho "METRIC time_ms=42"\n',
+      );
+    }
   }
   writeFileSync(join(cwd, "code.js"), "v1\n");
-  execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
-  execFileSync("git", ["commit", "-qm", "init"], { cwd, stdio: "ignore" });
+  if (opts.commit !== false) {
+    execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
+    execFileSync("git", ["commit", "-qm", "init"], { cwd, stdio: "ignore" });
+  }
   return cwd;
 }
 
@@ -950,5 +961,209 @@ test("confidence snapshot: ledger row matches the returned value, crash row safe
     const crashRow = runRows()[3];
     assert.equal(crashRow?.metric, null);
     assert.deepEqual(crashRow?.confidence, { level: "yellow", value: 1 });
+  });
+});
+
+test("live dashboard returns 500 on render failure and keeps serving requests", async () => {
+  const cwd = tempRepo();
+  try {
+    await withServer(cwd, async (s) => {
+      const exported = await s.tool("export_dashboard", {});
+      assert.equal(exported.ok, true);
+      const url = String(exported.url);
+      const malformed =
+        JSON.stringify({ type: "config", name: { toString: null } }) + "\n";
+      writeFileSync(join(cwd, ".auto", "log.jsonl"), malformed);
+      const failed = await fetch(url);
+      const body = await failed.text();
+      const ledger = await fetch(`${url}/autoresearch.jsonl`);
+      assert.equal(ledger.status, 200);
+      assert.equal(await ledger.text(), malformed);
+      assert.equal(failed.status, 500);
+      assert.match(body, /dashboard request failed/);
+      writeFileSync(join(cwd, ".auto", "log.jsonl"), "");
+      const recovered = await fetch(url);
+      assert.equal(recovered.status, 200);
+      assert.match(await recovered.text(), /<!doctype html>/);
+    });
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
+test("run_experiment requires an active session", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run.ok, false);
+    assert.match(String(run.error), /init_experiment/);
+    assert.ok(
+      !existsSync(join(cwd, ".auto", "config.json")),
+      "a rejected run must not create session config",
+    );
+  });
+});
+
+test("clear_experiments is idempotent without .auto", async () => {
+  const cwd = tempRepo({ withAuto: false });
+  await withServer(cwd, async (s) => {
+    const res = await s.tool("clear_experiments", {});
+    assert.equal(res.ok, true);
+    assert.match(String(res.message), /no active session/);
+    assert.ok(!existsSync(join(cwd, ".auto")), "must not create .auto");
+  });
+});
+
+test("init_experiment rejects a repo without commits", async () => {
+  const cwd = tempRepo({ commit: false });
+  await withServer(cwd, async (s) => {
+    const res = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(res.ok, false);
+    assert.match(String(res.error), /commit|baseline/i);
+    assert.ok(!existsSync(join(cwd, ".auto", "log.jsonl")));
+  });
+});
+
+test("init and clear reset autoresearchOff", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    writeFileSync(
+      join(cwd, ".auto", "config.json"),
+      JSON.stringify({ autoresearchOff: true }),
+    );
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(init.ok, true);
+    assert.equal(
+      JSON.parse(readFileSync(join(cwd, ".auto", "config.json"), "utf8"))
+        .autoresearchOff,
+      false,
+    );
+
+    writeFileSync(
+      join(cwd, ".auto", "config.json"),
+      JSON.stringify({ autoresearchOff: true }),
+    );
+    await s.tool("clear_experiments", {});
+    assert.equal(
+      JSON.parse(readFileSync(join(cwd, ".auto", "config.json"), "utf8"))
+        .autoresearchOff,
+      false,
+    );
+  });
+});
+
+test("crash response mirrors the null ledger metric", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const crash = await s.tool("log_experiment", {
+      status: "crash",
+      metric: 7,
+      description: "boom",
+    });
+    assert.equal(crash.metric, null);
+    assert.equal(crash.delta, null);
+    const row = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .trim()
+      .split("\n")
+      .map((l) => JSON.parse(l))
+      .at(-1);
+    assert.equal(row.metric, null);
+  });
+});
+
+test("auditBypass skips secondary metric constraints", async () => {
+  const cwd = tempRepo();
+  writeFileSync(
+    join(cwd, ".auto", "config.json"),
+    JSON.stringify({ auditBypass: true }),
+  );
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    '#!/usr/bin/env bash\necho "METRIC time_ms=42"\necho "METRIC memory_mb=100"\n',
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// base\n");
+    const base = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "baseline",
+      metrics: { memory_mb: 100 },
+    });
+    assert.equal(base.ok, true);
+
+    appendFileSync(join(cwd, "code.js"), "// faster but heavier\n");
+    const keep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 41,
+      description: "over budget but bypassed",
+      metrics: { memory_mb: 200 },
+      constraints: [{ name: "memory_mb", maxPct: 105 }],
+    });
+    assert.equal(keep.ok, true);
+  });
+});
+
+test("dashboard-only keep is rejected and does not block crash recovery", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    writeFileSync(
+      join(cwd, "autoresearch-dashboard.html"),
+      "<html>dash</html>\n",
+    );
+    const keep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "dashboard only",
+    });
+    assert.equal(keep.ok, false);
+    assert.match(String(keep.error), /no changes to commit/);
+
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await s.tool("log_experiment", { status: "crash", description: "boom" });
+    writeFileSync(
+      join(cwd, "autoresearch-dashboard.html"),
+      "<html>dash 2</html>\n",
+    );
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run.ok, true);
+  });
+});
+
+test("first keep cannot regress against the segment baseline", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const baseline = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 42,
+      description: "baseline",
+    });
+    assert.equal(baseline.ok, true);
+
+    appendFileSync(join(cwd, "code.js"), "// slower\n");
+    const keep = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 45,
+      description: "first keep is slower",
+    });
+    assert.equal(keep.ok, false);
+    assert.match(String(keep.error), /keep_without_improvement/);
   });
 });

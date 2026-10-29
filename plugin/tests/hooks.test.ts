@@ -560,6 +560,38 @@ test("session-start respects autoresearchOff decision", () => {
   );
 });
 
+test("stop-continue and memory-inject respect autoresearchOff", () => {
+  const cwd = tempCwd();
+  seedLedger(cwd, [
+    cfgLine,
+    {
+      type: "run",
+      run: 1,
+      segment: 1,
+      status: "keep",
+      metric: 10,
+      description: "baseline",
+      commit: "abc1234",
+    },
+  ]);
+  writeFileSync(
+    join(cwd, ".auto", "config.json"),
+    JSON.stringify({ autoresearchOff: true }),
+  );
+
+  // Without the flag, stop-continue would block (loop unfinished) and
+  // memory-inject would emit the ledger summary. Both must stay silent.
+  assert.equal(runHook("stop-continue.ts", cwd, JSON.stringify({})), "");
+  assert.equal(
+    runHook(
+      "memory-inject.ts",
+      cwd,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "go" }),
+    ),
+    "",
+  );
+});
+
 test("session-start respects autoresearchOff set in the project config under workingDir", () => {
   const project = tempCwd();
   mkdirSync(join(project, ".auto"), { recursive: true });

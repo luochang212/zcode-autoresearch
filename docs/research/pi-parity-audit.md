@@ -81,36 +81,36 @@ P0/P1 已全部落地:memory-inject 聚合摘要 ✓、doom-loop ✓、审计不
 
 判定:✅已对齐 / ➕超出 / ⚠️缩水 / ❌缺失 / 🧱平台硬顶。
 
-| #   | 能力              | 上轮判定   | 本次判定 | 证据                                                                                                    |
-| --- | ----------------- | ---------- | -------- | ------------------------------------------------------------------------------------------------------- |
-| 1   | 门控工具          | 可追平     | ✅(近似) | hooks/permission-gate.mjs:无会话时 PermissionRequest deny;已文档化"近似"局限                            |
-| 2   | 自动激活          | 可追平     | ✅       | hooks/session-start.mjs:有 log.jsonl 即注入续跑提示                                                     |
-| 3   | 激活决策持久化    | 可追平     | ✅       | commands/off.md 写 `autoresearchOff`→config.json;session-start.mjs:14-19 读取                           |
-| 4   | kickoff 双路径    | 已有       | ✅       | commands/autoresearch.md                                                                                |
-| 5   | systemPrompt 注入 | 部分       | ➕       | UserPromptSubmit 每轮 memory-inject(强于 pi 的 session 级指针;compaction 变相,ADR-4)                    |
-| 6   | 确定性 compaction | 平台不可行 | 🧱(变相) | memory-inject 聚合摘要:方向去重+best 轨迹+近 3 条 ASI+doom 警告                                         |
-| 7   | auto-resume       | 平台不可行 | 🧱       | Stop hook 3 次窗口(stop-continue.mjs)+ plateau 收敛分支;README 已知边界                                 |
-| 8   | 停摆护栏          | 部分       | ✅       | maxIterations(默认 20,env/config 可配)+ consecutiveFailures(默认 3,可配,server.mjs:81-85)               |
-| 9   | settle 窗口       | 平台不可行 | 🧱       | 无需追平(平台调度)                                                                                      |
-| 10  | 输出双截断        | 已有       | ➕       | 10 行/4KB + >2MB spill 到日志文件(server.mjs:94-102,119-134)                                            |
-| 11  | METRIC 解析       | 已有       | ✅       | lib/experiment.mjs parseMetricLines                                                                     |
-| 12  | measure 锁定      | 已有       | ➕       | 锁定 + **基准漂移检测**(哈希变更强制新 segment,server.mjs:232-245)——pi 无                               |
-| 13  | checks 背压       | 已有       | ➕       | 背压 + keep gate(checks 失败禁 keep,server.mjs:462-468)                                                 |
-| 14  | 自动 git          | 已有       | ➕       | + keep-无变更拒收(536-539)、crash-未回滚禁续跑(359-365)——pi 无                                          |
-| 15  | ASI 记忆          | 部分       | ✅       | asi 进账本;memory-inject/stop-continue 提取 hyp/next/rollback                                           |
-| 16  | confidence        | 部分       | ⚠️       | 计算并返回 ✓;**未持久化**(G2.2)                                                                         |
-| 17  | segment           | 已有       | ✅       | init_experiment 递增 segment,换目标不污染                                                               |
-| 18  | maxIterations     | 已有       | ➕       | 到达即拒绝新 run(server.mjs:355-357),严于 pi 的"告知停止"                                               |
-| 19  | workingDir        | 缺失       | ✅       | lib/paths.mjs resolveWorkCwd;server/hooks 全链路使用                                                    |
-| 20  | TUI widget        | 平台不可行 | 🧱       | 浏览器 dashboard 替代                                                                                   |
-| 21  | overlay           | 平台不可行 | 🧱       | 同上                                                                                                    |
-| 22  | dashboard         | 部分       | ✅       | lib/dashboard-server.mjs:HTTP+/events SSE+jsonl 重拉;export_dashboard 返回 live URL                     |
-| 23  | 迭代钩子          | 缺失       | ⚠️       | 30s/8KB/stdout→steer ✓;**payload 缺 asi(G1.1)、错误静默(G1.2)、无 hook 条目(G2.1)、缺激活触发点(G3.3)** |
-| 24  | create skill      | 已有       | ✅       | skills/autoresearch/(SKILL+setup-guide+loop-protocol)                                                   |
-| 25  | finalize          | 缺失       | ⚠️       | scripts/finalize.sh 分支整理 ✓;**只有 union 一道验证(G3.1)**                                            |
-| 26  | hooks 教学        | 缺失       | ⚠️       | SKILL.md 契约教学 ✓;**示例 6/9(G3.2)**                                                                  |
-| 27  | .auto/ 布局       | 已有       | ➕       | + guard-frozen.mjs 冻结文件写保护(pi 无,pi 仅靠 revert 豁免)                                            |
-| 28  | clear             | 缺失       | ✅       | clear_experiments 工具 + commands/clear.md                                                              |
+| #   | 能力              | 上轮判定   | 本次判定 | 证据                                                                                                     |
+| --- | ----------------- | ---------- | -------- | -------------------------------------------------------------------------------------------------------- |
+| 1   | 门控工具          | 可追平     | ❌(移除) | permission-gate 于 2026-10-29 移除（approval 模式会自锁 init）；无会话仍由 log_experiment 工具内检查兜底 |
+| 2   | 自动激活          | 可追平     | ✅       | hooks/session-start.mjs:有 log.jsonl 即注入续跑提示                                                      |
+| 3   | 激活决策持久化    | 可追平     | ✅       | commands/off.md 写 `autoresearchOff`→config.json;session-start.mjs:14-19 读取                            |
+| 4   | kickoff 双路径    | 已有       | ✅       | commands/autoresearch.md                                                                                 |
+| 5   | systemPrompt 注入 | 部分       | ➕       | UserPromptSubmit 每轮 memory-inject(强于 pi 的 session 级指针;compaction 变相,ADR-4)                     |
+| 6   | 确定性 compaction | 平台不可行 | 🧱(变相) | memory-inject 聚合摘要:方向去重+best 轨迹+近 3 条 ASI+doom 警告                                          |
+| 7   | auto-resume       | 平台不可行 | 🧱       | Stop hook 3 次窗口(stop-continue.mjs)+ plateau 收敛分支;README 已知边界                                  |
+| 8   | 停摆护栏          | 部分       | ✅       | maxIterations(默认 20,env/config 可配)+ consecutiveFailures(默认 3,可配,server.mjs:81-85)                |
+| 9   | settle 窗口       | 平台不可行 | 🧱       | 无需追平(平台调度)                                                                                       |
+| 10  | 输出双截断        | 已有       | ➕       | 10 行/4KB + >2MB spill 到日志文件(server.mjs:94-102,119-134)                                             |
+| 11  | METRIC 解析       | 已有       | ✅       | lib/experiment.mjs parseMetricLines                                                                      |
+| 12  | measure 锁定      | 已有       | ➕       | 锁定 + **基准漂移检测**(哈希变更强制新 segment,server.mjs:232-245)——pi 无                                |
+| 13  | checks 背压       | 已有       | ➕       | 背压 + keep gate(checks 失败禁 keep,server.mjs:462-468)                                                  |
+| 14  | 自动 git          | 已有       | ➕       | + keep-无变更拒收(536-539)、crash-未回滚禁续跑(359-365)——pi 无                                           |
+| 15  | ASI 记忆          | 部分       | ✅       | asi 进账本;memory-inject/stop-continue 提取 hyp/next/rollback                                            |
+| 16  | confidence        | 部分       | ⚠️       | 计算并返回 ✓;**未持久化**(G2.2)                                                                          |
+| 17  | segment           | 已有       | ✅       | init_experiment 递增 segment,换目标不污染                                                                |
+| 18  | maxIterations     | 已有       | ➕       | 到达即拒绝新 run(server.mjs:355-357),严于 pi 的"告知停止"                                                |
+| 19  | workingDir        | 缺失       | ✅       | lib/paths.mjs resolveWorkCwd;server/hooks 全链路使用                                                     |
+| 20  | TUI widget        | 平台不可行 | 🧱       | 浏览器 dashboard 替代                                                                                    |
+| 21  | overlay           | 平台不可行 | 🧱       | 同上                                                                                                     |
+| 22  | dashboard         | 部分       | ✅       | lib/dashboard-server.mjs:HTTP+/events SSE+jsonl 重拉;export_dashboard 返回 live URL                      |
+| 23  | 迭代钩子          | 缺失       | ⚠️       | 30s/8KB/stdout→steer ✓;**payload 缺 asi(G1.1)、错误静默(G1.2)、无 hook 条目(G2.1)、缺激活触发点(G3.3)**  |
+| 24  | create skill      | 已有       | ✅       | skills/autoresearch/(SKILL+setup-guide+loop-protocol)                                                    |
+| 25  | finalize          | 缺失       | ⚠️       | scripts/finalize.sh 分支整理 ✓;**只有 union 一道验证(G3.1)**                                             |
+| 26  | hooks 教学        | 缺失       | ⚠️       | SKILL.md 契约教学 ✓;**示例 6/9(G3.2)**                                                                   |
+| 27  | .auto/ 布局       | 已有       | ➕       | + guard-frozen.mjs 冻结文件写保护(pi 无,pi 仅靠 revert 豁免)                                             |
+| 28  | clear             | 缺失       | ✅       | clear_experiments 工具 + commands/clear.md                                                               |
 
 注:pi 的 `/autoresearch off` 还会 abort 运行中的实验(平台 API,zcode 无)——归入 #7 硬顶,已文档化。
 

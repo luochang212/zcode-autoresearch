@@ -43,7 +43,7 @@
 
 ## 😇 护栏：怎么防止 agent 造假
 
-自主循环最大的风险是 agent 为了「跑分」造假。四层结构性护栏，违规即拒收：
+自主循环最大的风险是 agent 为了「跑分」造假。四层护栏各管一类失效（能硬拒的硬拒，需要人判断的只警告）：
 
 | 层                | 防什么                                  | 机制                                                                  |
 | ----------------- | --------------------------------------- | --------------------------------------------------------------------- |
@@ -53,7 +53,7 @@
 | 次级度量约束      | 用内存或调用数换速度，即 reward hacking | opt-in 的 `constraints: [{name, maxPct}]`，超界禁 keep                |
 
 > [!NOTE]
-> **已知边界**（平台限制，如实记录）：zcode 无会话注入 API，无法过夜无人值守，靠 Stop 3 次窗口加用户回车续跑；无 compaction 事件，靠聚合摘要注入保住记忆；无 TUI widget，因此面板放在浏览器里。详见 [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md)。
+> **已知边界**（平台限制，如实记录）：zcode 无会话注入 API，无法**无限** auto-resume；续跑靠 Stop 3 次窗口、人工触发，以及有界的 `CronCreate` 自唤醒（见 [`plugin/skills/autoresearch/references/unattended.md`](plugin/skills/autoresearch/references/unattended.md)）。无 compaction 事件，靠聚合摘要注入保住记忆；无 TUI widget，因此面板放在浏览器里。详见 [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md)。
 
 ## 📁 仓库结构
 

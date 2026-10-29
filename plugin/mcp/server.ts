@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // zcode-autoresearch MCP server (stdio, newline-delimited JSON-RPC).
-// Tools: init_experiment / run_experiment / log_experiment / export_dashboard.
+// Tools: init_experiment / run_experiment / log_experiment / export_dashboard / clear_experiments.
 // Design: experiment/autoresearch + ADR-1 (MCP tools carry mechanism).
 import { spawn } from "node:child_process";
 import type {
@@ -11,6 +11,7 @@ import type { Readable } from "node:stream";
 import {
   appendFileSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   statSync,
   writeFileSync,
@@ -45,6 +46,7 @@ import {
   commitExperiment,
   rollbackWorkingTree,
   isGitRepo,
+  hasCommit,
   isDirty,
   currentBranch,
   safeShortHash,
@@ -452,7 +454,9 @@ function readBenchmarkHashes() {
 
 /** Merge a patch into the project's `.auto/config.json` (creates if missing). */
 function patchSessionConfig(patch: Record<string, unknown>): void {
-  const cfgPath = join(projectCwd, ".auto", "config.json");
+  const cfgDir = join(projectCwd, ".auto");
+  const cfgPath = join(cfgDir, "config.json");
+  mkdirSync(cfgDir, { recursive: true });
   let cfg: Record<string, unknown> = {};
   try {
     cfg = JSON.parse(readFileSync(cfgPath, "utf8")) as Record<string, unknown>;
@@ -722,10 +726,29 @@ async function toolInitExperiment(
   }
   // The loop's keep/discard semantics (commit + rollback) need git; a non-git
   // research dir would only fail later at log time, in a half-initialized state.
-  if (!isGitRepo(cwd)) {
+  let repo = false;
+  try {
+    repo = isGitRepo(cwd);
+  } catch (err) {
+    return {
+      ok: false,
+      error: `git is required for the experiment loop: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+  if (!repo) {
     return {
       ok: false,
       error: `research directory is not a git repository; the experiment loop needs git commit/rollback semantics. Run git init there (or point .auto/config.json workingDir at a repo) first.`,
+    };
+  }
+  // An unborn HEAD (git init, no commit) passes isGitRepo but the first
+  // discard/crash rollback cannot resolve HEAD — reject it before recording
+  // a half-initialized session.
+  if (!hasCommit(cwd)) {
+    return {
+      ok: false,
+      error:
+        "research directory is a git repository but has no commits; commit a baseline first (git add -A && git commit -m baseline) so discard/crash rollback has a HEAD to restore.",
     };
   }
   const state = sessionState();
@@ -739,20 +762,26 @@ async function toolInitExperiment(
     direction,
     createdAt: new Date().toISOString(),
   });
-  // Record frozen-file hashes as the benchmark baseline for this session.
-  writeBenchmarkHashes(currentBenchmarkHashes());
-  // New segment: any pending checks outcome from a previous session is stale.
-  setPendingChecksFailed(false);
+  // New segment: record frozen-file hashes, clear stale checks state, and
+  // re-enable the loop (init is an explicit resume; off must not mute it).
+  patchSessionConfig({
+    benchmarkHashes: currentBenchmarkHashes(),
+    pendingChecksFailed: false,
+    autoresearchOff: false,
+  });
   broadcastDashboardUpdate();
   const branch = currentBranch(cwd);
+  const branchNote = branch
+    ? branch.startsWith("autoresearch/")
+      ? ""
+      : `\nnote: on branch "${branch}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`
+    : "\nnote: detached HEAD; check out a branch (git checkout -b autoresearch/<tag>) before experimenting";
   return {
     ok: true,
     segment,
     message:
       `experiment session "${name}" initialized (segment ${segment}). metric=${metricName} direction=${direction}` +
-      (branch && branch.startsWith("autoresearch/")
-        ? ""
-        : `\nnote: on branch "${branch || "no git repo"}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`),
+      branchNote,
   };
 }
 
@@ -760,8 +789,15 @@ async function toolRunExperiment(
   args: RunToolArgs,
 ): Promise<Record<string, unknown>> {
   const state = sessionState();
+  if (!state.config) {
+    return {
+      ok: false,
+      error:
+        "no active experiment session; call init_experiment first (run_experiment will not execute outside a session)",
+    };
+  }
   const maxIter = state.maxIterations ?? DEFAULT_MAX_ITERATIONS;
-  if (state.config && state.runs.length >= maxIter) {
+  if (state.runs.length >= maxIter) {
     return {
       ok: false,
       error: `iteration cap (${maxIter}) reached for segment ${state.segment}; start a new segment with init_experiment or stop`,
@@ -933,6 +969,7 @@ async function toolLogExperiment(
         (c) => c && typeof c.name === "string" && Number(c.maxPct) > 0,
       )
     : [];
+  const cfgAudit = readSessionConfig(projectCwd);
 
   // keep gate: the just-run benchmark's checks failed → refuse keep. The
   // outcome is persisted by run_experiment (pendingChecksFailed), because the
@@ -949,9 +986,14 @@ async function toolLogExperiment(
     return { ok: false, error: "keep requires a metric value" };
   }
   // Secondary-metric constraints: keep only if secondary metrics stay within
-  // maxPct% of the segment's first run (opt-in; skipped by auditBypass).
+  // maxPct% of the segment's first run (opt-in; auditBypass unlocks both this
+  // and the ledger audit, per ADR-5's single escape hatch).
   const constraintResults = [];
-  if (status === "keep" && constraints.length > 0) {
+  if (
+    status === "keep" &&
+    constraints.length > 0 &&
+    cfgAudit.auditBypass !== true
+  ) {
     const baselineRuns = state.runs[0]?.metrics ?? {};
     for (const c of constraints) {
       const value = metrics?.[c.name];
@@ -996,7 +1038,6 @@ async function toolLogExperiment(
     metric: status === "crash" ? null : metric,
     commit: args.commit ?? null,
   };
-  const cfgAudit = readSessionConfig(projectCwd);
   if (cfgAudit.auditBypass !== true) {
     const violations = validateLedger(
       [...state.runs, entryPrelim],
@@ -1089,9 +1130,12 @@ async function toolLogExperiment(
   // Single source (design D4): the same snapshot written into the ledger row,
   // not a second computation over the rewritten state.
   const conf = confSnapshot;
+  // A crash measured nothing; mirror the ledger's null instead of echoing a
+  // caller-supplied placeholder into the response/delta.
+  const reportedMetric = status === "crash" ? null : metric;
   const delta =
-    metric != null && baseline != null
-      ? (metric - baseline) *
+    reportedMetric != null && baseline != null
+      ? (reportedMetric - baseline) *
         (nextState.config?.direction === "higher" ? 1 : -1)
       : null;
 
@@ -1112,7 +1156,7 @@ async function toolLogExperiment(
     segment: nextState.segment,
     status,
     commit,
-    metric,
+    metric: reportedMetric,
     baseline,
     best,
     delta: delta != null ? Number(delta.toFixed(6)) : null,
@@ -1139,9 +1183,11 @@ async function toolLogExperiment(
 }
 
 async function toolClearExperiments() {
-  setPendingChecksFailed(false);
   if (!existsSync(paths.log))
     return { ok: true, message: "no active session to clear" };
+  // Clearing is a fresh start: stale checks state and a paused loop must not
+  // survive into the next session.
+  patchSessionConfig({ pendingChecksFailed: false, autoresearchOff: false });
   const { rmSync } = await import("node:fs");
   rmSync(paths.log, { force: true });
   return {

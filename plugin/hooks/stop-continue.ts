@@ -17,6 +17,7 @@ function failOpen(): never {
 let state: SessionState | undefined;
 try {
   const cfg = readSessionConfig(projectCwd);
+  if (cfg.autoresearchOff === true) failOpen();
   const max = Number(cfg.maxIterations);
   const fails = Number(cfg.consecutiveFailures);
   state = rebuildState(cwd, {

@@ -1,8 +1,10 @@
 // Git operations for the experiment loop (ADR-2 semantics):
 // keep → commit with `experiment:` prefix + structured Result JSON.
-// discard/crash/checks_failed → drop working-tree changes, exempt `.auto/`.
+// discard/crash/checks_failed → drop working-tree changes, exempt session state
+// (`.auto/` and the generated dashboard).
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
+import { DASHBOARD_FILE } from "./ledger.ts";
 
 // Standard install locations a slim GUI PATH can hide. On macOS the
 // launchd-default PATH still contains /usr/bin, whose git (the CLT shim)
@@ -69,8 +71,25 @@ export function git(cwd: string, args: string[]): string {
 }
 
 export function isGitRepo(cwd: string): boolean {
+  // resolveGit() throws when no git exists at all — that is a different
+  // failure from "this directory is not a repository" and callers must be
+  // able to tell them apart. Only the rev-parse failure maps to false.
+  const gitBin = resolveGit();
   try {
-    execFileSync(resolveGit(), ["rev-parse", "--git-dir"], {
+    execFileSync(gitBin, ["rev-parse", "--git-dir"], {
+      cwd,
+      stdio: "ignore",
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether the repository has at least one commit (HEAD resolves). */
+export function hasCommit(cwd: string): boolean {
+  try {
+    execFileSync(resolveGit(), ["rev-parse", "--verify", "HEAD"], {
       cwd,
       stdio: "ignore",
     });
@@ -81,15 +100,21 @@ export function isGitRepo(cwd: string): boolean {
 }
 
 /**
- * Whether the working tree has real (non-`.auto/`) changes. Session-file
- * writes (ledger, config) must not count: e.g. the crash-unresolved gate
+ * Whether the working tree has real changes (session state excluded). Ledger,
+ * config and dashboard writes must not count: e.g. the crash-unresolved gate
  * would otherwise block forever right after logging the crash itself.
  */
 export function isDirty(cwd: string): boolean {
   try {
     return (
-      git(cwd, ["status", "--porcelain", "--", ".", ":(exclude).auto"]).length >
-      0
+      git(cwd, [
+        "status",
+        "--porcelain",
+        "--",
+        ".",
+        ":(exclude).auto",
+        `:(exclude)${DASHBOARD_FILE}`,
+      ]).length > 0
     );
   } catch {
     return false;
@@ -110,16 +135,26 @@ export function safeShortHash(cwd: string): string | null {
 }
 
 /**
- * Commit all tracked+untracked changes as one experiment, excluding the
- * `.auto/` session dir (ledger noise must not ride along, and a keep with
- * only session-file changes must hit the "nothing to commit" path).
+ * Commit all tracked+untracked changes as one experiment, excluding session
+ * state (`.auto/` plus the generated dashboard): a keep with only session-file
+ * changes must hit the "nothing to commit" path.
  * Returns the short hash, or null when there is nothing to commit.
  */
 export function commitExperiment(
   cwd: string,
   { description, result }: { description: string; result: unknown },
 ): string | null {
-  git(cwd, ["add", "-A", "--", ".", ":(exclude).auto"]);
+  // Excluding paths from add does not remove files already in the index.
+  // Reset only session paths to HEAD; preserve their working-tree contents.
+  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
+  git(cwd, [
+    "add",
+    "-A",
+    "--",
+    ".",
+    ":(exclude).auto",
+    `:(exclude)${DASHBOARD_FILE}`,
+  ]);
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {
@@ -139,14 +174,21 @@ export function commitExperiment(
 }
 
 /**
- * Discard every working-tree + index change while keeping the `.auto/`
- * session directory intact. Uses `checkout HEAD` (not `checkout --`) so
- * staged-but-uncommitted experiment changes are reverted to HEAD too.
+ * Discard every working-tree + index change while keeping session state
+ * (`.auto/` and the generated dashboard) intact. Uses `checkout HEAD` (not
+ * `checkout --`) so staged-but-uncommitted experiment changes are reverted too.
  */
 export function rollbackWorkingTree(cwd: string): void {
   execFileSync(
     resolveGit(),
-    ["checkout", "HEAD", "--", ".", ":(exclude,glob)**/.auto/**"],
+    [
+      "checkout",
+      "HEAD",
+      "--",
+      ".",
+      ":(exclude,glob)**/.auto/**",
+      `:(exclude)${DASHBOARD_FILE}`,
+    ],
     { cwd, stdio: "ignore" },
   );
   // Unstage anything (e.g. accidentally staged .auto content) without touching files.

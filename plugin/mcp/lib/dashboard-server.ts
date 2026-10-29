@@ -1,7 +1,7 @@
 // Local HTTP + SSE dashboard server, hosted inside the MCP server process.
 // Routes: / (live HTML), /autoresearch.jsonl (ledger raw), /events (SSE).
 import { createServer } from "node:http";
-import type { Server, ServerResponse } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { readLedger, rebuildHistory } from "./ledger.ts";
@@ -35,7 +35,7 @@ function start(workCwd: string): Promise<{ port: number; url: string }> {
       url: `http://127.0.0.1:${boundPort ?? 0}`,
     });
   }
-  const srv = createServer((req, res) => {
+  const handle = (req: IncomingMessage, res: ServerResponse): void => {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/events") {
       res.writeHead(200, {
@@ -57,20 +57,44 @@ function start(workCwd: string): Promise<{ port: number; url: string }> {
         res.end("ledger not found (no active session)");
         return;
       }
+      const ledger = readFileSync(log, "utf8");
       res.writeHead(200, {
         "Content-Type": "application/x-ndjson; charset=utf-8",
       });
-      res.end(readFileSync(log, "utf8"));
+      res.end(ledger);
       return;
     }
     if (url.pathname === "/" || url.pathname === "") {
       const history = rebuildHistory(readLedger(workCwd));
+      const html = renderLiveDashboard(history, {
+        pin: safeShortHash(workCwd),
+      });
       res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(renderLiveDashboard(history, { pin: safeShortHash(workCwd) }));
+      res.end(html);
       return;
     }
     res.writeHead(404);
     res.end("not found");
+  };
+  const srv = createServer((req, res) => {
+    // A malformed/hand-edited ledger must not take the MCP server process
+    // down with it: isolate every request and return 500 instead.
+    try {
+      handle(req, res);
+    } catch (err) {
+      process.stderr.write(
+        `[autoresearch] dashboard request failed: ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+      try {
+        if (res.headersSent) res.end();
+        else {
+          res.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+          res.end("dashboard request failed");
+        }
+      } catch {
+        /* client already gone */
+      }
+    }
   });
   return new Promise((resolve, reject) => {
     srv.on("error", reject);

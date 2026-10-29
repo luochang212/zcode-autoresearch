@@ -43,7 +43,7 @@ The agent will then guide you through setup and enter the loop.
 
 ## 😇 Guardrails: How the Agent Is Kept Honest
 
-The biggest risk of an autonomous loop is the agent faking results to "score points". Four structural guardrails reject any violation:
+The biggest risk of an autonomous loop is the agent faking results to "score points". Four guardrail layers cover different failure modes (hard rejects where possible, warnings where a human must decide):
 
 | Layer                        | What it prevents                                        | Mechanism                                                                                                      |
 | ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
@@ -53,7 +53,7 @@ The biggest risk of an autonomous loop is the agent faking results to "score poi
 | Secondary metric constraints | Trading memory or call count for speed (reward hacking) | Opt-in `constraints: [{name, maxPct}]`; exceeding the bound blocks keep                                        |
 
 > [!NOTE]
-> **Known limits** (platform constraints, recorded honestly): zcode has no session-injection API, so unattended overnight runs are impossible; continuation relies on a 3-time Stop window plus the user pressing Enter. There is no compaction event either; memory is preserved via aggregated-summary injection. No TUI widget exists, which is why the dashboard lives in the browser. See [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md) for details.
+> **Known limits** (platform constraints, recorded honestly): zcode has no session-injection API, so _unbounded_ auto-resume is impossible; continuation relies on the 3-time Stop window, manual turns, and the bounded `CronCreate` self-wakeup (see [`plugin/skills/autoresearch/references/unattended.md`](plugin/skills/autoresearch/references/unattended.md)). There is no compaction event either; memory is preserved via aggregated-summary injection. No TUI widget exists, which is why the dashboard lives in the browser. See [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md) for details.
 
 ## 📁 Repository Structure
 

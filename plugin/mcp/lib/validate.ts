@@ -49,6 +49,7 @@ export function validateLedger(
 ): LedgerViolation[] {
   const violations: LedgerViolation[] = [];
   const direction = config?.direction ?? "lower";
+  let baseline: number | null = null; // first finite metric in this segment
   let retained: number | null = null; // current best kept metric (null until first keep)
   let expectedRun = 1;
 
@@ -99,9 +100,27 @@ export function validateLedger(
       continue;
     }
 
+    // The segment baseline is the first finite measurement (a legacy crash
+    // row carrying 0 is a placeholder, not a measurement).
+    if (r.status !== "crash" && baseline == null) baseline = metric;
+
     if (r.status === "keep") {
       if (retained == null) {
-        retained = metric; // baseline / first keep
+        // The first keep establishes the retained value, but it must not be
+        // worse than the segment baseline the dashboard/state already show.
+        if (
+          baseline != null &&
+          metric !== baseline &&
+          !isBetter(metric, baseline, direction)
+        ) {
+          push(
+            "keep_without_improvement",
+            r.run,
+            `first keep metric ${metric} is worse than baseline ${baseline} (${direction})`,
+          );
+        } else {
+          retained = metric;
+        }
       } else if (!isBetter(metric, retained, direction)) {
         push(
           "keep_without_improvement",

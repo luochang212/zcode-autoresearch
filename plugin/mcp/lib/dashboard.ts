@@ -266,7 +266,11 @@ function renderBody(
 </div>`);
   });
 
-  const lastDate = history.lastRunAt ? history.lastRunAt.slice(0, 10) : null;
+  // Ledger rows are hand-editable: never assume timestamp is a string, and
+  // escape it like every other piece of ledger-derived text.
+  const lastRunAt =
+    typeof history.lastRunAt === "string" ? history.lastRunAt : null;
+  const lastDate = lastRunAt ? escapeHtml(lastRunAt.slice(0, 10)) : null;
   const footer = `
   <span>autoresearch${lastDate ? ` · ${lastDate}` : ""}</span><span>${history.totalRuns} runs${pin ? ` · pinned at ${escapeHtml(pin)}` : ""}</span>`;
 

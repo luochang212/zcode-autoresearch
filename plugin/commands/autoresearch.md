@@ -4,7 +4,7 @@ description: Enter autoresearch mode. Resumes from .auto/prompt.md when a sessio
 
 Enter autoresearch mode for this workspace.
 
-1. If `.auto/log.jsonl` and `.auto/prompt.md` exist, **resume**: read the charter and the ledger, then continue the loop (one focused change → `run_experiment` → `log_experiment`).
+1. If `.auto/log.jsonl` and `.auto/prompt.md` exist, **resume**: first clear `autoresearchOff` if it is set (set it to false in `.auto/config.json`), then read the charter and the ledger and continue the loop (one focused change → `run_experiment` → `log_experiment`).
 2. Otherwise **set up a new session** from the goal in $ARGUMENTS:
    - Load the skill `autoresearch` (or read `skills/autoresearch/SKILL.md`).
    - Follow `references/setup-guide.md`: pick a mechanical metric, create `.auto/measure.sh` (prints `METRIC name=value`), optional `.auto/checks.sh`, write `.auto/prompt.md` charter.
