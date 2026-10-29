@@ -6,6 +6,7 @@ import {
   mkdirSync,
   existsSync,
   readFileSync,
+  chmodSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,6 +17,7 @@ import {
   isDirty,
   shortHash,
   currentBranch,
+  resolveGit,
 } from "../mcp/lib/git.ts";
 
 function gitInit(cwd: string): void {
@@ -153,4 +155,24 @@ test("shortHash and currentBranch work", () => {
     stdio: "ignore",
   });
   assert.equal(currentBranch(cwd), "autoresearch/x");
+});
+
+test("resolveGit falls back to a candidate when PATH hides git", (t) => {
+  // Regression for the 2026-10-29 macOS check: a GUI-launched server can get
+  // a launchd-default PATH with no homebrew git, so bare execFileSync("git")
+  // died with ENOENT on the first keep even though /opt/homebrew/bin/git
+  // existed. Injected candidates bypass the PATH probe and the cache, so the
+  // fallback decision is testable without touching the environment.
+  if (process.platform === "win32") return t.skip("posix shim");
+  const shim = join(mkdtempSync(join(tmpdir(), "ar-git-shim-")), "git");
+  writeFileSync(shim, '#!/bin/sh\necho "git version 2.50 (shim)"\n');
+  chmodSync(shim, 0o755);
+  assert.equal(resolveGit([shim]), shim);
+});
+
+test("resolveGit throws loudly when nothing resolves", () => {
+  assert.throws(
+    () => resolveGit(["/nonexistent/ar/a", "/nonexistent/ar/b"]),
+    /no usable git/,
+  );
 });

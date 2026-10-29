@@ -2,14 +2,78 @@
 // keep → commit with `experiment:` prefix + structured Result JSON.
 // discard/crash/checks_failed → drop working-tree changes, exempt `.auto/`.
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+
+// Standard install locations a slim GUI PATH can hide. On macOS the
+// launchd-default PATH still contains /usr/bin, whose git (the CLT shim)
+// covers most GUI launches — but homebrew-only machines without the CLT are
+// left with git at /opt/homebrew/bin, invisible to a GUI-launched server.
+// On Windows a GUI PATH can miss Git for Windows entirely; its installer
+// default is the cmd\git.exe shim under Program Files.
+const GIT_CANDIDATES =
+  process.platform === "win32"
+    ? [
+        "C:\\Program Files\\Git\\cmd\\git.exe",
+        "C:\\Program Files (x86)\\Git\\cmd\\git.exe",
+      ]
+    : [
+        "/opt/homebrew/bin/git",
+        "/usr/local/bin/git",
+        "/usr/bin/git",
+        "/bin/git",
+      ];
+
+function probeGit(path: string): boolean {
+  try {
+    execFileSync(path, ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+let cachedGit: string | null = null;
+
+/**
+ * Resolve the git binary: PATH first (one probe, then cached), falling back
+ * to the standard install locations. Injected candidates (tests) bypass the
+ * PATH probe and the cache. Throws with a loud message when nothing
+ * resolves — every spawn in this module goes through here, so a missing git
+ * surfaces as one clear error instead of per-call ENOENT.
+ */
+export function resolveGit(candidates?: string[]): string {
+  if (candidates === undefined) {
+    if (cachedGit) return cachedGit;
+    if (probeGit("git")) {
+      cachedGit = "git";
+      return "git";
+    }
+    for (const path of GIT_CANDIDATES) {
+      if (existsSync(path) && probeGit(path)) {
+        cachedGit = path;
+        return path;
+      }
+    }
+  } else {
+    for (const path of candidates) {
+      if (probeGit(path)) return path;
+    }
+  }
+  throw new Error(
+    "no usable git on PATH or standard install locations; install git or make sure it is on the server's PATH",
+  );
+}
 
 export function git(cwd: string, args: string[]): string {
-  return execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  return execFileSync(resolveGit(), args, { cwd, encoding: "utf8" }).trim();
 }
 
 export function isGitRepo(cwd: string): boolean {
   try {
-    execFileSync("git", ["rev-parse", "--git-dir"], { cwd, stdio: "ignore" });
+    execFileSync(resolveGit(), ["rev-parse", "--git-dir"], {
+      cwd,
+      stdio: "ignore",
+    });
     return true;
   } catch {
     return false;
@@ -59,7 +123,7 @@ export function commitExperiment(
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {
-      execFileSync("git", ["diff", "--cached", "--quiet"], {
+      execFileSync(resolveGit(), ["diff", "--cached", "--quiet"], {
         cwd,
         stdio: "ignore",
       });
@@ -70,7 +134,7 @@ export function commitExperiment(
   })();
   if (!hasStaged) return null;
   const body = `experiment: ${description}\n\nResult: ${JSON.stringify(result)}`;
-  execFileSync("git", ["commit", "-m", body], { cwd, stdio: "ignore" });
+  execFileSync(resolveGit(), ["commit", "-m", body], { cwd, stdio: "ignore" });
   return shortHash(cwd);
 }
 
@@ -81,14 +145,14 @@ export function commitExperiment(
  */
 export function rollbackWorkingTree(cwd: string): void {
   execFileSync(
-    "git",
+    resolveGit(),
     ["checkout", "HEAD", "--", ".", ":(exclude,glob)**/.auto/**"],
     { cwd, stdio: "ignore" },
   );
   // Unstage anything (e.g. accidentally staged .auto content) without touching files.
-  execFileSync("git", ["reset", "-q"], { cwd, stdio: "ignore" });
+  execFileSync(resolveGit(), ["reset", "-q"], { cwd, stdio: "ignore" });
   execFileSync(
-    "git",
+    resolveGit(),
     [
       "clean",
       "-fd",

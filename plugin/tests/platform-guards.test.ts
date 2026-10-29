@@ -69,6 +69,21 @@ test("bash is spawned only through resolveBash()", () => {
   );
 });
 
+test("git is spawned only through resolveGit()", () => {
+  // lib/git.ts is the one place that resolves the binary: a GUI-launched
+  // server can have a PATH that hides git entirely (macOS 2026-10-29 check),
+  // so every spawn must go through the fallback-resolving helper. Tests are
+  // exempt — they run from a developer shell with git on PATH.
+  const hits = scan(/(?:execFile|execFileSync|spawn)\(\s*["'`]git["'`]/).filter(
+    (hit) => !hit.startsWith("tests/"),
+  );
+  assert.deepEqual(
+    hits,
+    [],
+    `literal git spawn bypasses resolveGit():\n${hits.join("\n")}`,
+  );
+});
+
 test("the MCP server is spawned via process.execPath, never a bare `node`", () => {
   const hits = scan(/spawn\(\s*["'`]node["'`]/);
   assert.deepEqual(
