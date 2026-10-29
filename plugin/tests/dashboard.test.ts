@@ -77,7 +77,7 @@ interface McpClient {
     name: string,
     args: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
-  close(): void;
+  close(): Promise<void>;
 }
 
 function tempRepo() {
@@ -145,7 +145,17 @@ function connect(cwd: string): McpClient {
       unknown
     >;
   };
-  const close = () => proc.kill();
+  // The child's CWD is the temp repo; until the process fully exits, Windows
+  // keeps that directory locked and rmSync(cwd) would fail with EPERM.
+  const close = (): Promise<void> =>
+    new Promise((resolve) => {
+      if (proc.exitCode !== null || proc.signalCode !== null) {
+        resolve();
+        return;
+      }
+      proc.once("exit", () => resolve());
+      proc.kill();
+    });
   return { call, tool, close };
 }
 
@@ -161,7 +171,7 @@ async function withServer(
   try {
     return await fn(s);
   } finally {
-    s.close();
+    await s.close();
   }
 }
 

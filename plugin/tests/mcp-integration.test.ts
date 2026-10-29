@@ -34,7 +34,7 @@ interface McpClient {
     name: string,
     args: Record<string, unknown>,
   ): Promise<Record<string, unknown>>;
-  close(): void;
+  close(): Promise<void>;
 }
 
 function tempRepo(
@@ -124,7 +124,17 @@ function connect(cwd: string): McpClient {
       unknown
     >;
   };
-  const close = () => proc.kill();
+  // The child's CWD is the temp repo; until the process fully exits, Windows
+  // keeps that directory locked and rmSync(cwd) fails with EPERM.
+  const close = (): Promise<void> =>
+    new Promise((resolve) => {
+      if (proc.exitCode !== null || proc.signalCode !== null) {
+        resolve();
+        return;
+      }
+      proc.once("exit", () => resolve());
+      proc.kill();
+    });
   return { call, tool, close };
 }
 
@@ -140,7 +150,7 @@ async function withServer(
   try {
     return await fn(s);
   } finally {
-    s.close();
+    await s.close();
   }
 }
 
@@ -987,7 +997,14 @@ test("live dashboard returns 500 on render failure and keeps serving requests", 
       assert.match(await recovered.text(), /<!doctype html>/);
     });
   } finally {
-    rmSync(cwd, { recursive: true, force: true });
+    // A live HTTP server just served fetches here; teardown can outlast the
+    // exit event by a beat, so let fs.rm retry its way through the lock.
+    rmSync(cwd, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    });
   }
 });
 
