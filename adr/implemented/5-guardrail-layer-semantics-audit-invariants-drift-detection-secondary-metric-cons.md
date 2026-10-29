@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-08-27
+description: 改审计不变量、漂移检测、次级度量约束三层的校验语义或硬拒/警告边界与解锁出口时读。
 raised-by: agent
 decided-by: human
 created: 2026-08-27

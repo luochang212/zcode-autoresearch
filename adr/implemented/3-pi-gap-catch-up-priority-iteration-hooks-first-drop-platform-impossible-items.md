@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-08-27
+description: 查能力追平优先级排序或平台不可行项（确定性 compaction、无限 auto-resume、TUI）的放弃理由时读。
 raised-by: agent
 decided-by: human
 created: 2026-08-27

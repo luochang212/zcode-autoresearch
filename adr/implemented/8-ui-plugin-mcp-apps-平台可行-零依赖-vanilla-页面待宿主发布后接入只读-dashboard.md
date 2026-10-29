@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-10-29
+description: 评估 MCP Apps UI 接入（ui:// 资源、dashboard 页面形态）或重审 UI 平台可行性时读。
 raised-by: agent
 decided-by: human
 created: 2026-10-29

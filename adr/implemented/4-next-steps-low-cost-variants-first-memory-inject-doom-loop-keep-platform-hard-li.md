@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-08-27
+description: 规划后续能力方向（memory-inject、doom-loop、审计不变量等护栏来源）或复核平台硬顶清单时读。
 raised-by: agent
 decided-by: human
 created: 2026-08-27

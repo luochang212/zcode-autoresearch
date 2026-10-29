@@ -10,7 +10,7 @@ Visualize existing records only when asked. Run `adrkit list` first, then read t
 
 - The default visualization is the decision atlas (explicit `--format html` keeps this same object): `adrkit atlas --out "<path>.html"`. It includes implemented guidance and archived history, with archived records kept visually distinct and their bodies published in full. This is the answer to "visualize this repository's ADRs" with no further qualifier. The page chrome is English by default; pass `--lang zh` when the reader uses Chinese.
 - For one record's deliberation tree, use `adrkit atlas --record <name>` and save stdout to a local HTML file. If no `## Deliberation` appendix exists, say so instead of fabricating one.
-- For the decision map alone, use `adrkit atlas --map --format html --out "<path>.html"`; for source exports, `adrkit atlas --map --format mermaid|dot|text`. For a tree's source, use `adrkit atlas --record <name> --format mermaid|text`; `--map` and `--record` are mutually exclusive. Use `--tag` or `--formal-only` only when requested or useful to the question.
+- For the decision map alone, use `adrkit atlas --map --format html --out "<path>.html"`; for source exports, `adrkit atlas --map --format mermaid|dot|text`. For a tree's source, use `adrkit atlas --record <name> --format mermaid|text`; `--map` and `--record` are mutually exclusive. Use `--formal-only` only when requested or useful to the question.
 - Text and Mermaid may be enough for docs; do not generate HTML merely because the CLI supports it.
 
 ## Theme selection

@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-08-27
+description: 改 keep/discard 的 git 提交与回滚语义（commit 时机、checkout/clean 范围、.auto/ 豁免）时读。
 raised-by: agent
 decided-by: human
 created: 2026-08-27

@@ -1,11 +1,11 @@
 ---
 status: implemented
 date: 2026-09-24
+description: 改无人值守续跑策略（Stop 3 次窗口、CronCreate 有界自唤醒链）或重审平台可行性判定时读。
 raised-by: agent
 decided-by: human
 created: 2026-09-24
 commit: dfe9595
-tags: [platform-feasibility, unattended-runs, continuation, scheduling]
 paths: [plugin/hooks/**, plugin/skills/autoresearch/**]
 ---
 

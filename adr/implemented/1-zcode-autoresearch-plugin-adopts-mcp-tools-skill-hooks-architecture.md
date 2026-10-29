@@ -1,6 +1,7 @@
 ---
 status: implemented
 date: 2026-08-27
+description: 改插件整体形态（MCP 工具/skill/hooks 三层职责划分）或为新组件选归属层时读。
 raised-by: agent
 decided-by: human
 created: 2026-08-27
