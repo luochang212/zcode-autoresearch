@@ -24,7 +24,10 @@ jobs:
       matrix:
         # Windows is a supported user platform: bash resolution, taskkill and
         # path normalization have their own branches, unreachable on Linux.
-        os: [ubuntu-latest, windows-latest]
+        # macOS is too: /bin/bash is 3.2 and the userland is BSD, so the
+        # POSIX branches get their only non-Linux exercise here (the repo is
+        # public, so hosted macOS runners are free).
+        os: [ubuntu-latest, macos-latest, windows-latest]
         node-version: [24]
     steps:
       - uses: actions/checkout@v4
