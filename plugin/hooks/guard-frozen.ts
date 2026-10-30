@@ -8,8 +8,10 @@ import { resolve, relative } from "node:path";
 import { existsSync } from "node:fs";
 import { resolveWorkCwd } from "../mcp/lib/paths.ts";
 import { FROZEN_FILES, FROZEN_REASONS, frozenKey } from "../mcp/lib/frozen.ts";
+import { appendLedgerEntry } from "../mcp/lib/ledger.ts";
 
 interface PreToolUseInput {
+  tool_name?: string;
   tool_input?: { file_path?: string; path?: string };
   toolInput?: { file_path?: string; path?: string };
 }
@@ -43,6 +45,22 @@ if (!FROZEN_FILES.has(rel)) process.exit(0);
 // What the guard blocks is rewriting a record already on disk.
 if (!existsSync(resolve(cwd, rel))) process.exit(0);
 
+// The attempt itself is a fact: a denied rewrite of a frozen record goes to
+// the ledger, so goalpost-moving shows up in the archive instead of vanishing
+// with the denied tool call. Bookkeeping must never gate the guard — a failed
+// ledger write still denies.
+let traced = true;
+try {
+  appendLedgerEntry(cwd, {
+    type: "frozen_attempt",
+    ts: new Date().toISOString(),
+    file: rel,
+    tool: input.tool_name ?? null,
+  });
+} catch {
+  traced = false;
+}
+
 process.stdout.write(
   JSON.stringify({
     hookSpecificOutput: {
@@ -50,7 +68,7 @@ process.stdout.write(
       permissionDecision: "deny",
       permissionDecisionReason: `[autoresearch] ${rel} is frozen: ${
         FROZEN_REASONS[rel] ?? "frozen session file."
-      }`,
+      }${traced ? " (attempt recorded to the ledger.)" : ""}`,
     },
   }),
 );

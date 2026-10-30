@@ -56,7 +56,30 @@ export interface LedgerHook {
   timed_out: boolean;
 }
 
-export type LedgerEntry = LedgerConfig | LedgerRun | LedgerHook;
+/** `harness_edit` row written by the mandatory harness trace (server-side). */
+export interface LedgerHarnessEdit {
+  type: "harness_edit";
+  ts: string;
+  segment: number;
+  file: string;
+  digest_before: string | null;
+  digest_after: string | null;
+}
+
+/** `frozen_attempt` row written by guard-frozen on a denied frozen rewrite. */
+export interface LedgerFrozenAttempt {
+  type: "frozen_attempt";
+  ts: string;
+  file: string;
+  tool: string | null;
+}
+
+export type LedgerEntry =
+  | LedgerConfig
+  | LedgerRun
+  | LedgerHook
+  | LedgerHarnessEdit
+  | LedgerFrozenAttempt;
 
 /**
  * Loose run shape consumed by analysis functions (isStopReached,
@@ -110,6 +133,8 @@ export interface SessionConfig {
   auditBypass?: boolean;
   autoresearchOff?: boolean;
   benchmarkHashes?: { measure: string | null; checks: string | null } | null;
+  /** Server-managed: editable-surface digests baseline for the harness trace. */
+  harnessHashes?: Record<string, string | null> | null;
   /** Server-managed: checks outcome of the latest run_experiment (keep gate). */
   pendingChecksFailed?: boolean;
   [key: string]: unknown;

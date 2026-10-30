@@ -660,3 +660,48 @@ test("hooks.json references point to existing files", () => {
     );
   }
 });
+
+// The attempt itself is a fact: a denied rewrite of a frozen record must
+// reach the ledger (goalpost-moving shows up in the archive), while the
+// first-creation path — an allow — must not leave rows.
+test("guard-frozen records a frozen_attempt row on deny, nothing on allow", () => {
+  const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "goal.md"), "user goal\n");
+  const deny = runHook(
+    "guard-frozen.ts",
+    cwd,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "Edit",
+      tool_input: { file_path: join(cwd, ".auto/goal.md") },
+    }),
+  );
+  const d = JSON.parse(deny);
+  assert.equal(d.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(
+    d.hookSpecificOutput.permissionDecisionReason,
+    /recorded to the ledger/,
+  );
+  const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+    .split("\n")
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
+  const attempts = rows.filter((r) => r.type === "frozen_attempt");
+  assert.equal(attempts.length, 1);
+  assert.equal(attempts[0].file, ".auto/goal.md");
+  assert.equal(attempts[0].tool, "Edit");
+
+  // First creation (allow path) must not create a ledger, let alone rows.
+  const fresh = tempCwd();
+  runHook(
+    "guard-frozen.ts",
+    fresh,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "Write",
+      tool_input: { file_path: join(fresh, ".auto/goal.md") },
+    }),
+  );
+  assert.equal(existsSync(join(fresh, ".auto", "log.jsonl")), false);
+});

@@ -54,6 +54,7 @@ import {
 import { renderDashboard } from "./lib/dashboard.ts";
 import { resolveWorkCwd } from "./lib/paths.ts";
 import { validateLedger } from "./lib/validate.ts";
+import { currentHarnessHashes, diffHarnessEdits } from "./lib/harness.ts";
 import {
   ensureDashboardServer,
   broadcastDashboardUpdate,
@@ -531,6 +532,38 @@ function checkBenchmarkDrift() {
   };
 }
 
+// --- mandatory harness trace (editable-surface hashes) -----------------------
+// The edit step's discipline (edit rows, verdicts) is advisory; the FACT of a
+// surface change is not. Each accounting checkpoint diffs the editable
+// surface against the config baseline and appends one harness_edit row per
+// moved file — including hand edits, which no tool hook could see. Sessions
+// without a baseline (pre-trace config.json) get one silently, no rows.
+function recordHarnessEdits(segment?: number): void {
+  try {
+    const current = currentHarnessHashes(cwd);
+    const baseline = readSessionConfig(projectCwd).harnessHashes;
+    if (!baseline) {
+      patchSessionConfig({ harnessHashes: current });
+      return;
+    }
+    const seg = segment ?? sessionState().segment;
+    for (const file of diffHarnessEdits(baseline, current)) {
+      appendLedgerEntry(cwd, {
+        type: "harness_edit",
+        ts: new Date().toISOString(),
+        segment: seg,
+        file,
+        digest_before: baseline[file] ?? null,
+        digest_after: current[file] ?? null,
+      });
+    }
+    patchSessionConfig({ harnessHashes: current });
+  } catch {
+    // Tracing is bookkeeping, not a gate: a failed trace must never block
+    // the run/log/export it rides on.
+  }
+}
+
 /**
  * Run an iteration hook: bash <script>, JSON payload on stdin, 30s timeout,
  * stdout capped at 8KB. Returns the raw outcome; the loop stays fail-open
@@ -764,8 +797,10 @@ async function toolInitExperiment(
   });
   // New segment: record frozen-file hashes, clear stale checks state, and
   // re-enable the loop (init is an explicit resume; off must not mute it).
+  // harnessHashes is the editable-surface baseline for the mandatory trace.
   patchSessionConfig({
     benchmarkHashes: currentBenchmarkHashes(),
+    harnessHashes: currentHarnessHashes(cwd),
     pendingChecksFailed: false,
     autoresearchOff: false,
   });
@@ -816,6 +851,9 @@ async function toolRunExperiment(
   const driftWarn = drift.drift
     ? `benchmark_drift: ${drift.reason === "measure" ? "measure.sh" : "checks.sh"} ${drift.deleted ? "was deleted" : "changed"} since session start, so metrics are no longer comparable. Start a new segment (init_experiment) or confirm the change.`
     : null;
+  // Harness trace: record editable-surface changes before they can influence
+  // this run (the trace precedes the run it may have shaped).
+  recordHarnessEdits(state.segment);
   const rawCommand = String(args.command ?? "");
   if (!rawCommand.trim()) return { ok: false, error: "command is required" };
 
@@ -952,6 +990,9 @@ async function toolLogExperiment(
       error: "no active experiment session; call init_experiment first",
     };
   }
+  // Harness trace before the gates: the edit happened regardless of whether
+  // this log passes validation, so the fact is recorded either way.
+  recordHarnessEdits(state.segment);
   const status = String(args.status ?? "keep");
   const description = String(args.description ?? "");
   const metric = args.metric != null ? Number(args.metric) : null;
@@ -1210,6 +1251,9 @@ async function toolClearExperiments() {
 }
 
 async function toolExportDashboard() {
+  // Harness trace closes the tail: edits made after the last log_experiment
+  // still reach the ledger before this archive is rendered.
+  recordHarnessEdits();
   const history = rebuildHistory(readLedger(cwd));
   const html = renderDashboard(history, { pin: safeShortHash(cwd) });
   writeDashboard(cwd, html);
