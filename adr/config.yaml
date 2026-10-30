@@ -16,7 +16,7 @@ workflows:
   - visualize
   - record
   - validate
-installed-with: 0.31.0
+installed-with: 0.32.0
 
 # Optional per-status conventions. These are hints for writers and agents;
 # validate does not enforce them (it cannot check prose).
