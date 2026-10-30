@@ -17,13 +17,13 @@ import type {
   SessionState,
 } from "./types.ts";
 
-export const AUTO_DIR = ".auto";
+const AUTO_DIR = ".auto";
 export const LOG_FILE = join(AUTO_DIR, "log.jsonl");
-export const PROMPT_FILE = join(AUTO_DIR, "prompt.md");
-export const MEASURE_FILE = join(AUTO_DIR, "measure.sh");
-export const CHECKS_FILE = join(AUTO_DIR, "checks.sh");
-export const CONFIG_FILE = join(AUTO_DIR, "config.json");
-export const IDEAS_FILE = join(AUTO_DIR, "ideas.md");
+const PROMPT_FILE = join(AUTO_DIR, "prompt.md");
+const MEASURE_FILE = join(AUTO_DIR, "measure.sh");
+const CHECKS_FILE = join(AUTO_DIR, "checks.sh");
+const CONFIG_FILE = join(AUTO_DIR, "config.json");
+const IDEAS_FILE = join(AUTO_DIR, "ideas.md");
 export const DASHBOARD_FILE = "autoresearch-dashboard.html";
 
 export function autoPaths(cwd: string): {
@@ -48,7 +48,7 @@ export function autoPaths(cwd: string): {
   };
 }
 
-export function ensureAutoDir(cwd: string): void {
+function ensureAutoDir(cwd: string): void {
   mkdirSync(join(cwd, AUTO_DIR), { recursive: true });
 }
 

@@ -15,7 +15,7 @@ const VALID_STATUS = new Set([
  * A ledger row as the auditor sees it. The audit's whole job is to accept
  * possibly-malformed rows, so fields are loose (string status/type allowed).
  */
-export interface LedgerRow {
+interface LedgerRow {
   type?: string;
   run?: number;
   segment?: number;
@@ -24,7 +24,7 @@ export interface LedgerRow {
   commit?: string | null;
 }
 
-export interface LedgerViolation {
+interface LedgerViolation {
   code: string;
   run?: number;
   message: string;

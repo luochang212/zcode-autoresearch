@@ -2,7 +2,7 @@
 // No I/O here so they are unit-testable without a workspace.
 import type { Confidence, Direction, RunLike } from "./types.ts";
 
-export const METRIC_RE = /^METRIC\s+([\w.µ]+)=(\S+)$/;
+const METRIC_RE = /^METRIC\s+([\w.µ]+)=(\S+)$/;
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 

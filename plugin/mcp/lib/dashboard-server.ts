@@ -121,7 +121,3 @@ export function ensureDashboardServer(workCwd: string): Promise<{
 export function broadcastDashboardUpdate(): void {
   if (server) broadcast();
 }
-
-export function dashboardServerInfo(): { url: string } | null {
-  return server ? { url: `http://127.0.0.1:${boundPort ?? 0}` } : null;
-}
