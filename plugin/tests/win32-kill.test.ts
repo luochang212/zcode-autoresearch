@@ -40,14 +40,19 @@ test(
 );
 
 test(
-  "resolveBash: refuses the per-user WindowsApps WSL alias (GUI default PATH)",
+  "resolveBash: refuses the per-user WindowsApps WSL alias, falls back to Git's own bash (GUI default PATH)",
   { skip: process.platform !== "win32" },
   (t) => {
     // Registry-only PATH of a GUI-launched server: Git\cmd carries no
     // bash.exe, so the only "bash" hits are the two WSL stubs (System32 and
     // the per-user %LOCALAPPDATA% alias). Resolving the alias hands scripts
     // to WSL — "/bin/bash: <path>: No such file or directory", exit 127 —
-    // so resolveBash must throw loudly instead (evidence 2026-10-28).
+    // so the stubs must be refused. Original contract (2026-10-28) stopped at
+    // throwing; the 2026-10-29 nano-jev resume turned that contract into a
+    // full outage (every run_experiment died with "no usable bash.exe"), so
+    // resolveBash now falls back past where.exe to Git for Windows' own
+    // install locations. The stub refusal is unchanged — it is what forces
+    // the fallback instead of a silently-WSL benchmark.
     const bashUrl = pathToFileURL(join(ROOT, "mcp", "lib", "bash.ts")).href;
     const guiPath = [
       "C:\\Windows\\System32",
@@ -77,7 +82,14 @@ import(${JSON.stringify(bashUrl)}).then((m) => { try { console.log("RESOLVED:" +
         "per-user WindowsApps WSL alias not present on this machine",
       );
     }
-    assert.match(out, /THREW:no usable bash\.exe/);
+    // Neither WSL stub may win; the fallback must land on Git's own bash
+    // (usr\bin preferred — it carries the coreutils unixToolsPathEntry wants).
+    assert.doesNotMatch(out, /System32\\bash\.exe/);
+    assert.doesNotMatch(out, /WindowsApps\\bash\.exe/);
+    assert.match(
+      out,
+      /RESOLVED:[^\r\n]*\\Program Files( \(x86\))?\\Git\\(usr\\bin|bin)\\bash\.exe/,
+    );
   },
 );
 

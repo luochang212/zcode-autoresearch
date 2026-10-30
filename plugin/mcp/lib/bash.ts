@@ -12,6 +12,7 @@
 //    fails with ESRCH and the tree survives the timeout, hanging the tool
 //    call until the benchmark finishes naturally.
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 
 let cachedBash: string | null = null;
@@ -29,7 +30,41 @@ function isWslOrStub(path: string): boolean {
   );
 }
 
-export function resolveBash(): string {
+// The selection rule for where.exe hits, as a pure function so the stub
+// filter and the usr\bin preference are testable on every platform.
+export function pickUsableBash(paths: string[]): string | null {
+  const usable = paths.filter((p) => !isWslOrStub(p));
+  // Git for Windows installs bash at <root>\usr\bin\bash.exe — prefer it so
+  // the outer shell matches what measure.sh authors expect and so
+  // unixToolsPathEntry sees a coreutils-bearing directory.
+  const gitBash = usable.find((p) => /\\usr\\bin\\bash\.exe$/i.test(p));
+  return gitBash ?? usable[0] ?? null;
+}
+
+// Standard install locations a slim GUI PATH can hide — the bash twin of
+// resolveGit's GIT_CANDIDATES. Git for Windows' installer puts bash.exe under
+// <root>\usr\bin and <root>\bin, but the default PATH entry it adds is only
+// Git\cmd (git's shim directory, no bash), so a GUI-launched server's
+// where.exe finds nothing but the WSL launchers. Real evidence 2026-10-29
+// (nano-jev V1 resume): registry PATH carried Git\cmd only; every
+// run_experiment died with "no usable bash.exe on PATH". Prefer usr\bin.
+const BASH_CANDIDATES = [
+  "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+  "C:\\Program Files\\Git\\bin\\bash.exe",
+  "C:\\Program Files (x86)\\Git\\usr\\bin\\bash.exe",
+  "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
+];
+
+export function resolveBash(candidates?: string[]): string {
+  if (candidates !== undefined) {
+    // Injected candidates (tests) bypass the PATH probe and the cache.
+    for (const path of candidates) {
+      if (existsSync(path)) return path;
+    }
+    throw new Error(
+      "no usable bash.exe among injected candidates or standard install locations (install Git for Windows; the WSL launchers in System32 and the WindowsApps aliases are excluded)",
+    );
+  }
   if (process.platform !== "win32") return "bash";
   if (cachedBash) return cachedBash;
   let hits: string[] = [];
@@ -42,18 +77,42 @@ export function resolveBash(): string {
   } catch {
     hits = [];
   }
-  const usable = hits.filter((p) => !isWslOrStub(p));
-  // Git for Windows installs bash at <root>\usr\bin\bash.exe — prefer it so
-  // the outer shell matches what measure.sh authors expect.
-  const gitBash = usable.find((p) => /\\usr\\bin\\bash\.exe$/i.test(p));
-  const resolved = gitBash ?? usable[0];
-  if (!resolved) {
-    throw new Error(
-      "no usable bash.exe on PATH (install Git for Windows; the WSL launchers in System32 and the WindowsApps aliases are excluded)",
-    );
+  const resolved = pickUsableBash(hits);
+  if (resolved) {
+    cachedBash = resolved;
+    return resolved;
   }
-  cachedBash = resolved;
-  return resolved;
+  // PATH hides bash entirely — derive it from where git landed (the one Git
+  // directory the installer does put on PATH) before falling back to the
+  // installer defaults. <root>\cmd\git.exe ⇒ <root>\{usr\bin,bin}\bash.exe.
+  try {
+    const gitHit = execFileSync("where.exe", ["git"], { encoding: "utf8" })
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)[0];
+    if (gitHit) {
+      const root = dirname(dirname(gitHit));
+      const derived = [
+        `${root}\\usr\\bin\\bash.exe`,
+        `${root}\\bin\\bash.exe`,
+      ].find((p) => existsSync(p));
+      if (derived) {
+        cachedBash = derived;
+        return derived;
+      }
+    }
+  } catch {
+    // no git on PATH either — fall through to the standard locations
+  }
+  for (const path of BASH_CANDIDATES) {
+    if (existsSync(path)) {
+      cachedBash = path;
+      return path;
+    }
+  }
+  throw new Error(
+    "no usable bash.exe on PATH or standard install locations (install Git for Windows; the WSL launchers in System32 and the WindowsApps aliases are excluded)",
+  );
 }
 
 // Single-quote a value for `bash -c`. Paths reach runCommand inside a shell

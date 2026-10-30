@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
   resolveBash,
+  pickUsableBash,
   quoteShellArg,
   unixToolsPathEntry,
   spawnEnv,
@@ -72,4 +73,50 @@ test("spawnEnv restores coreutils a slim GUI PATH takes away", (t) => {
     env: patched,
   }).trim();
   assert.match(found, /head(\.exe)?$/i);
+});
+
+test("pickUsableBash rejects WSL launchers and prefers usr\\bin", () => {
+  // Regression for the 2026-10-29 nano-jev resume: a GUI-launched server's
+  // PATH carried only Git\cmd (git's shim, no bash) plus the WSL launchers,
+  // so every run_experiment died with "no usable bash.exe on PATH". The stub
+  // filter and the usr\bin preference are the whole decision — keep them a
+  // pure function so this holds on every platform without touching env.
+  assert.equal(pickUsableBash([]), null);
+  assert.equal(
+    pickUsableBash([
+      "C:\\Windows\\System32\\bash.exe",
+      "C:\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe",
+    ]),
+    null,
+  );
+  assert.equal(
+    pickUsableBash([
+      "C:\\Windows\\System32\\bash.exe",
+      "C:\\Program Files\\Git\\bin\\bash.exe",
+      "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+    ]),
+    "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+  );
+  assert.equal(
+    pickUsableBash(["C:\\Windows\\System32\\bash.exe", "C:\\tools\\bash.exe"]),
+    "C:\\tools\\bash.exe",
+  );
+});
+
+test("resolveBash falls back to an injected candidate when PATH hides bash", () => {
+  // Injected candidates bypass the where.exe probe and the cache (the
+  // resolveGit test-shim pattern), so the fallback decision is testable
+  // without constructing a slim-PATH environment.
+  const standIn =
+    process.platform === "win32"
+      ? String.raw`C:\Windows\System32\where.exe`
+      : "/bin/sh";
+  assert.equal(resolveBash([standIn]), standIn);
+});
+
+test("resolveBash throws loudly when nothing resolves", () => {
+  assert.throws(
+    () => resolveBash(["/nonexistent/ar/a", "/nonexistent/ar/b"]),
+    /no usable bash\.exe/,
+  );
 });
