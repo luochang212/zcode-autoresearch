@@ -5,7 +5,7 @@
 // that the new row types leave loop state untouched.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -16,12 +16,15 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { rebuildState, readLedger } from "../mcp/lib/ledger.ts";
 import { validateLedger } from "../mcp/lib/validate.ts";
-import { currentHarnessHashes, diffHarnessEdits } from "../mcp/lib/harness.ts";
+import {
+  currentHarnessHashes,
+  diffHarnessEdits,
+  EDITABLE_SURFACE_FILES,
+} from "../mcp/lib/harness.ts";
 import type { LedgerConfig, LedgerEntry, LedgerRun } from "../mcp/lib/types.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -182,13 +185,7 @@ test("harness trace: init records the editable-surface baseline", async () => {
       readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
     ) as Record<string, Record<string, string | null>>;
     assert.ok(cfg.harnessHashes, "init must record a harness baseline");
-    for (const file of [
-      ".auto/prompt.md",
-      ".auto/ideas.md",
-      ".auto/experience.md",
-      ".auto/hooks/before.sh",
-      ".auto/hooks/after.sh",
-    ]) {
+    for (const file of EDITABLE_SURFACE_FILES) {
       assert.ok(file in cfg.harnessHashes, `baseline covers ${file}`);
     }
     assert.equal(cfg.harnessHashes[".auto/prompt.md"], null);
@@ -369,13 +366,7 @@ test("harness trace: diffHarnessEdits is a pure baseline compare", () => {
 
 function currentHarnessHashesFixture(): Record<string, string | null> {
   const out: Record<string, string | null> = {};
-  for (const f of [
-    ".auto/prompt.md",
-    ".auto/ideas.md",
-    ".auto/experience.md",
-    ".auto/hooks/before.sh",
-    ".auto/hooks/after.sh",
-  ]) {
+  for (const f of EDITABLE_SURFACE_FILES) {
     out[f] = "a".repeat(64);
   }
   return out;
