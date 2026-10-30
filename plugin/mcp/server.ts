@@ -16,7 +16,6 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -54,7 +53,11 @@ import {
 import { renderDashboard } from "./lib/dashboard.ts";
 import { resolveWorkCwd } from "./lib/paths.ts";
 import { validateLedger } from "./lib/validate.ts";
-import { currentHarnessHashes, diffHarnessEdits } from "./lib/harness.ts";
+import {
+  currentHarnessHashes,
+  diffHarnessEdits,
+  sha256File,
+} from "./lib/harness.ts";
 import {
   ensureDashboardServer,
   broadcastDashboardUpdate,
@@ -430,11 +433,6 @@ function isExecutable(file: string): boolean {
 }
 
 // --- benchmark drift detection (frozen-file hashes) -------------------------
-function sha256File(file: string): string | null {
-  if (!existsSync(file)) return null;
-  return createHash("sha256").update(readFileSync(file)).digest("hex");
-}
-
 function currentBenchmarkHashes(): {
   measure: string | null;
   checks: string | null;
