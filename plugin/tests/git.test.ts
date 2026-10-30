@@ -16,6 +16,7 @@ import {
   commitExperiment,
   rollbackWorkingTree,
   isDirty,
+  dirtyFiles,
   shortHash,
   currentBranch,
   resolveGit,
@@ -225,6 +226,33 @@ test("rollbackWorkingTree keeps the dashboard file too", () => {
     readFileSync(join(cwd, "autoresearch-dashboard.html"), "utf8"),
     "<html>progress</html>\n",
   );
+});
+
+test("rollbackWorkingTree reports an empty residual when the tree is restored", () => {
+  // Verification-aware rollback (2026-10-29, nano-jev V1 run 6): a discard
+  // once returned ok while the challenger stayed in the tree — git exited 0
+  // without restoring. The residual return value turns any repeat of that
+  // into a loud, named failure the caller surfaces, instead of a silent one
+  // every later read would sit on.
+  const cwd = tempRepo();
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  writeFileSync(join(cwd, "scratch.txt"), "junk\n");
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "log.jsonl"), '{"type":"run"}\n');
+  assert.deepEqual(rollbackWorkingTree(cwd), []);
+  assert.equal(readFileSync(join(cwd, "main.js"), "utf8"), "v1\n");
+});
+
+test("dirtyFiles names real changes and stays silent on session files", () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "log.jsonl"), '{"type":"run"}\n');
+  writeFileSync(join(cwd, "autoresearch-dashboard.html"), "<html></html>\n");
+  assert.deepEqual(dirtyFiles(cwd), []);
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  const residual = dirtyFiles(cwd);
+  assert.equal(residual.length, 1);
+  assert.match(residual[0], /main\.js/);
 });
 
 test("shortHash and currentBranch work", () => {

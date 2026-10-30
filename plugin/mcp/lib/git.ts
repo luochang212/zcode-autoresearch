@@ -100,22 +100,33 @@ export function hasCommit(cwd: string): boolean {
 }
 
 /**
+ * The real changes behind isDirty, named: one porcelain line per path
+ * (session state excluded, untracked included). Unlike isDirty this lets a
+ * status failure throw — a post-rollback verification must never mistake an
+ * unreadable status for a clean tree.
+ */
+export function dirtyFiles(cwd: string): string[] {
+  return git(cwd, [
+    "status",
+    "--porcelain",
+    "--",
+    ".",
+    ":(exclude).auto",
+    `:(exclude)${DASHBOARD_FILE}`,
+  ])
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
  * Whether the working tree has real changes (session state excluded). Ledger,
  * config and dashboard writes must not count: e.g. the crash-unresolved gate
  * would otherwise block forever right after logging the crash itself.
  */
 export function isDirty(cwd: string): boolean {
   try {
-    return (
-      git(cwd, [
-        "status",
-        "--porcelain",
-        "--",
-        ".",
-        ":(exclude).auto",
-        `:(exclude)${DASHBOARD_FILE}`,
-      ]).length > 0
-    );
+    return dirtyFiles(cwd).length > 0;
   } catch {
     return false;
   }
@@ -177,20 +188,45 @@ export function commitExperiment(
  * Discard every working-tree + index change while keeping session state
  * (`.auto/` and the generated dashboard) intact. Uses `checkout HEAD` (not
  * `checkout --`) so staged-but-uncommitted experiment changes are reverted too.
+ *
+ * Returns the post-rollback residual (dirtyFiles) so the caller can surface
+ * it instead of assuming the restore happened. Evidence 2026-10-29 (nano-jev
+ * V1 run 6): a discard once returned ok while the challenger stayed in the
+ * working tree — git exited 0 without restoring, intermittently (runs 2–5
+ * rolled back fine; Windows file-lock or pathspec race suspected, root cause
+ * unconfirmed). stdio-ignored with no post-check made that silent, and every
+ * later read would sit on un-rolled-back inputs. So: restore with stderr
+ * captured (retry once — transient locks clear between attempts), then
+ * verify. Verification is root-cause-agnostic: any way the restore can
+ * silently fail ends up as a loud, named residual.
  */
-export function rollbackWorkingTree(cwd: string): void {
-  execFileSync(
-    resolveGit(),
-    [
-      "checkout",
-      "HEAD",
-      "--",
-      ".",
-      ":(exclude,glob)**/.auto/**",
-      `:(exclude)${DASHBOARD_FILE}`,
-    ],
-    { cwd, stdio: "ignore" },
-  );
+export function rollbackWorkingTree(cwd: string): string[] {
+  const restore = () =>
+    execFileSync(
+      resolveGit(),
+      [
+        "checkout",
+        "HEAD",
+        "--",
+        ".",
+        ":(exclude,glob)**/.auto/**",
+        `:(exclude)${DASHBOARD_FILE}`,
+      ],
+      { cwd, encoding: "utf8" },
+    );
+  try {
+    restore();
+  } catch {
+    try {
+      restore();
+    } catch (retryError) {
+      const stderr =
+        retryError && typeof retryError === "object" && "stderr" in retryError
+          ? String((retryError as { stderr?: unknown }).stderr)
+          : String(retryError);
+      throw new Error(`rollback restore failed twice: ${stderr.trim()}`);
+    }
+  }
   // Unstage anything (e.g. accidentally staged .auto content) without touching files.
   execFileSync(resolveGit(), ["reset", "-q"], { cwd, stdio: "ignore" });
   execFileSync(
@@ -207,6 +243,7 @@ export function rollbackWorkingTree(cwd: string): void {
     ],
     { cwd, stdio: "ignore" },
   );
+  return dirtyFiles(cwd);
 }
 
 export function currentBranch(cwd: string): string {

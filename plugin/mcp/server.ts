@@ -1063,6 +1063,9 @@ async function toolLogExperiment(
   }
 
   let commit = args.commit ?? null;
+  // Files the rollback could not restore, verified post-rollback (git.ts).
+  // Empty for noop — nothing was changed, so there is nothing to roll back.
+  let rollbackResidual: string[] = [];
   if (status === "keep") {
     const hash = commitExperiment(cwd, {
       description: description || "(no description)",
@@ -1081,7 +1084,7 @@ async function toolLogExperiment(
   } else if (status !== "noop") {
     // roll back the experiment's working-tree changes (keep .auto/ intact);
     // noop means nothing was changed, so there is nothing to roll back
-    rollbackWorkingTree(cwd);
+    rollbackResidual = rollbackWorkingTree(cwd);
   }
 
   const entry: LedgerRun = {
@@ -1149,6 +1152,20 @@ async function toolLogExperiment(
     return typeof reason === "string" && reason.trim() !== "";
   });
 
+  // A non-empty rollback residual means later reads would sit on un-rolled-back
+  // inputs — that outranks every other hint, because acting on them poisons the
+  // segment. Verification itself lives in rollbackWorkingTree (git.ts).
+  const baseHint =
+    nextState.runs.length >= (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
+      ? "iteration cap reached; run init_experiment for a new segment, or /autoresearch off"
+      : detectDoomLoop(nextState.runs)
+        ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
+        : nextState.consecutiveFailures >= nextState.failureThreshold
+          ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
+          : nextState.plateau
+            ? `plateau detected (last 5 runs improved < 1%); consider rerunning with repeat:3 to confirm, opening a new segment, or stopping`
+            : "pick the next hypothesis and run_experiment again";
+
   return {
     ok: true,
     logged: true,
@@ -1168,17 +1185,13 @@ async function toolLogExperiment(
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
     ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
+    ...(rollbackResidual.length > 0
+      ? { rollback_residual: rollbackResidual }
+      : {}),
     next_action_hint:
-      nextState.runs.length >=
-      (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
-        ? "iteration cap reached; run init_experiment for a new segment, or /autoresearch off"
-        : detectDoomLoop(nextState.runs)
-          ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
-          : nextState.consecutiveFailures >= nextState.failureThreshold
-            ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
-            : nextState.plateau
-              ? `plateau detected (last 5 runs improved < 1%); consider rerunning with repeat:3 to confirm, opening a new segment, or stopping`
-              : "pick the next hypothesis and run_experiment again",
+      rollbackResidual.length > 0
+        ? `rollback left working-tree changes (${rollbackResidual.join(", ")}); restore them before the next trial — later reads would sit on un-rolled-back inputs`
+        : baseHint,
   };
 }
 
