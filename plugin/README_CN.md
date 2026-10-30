@@ -56,7 +56,8 @@
 
 - **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
-- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外——冻结指「记录后不可改写」；goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界——循环在栏内工作，扩围/收围由用户手改或新 segment）。
+- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外——冻结指「记录后不可改写」；goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界——循环在栏内工作，扩围/收围由用户手改或新 segment）。被 deny 的改写企图以 `frozen_attempt` 行记入账本。
+- **harness 留痕**：可编辑面（`prompt.md`、`ideas.md`、`experience.md`、`.auto/hooks/before.sh` / `after.sh`）在记账时点（`run_experiment` / `log_experiment` / `export_dashboard`）做哈希对账，相对基线有变化的文件各记一条 `harness_edit` 行——连手改也逃不掉。编辑步的 verdict 纪律仍是 advisory，但「动过」这件事是机械保证。
 - **暂停开关**：`/autoresearch:off` 写入 `autoresearchOff: true`，同时静音 Stop 续跑、记忆注入与 SessionStart 提示；`init_experiment`/`clear_experiments` 与 resume 命令会清除标记。
 - **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
 - **循环续跑**：Stop hook 在循环未结束且未暂停时 `decision:block`（zcode 平台限制连续 3 次窗口）。
@@ -99,7 +100,7 @@ plugin/
 
 | 文件          | 作用                                                                                                                                                                     |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `log.jsonl`   | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进                                                                                                 |
+| `log.jsonl`   | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进；hook / harness_edit / frozen_attempt 行是随行的观测记录，不影响循环状态                        |
 | `prompt.md`   | 会话章程（目标/度量/范围/Off Limits/What's Been Tried）                                                                                                                  |
 | `measure.sh`  | 基准脚本（冻结）                                                                                                                                                         |
 | `checks.sh`   | 可选正确性门禁（冻结）                                                                                                                                                   |

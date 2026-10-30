@@ -45,7 +45,7 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 
 ## Harness editing (second-order loop)
 
-The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence, without ever moving the root. Discipline adapted from Harness² (google-research/harness2, arXiv:2610.14224): contrast-first edit rows, confounded-preferring verdicts, experience records that may honestly be `NO_ENTRY`.
+The loop optimizes the target code; this step lets the loop revise its **own harness** from ledger evidence, without ever moving the root. Discipline adapted from Harness² (google-research/harness2, arXiv:2610.14224): contrast-first edit rows, confounded-preferring verdicts, experience records that may honestly be `NO_ENTRY`. Surface changes are also traced mechanically: the server hashes the editable files at each accounting checkpoint and appends `harness_edit` rows to the ledger, so a skipped edit row loses the attribution, not the fact.
 
 ### Root vs surface
 
