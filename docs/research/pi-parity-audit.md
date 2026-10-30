@@ -39,7 +39,7 @@
 - 我方实测:before.sh fire 后 log.jsonl 中 `"type":"hook"` 条目数为 0。dashboard 与 post-hoc 分析看不到钩子活动/耗时/输出,排查"钩子到底跑没跑"无据可依。
 - 修复方向:runHook 后 appendLedgerEntry type:"hook"。数据流已核实兼容:`rebuildState` 只收 `type:"run"`(ledger.mjs:80),hook 条目不会进 `state.runs`;`validateLedger` 的 `unknown row type` 分支(validate.mjs:41-43)只接收 `state.runs` + 待写入 entry,接触不到 hook 条目。
 
-**G2.2 confidence 未持久化到 run 条目**
+**G2.2 confidence 未持久化到 run 条目** —— **已落地**（change `add-discard-revisit`，worth-fix B3 顺手项；`log_experiment` 现将 confidence 快照写入账本 run 行）
 
 - pi:"Persisted to `.auto/log.jsonl` on each result for post-hoc analysis"。
 - 我方:`rebuildState`(ledger.mjs:95-106)每次重算 confidence,仅放在 `log_experiment` 返回值(server.mjs:588-590);`entry`(server.mjs:547-558)不含 confidence 字段。
@@ -48,14 +48,14 @@
 
 ### G3 功能缩水(中优先级)
 
-**G3.1 finalize 只有 union 一道验证(pi 有四道)**
+**G3.1 finalize 只有 union 一道验证(pi 有四道)** —— **已消解**（`fix-finalize-branch-contract` 重构后组间重叠拒绝与 session-artifacts 防护在位；`no_empty_commits` 经 worth-fix B4 证伪——我方增量 file-set 构造天然免疫，不需补）
 
 - pi `finalize.sh`(archived 版):分组阶段 `assert_no_overlapping_files`(组间文件重叠即 fail,121-128)+ `verify_union_matches_original`(272)+ `verify_no_session_artifacts`(308)+ `verify_no_empty_commits`(326),由 `verify_branches`(351)汇总。
 - 我方 `plugin/scripts/finalize.sh`:只有 union 验证(85-105,且顺带 `grep -v .auto`);无 no-overlap 断言(README/pi 均要求 "Groups must not share files")、无 empty-commit 检查、无独立的 session-artifacts 验证。
 - 影响:重叠分组可静默通过,产生无法独立 review 的分支——正是 finalize 要防的。
 - 修复方向:补三道验证,对齐 pi;finalize.test.mjs 补对抗用例。
 
-**G3.2 hooks 示例 6/9,缺的恰是"外部知识注入"类**
+**G3.2 hooks 示例 6/9,缺的恰是"外部知识注入"类** —— **仍开放**（worth-fix B2，P2 可选）
 
 - pi before 示例 6 个:anti-thrash、context-rotation、external-search、hypothesis-reflection、idea-rotator、qmd-search;我方 3 个(缺后三者)。
 - external-search/qmd-search/context-rotation 是把**外部信息**注入循环的三条通道——对假设质量价值最高的一类;我方现有的 3 个全是"内省型"(防重复/换思路/反思)。
@@ -74,6 +74,8 @@
 | G4.1 | `session_status` 决策引导工具(P2)  | 未做;目前只有 `log_experiment` 返回内嵌的 `next_action_hint`(server.mjs:595-603),无独立查询工具 |
 | G4.2 | 基准信任预检 doctor                | 漂移检测已做(benchmarkHashes,server.mjs:194-245);"开跑前验证基准可解析/稳定"的预检命令未做      |
 | G4.3 | holdout 验收 / scoped approval(P2) | 未排期(ADR-4 记录为 P2)                                                                         |
+
+G4 处置回填（2026-10-31，worth-fix 审计）：G4.1 **出队**（B5，待真实消费者）；G4.2 预检命令不做、**降级**为 setup-guide 一行（B6，该行待补）；G4.3 **维持不做**（B7）。
 
 P0/P1 已全部落地:memory-inject 聚合摘要 ✓、doom-loop ✓、审计不变量 ✓、漂移检测 ✓、次级约束 ✓。
 
@@ -138,6 +140,8 @@ P0/P1 已全部落地:memory-inject 聚合摘要 ✓、doom-loop ✓、审计不
 | 输出溢出 spill 到文件                                                          | server.mjs:119-134                              | 大输出不截断丢失,可回看                          |
 
 ## 5. 建议的后续 change 队列
+
+> 2026-10-31 回填：队列已全部处置——1 落地（`fix-hook-contract` + `fix-hook-spec-alignment`）；2 消解（`fix-finalize-branch-contract` + B4 证伪）；3 未做（= worth-fix B2，P2 可选开放）；G2.2 并入 `add-discard-revisit` 落地；G4 见 §1 G4 处置回填。
 
 1. **`fix-hook-contract`**(G1.1+G1.2+G2.1,一个 change):payload 补 asi、错误 error_steer、hook 条目入账本;SKILL.md 对齐;hooks.test.mjs 补契约测试(当前 asi 零覆盖)。——高优先,自产示例已受损。
 2. **`finalize-full-verification`**(G3.1):补 no-overlap/no-empty-commits/no-session-artifacts 三道验证 + 对抗测试。

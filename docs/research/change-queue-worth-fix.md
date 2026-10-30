@@ -3,6 +3,8 @@
 > 2026-09-24 · 方法：worth-fix——真实性判定（源码实证 / 最小复现）与价值判定（四维 + 后悔不对称）分离进行，勘误显式记录。
 > 触发：① pi 上游 1.6.2 → 1.8.1 delta 追平队列需要过一遍价值关；② zcode 开源（本机 clone，v3.14.3 @ 29628c9），ADR-1/3/4 的平台前提从「发行 bundle 实证」升级为「源码实证」。
 
+> **落地状态回填（2026-10-31）**：§C 队列 1（discard-revisit + B3 confidence 快照）已落地（change `add-discard-revisit`）；2（cron-chained-continuation）已落地（change `add-cron-chained-continuation`，平台判定进 ADR-7）；3（B2 外部知识示例）与 4（docs 微项：setup-guide 预检一行、hooks 教学 stop_hook_active 一句）仍未落地，保持开放；5 出队项维持原判。
+
 ## TL;DR 判定表
 
 | #   | 队列项                               | 属实性                         | 值得做           | 处置                                          |

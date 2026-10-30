@@ -3,6 +3,8 @@
 > 2026-08-27 · OpenSpec change: `research-next-steps`
 > 前置：`pi-gap-analysis.md`（28 项差距 + 5 项平台不可行）、`autoresearch-survey.md`、9 个已归档 change。实证基线：zcode v0.16.5（bundle mtime 2026-08-26，关键事件零命中确认）。
 
+> **落地状态回填（2026-10-31）**：§4 路线图 P0/P1 五项已全部落地（memory-inject 增强、doom-loop、审计不变量、漂移检测、次级度量约束；见 pi-parity-audit §2 修正矩阵与 ADR-5）。P2 三项经 worth-fix 审计处置：session_status 出队（B5）、doctor 预检降级为 setup-guide 一行（B6，该行待补）、holdout/scoped approval 维持不做（B7）。本文为 2026-08-27 时点的研究记录，后续处置以 `change-queue-worth-fix.md` 与归档 change 为准。
+
 ## 1. 不可行项重审：真不可行 vs 成本较高
 
 复核结论：**平台侧硬顶不变**（zcode 仍无 PreCompact 事件、无会话注入 API、无 UI 扩展点），但其中两项存在**低成本变相**，值得重新分类。
