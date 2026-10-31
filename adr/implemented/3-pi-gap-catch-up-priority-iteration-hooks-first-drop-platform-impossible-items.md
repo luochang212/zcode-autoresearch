@@ -12,13 +12,13 @@ paths: [plugin/hooks/**, plugin/skills/**]
 
 ## Problem
 
-目标是在适配 zcode 且条件允许的前提下追平 pi-autoresearch。差距分析（docs/research/pi-gap-analysis.md）产出 28 项能力对照：我方已有 12 项、部分 2 项、缺失 14 项。缺失项分为三类——可追平（zcode 有等价实现路径）、zcode 受限（有替代方案但有损）、平台不可行（依赖 zcode 不存在的 API）。必须决定追平顺序与放弃项，避免在平台不可行项上浪费投入。
+目标是在适配 zcode 且条件允许的前提下追平 pi-autoresearch。差距分析（docs/research/pi-gap-analysis.md）产出 28 项能力对照：我方已有 12 项、部分 2 项、缺失 14 项。缺失项分为三类。可追平类在 zcode 上有等价实现路径；zcode 受限类有替代方案但有损；平台不可行类依赖 zcode 不存在的 API。必须决定追平顺序与放弃项，避免在平台不可行项上浪费投入。
 
 ## Decision
 
 按「价值 × 可感知 ÷ 成本」排序追平，分三个里程碑：
 
-1. **里程碑 1（quick wins，先行）**：迭代钩子（`.auto/hooks/before.sh`+`after.sh`，在 run_experiment/log_experiment 中执行，stdin JSON 契约，30s 超时，stdout 转 steer 字段）——这是 pi 唯一的外部扩展点、生态开放性的根基；外加 `clear` 命令、ASI 三字段（hypothesis/next_action_hint/rollback）在记忆注入 hook 中提炼、停摆护栏参数对齐（连续失败阈值可配）。
+1. **里程碑 1（quick wins，先行）**：迭代钩子（`.auto/hooks/before.sh`+`after.sh`，在 run_experiment/log_experiment 中执行，stdin JSON 契约，30s 超时，stdout 转 steer 字段）。迭代钩子是 pi 唯一的外部扩展点，是生态开放性的根基。本里程碑还包含 `clear` 命令、ASI 三字段（hypothesis/next_action_hint/rollback）在记忆注入 hook 中提炼、停摆护栏参数对齐（连续失败阈值可配）。
 2. **里程碑 2**：SSE live dashboard（静态 HTML → 本地 HTTP + `/events`）、workingDir 重定向、finalize 分支整理。
 3. **里程碑 3（受限近似，可与 M1 合并）**：PermissionRequest 门禁近似、SessionStart 自动激活提示。
 
@@ -26,9 +26,9 @@ paths: [plugin/hooks/**, plugin/skills/**]
 
 ## Alternatives considered
 
-- **先做 dashboard/finalize 等体验与运维项**：否决——迭代钩子是生态根基（pi CHANGELOG 1.1 即加入，早于 compaction 与护栏），且实现成本最低（纯工具逻辑）。
-- **为 compaction/auto-resume 等平台不可行项寻找 hack**（如 hooks 模拟会话注入）：否决——zcode 无对应事件/API，任何近似都脆弱且偏离官方契约，收益不成比例。
-- **先做自动激活/门控（#1/#2）**：否决——zcode 无工具门控与运行时模式状态机，受限近似收益有限，且依赖 PermissionRequest 触发时机，不确定性高。
+- **先做 dashboard/finalize 等体验与运维项**：否决。迭代钩子是生态根基（pi CHANGELOG 1.1 即加入，早于 compaction 与护栏），且实现成本最低（纯工具逻辑）。
+- **为 compaction/auto-resume 等平台不可行项寻找 hack**（如 hooks 模拟会话注入）：否决。zcode 无对应事件/API，任何近似都脆弱且偏离官方契约，收益不成比例。
+- **先做自动激活/门控（#1/#2）**：否决。zcode 无工具门控与运行时模式状态机，受限近似收益有限，且依赖 PermissionRequest 触发时机，不确定性高。
 
 ## Consequences
 
