@@ -1,6 +1,6 @@
 # pi-autoresearch 差距分析：追平路线图
 
-> **⚠️ §2–§4 的差距矩阵为规划期结论，已过时**——里程碑 1–3 落地后请以 `pi-parity-audit.md`（验收审计，代码实态判定）为准。本文件的 §1（pi 四维全貌）与证据索引仍有效。
+> **⚠️ §2–§4 的差距矩阵为规划期结论，已过时**。里程碑 1–3 落地后请以 `pi-parity-audit.md`（验收审计，代码实态判定）为准。本文件的 §1（pi 四维全貌）与证据索引仍有效。
 
 > 2026-08-27 · OpenSpec change: `research-pi-gap-analysis`
 > 目标：在适配 zcode 且条件允许的前提下追平 pi-autoresearch。素材：`archived/pi-autoresearch`（v1.6.2）、npm/GitHub 实查数据、我方 `plugin/`（v0.1.0）。
@@ -17,9 +17,9 @@
 - `export` → 开浏览器 dashboard；
 - `<text>` → 进入模式，**kickoff 双路径**：有 `.auto/prompt.md` 发纯文本 resume；没有则发 `/skill:autoresearch-create <text>`（pi 输入管线展开成 SKILL.md，需 `enableSkillCommands`）。
 
-**自动激活（`shouldAutoActivateAutoresearch`，index.ts:521-534）**：会话开始/切树时（`session_start`/`session_tree`，1464-1465）——磁盘有 `.auto/log.jsonl` 且（无记录决策或记录决策为真）且 cwd==workDir → 自动进模式。**激活决策持久化**（1107-1113, 545-559）：`/autoresearch on|off` 写 custom entry 到 session branch，跨 /tree/compaction/reload 存活。
+**自动激活（`shouldAutoActivateAutoresearch`，index.ts:521-534）**：会话开始/切树时（`session_start`/`session_tree`，1464-1465），磁盘有 `.auto/log.jsonl` 且（无记录决策或记录决策为真）且 cwd==workDir，就自动进模式。**激活决策持久化**（1107-1113, 545-559）：`/autoresearch on|off` 写 custom entry 到 session branch，跨 /tree/compaction/reload 存活。
 
-**session 生命周期事件注入**（1.4 表）：`before_agent_start` 给 systemPrompt 追加"Autoresearch Mode (ACTIVE)"区块——全部是**指针**（规则文件路径 + 工具提醒 + checks/ideas 提示 + guardrail），非文件内容（cache-safe）；`session_before_compact` 注入**确定性 compaction 摘要**（替代 LLM 摘要）；`agent_end` 调度下一条 resume 消息。
+**session 生命周期事件注入**（1.4 表）：`before_agent_start` 给 systemPrompt 追加"Autoresearch Mode (ACTIVE)"区块，内容全部是**指针**（规则文件路径 + 工具提醒 + checks/ideas 提示 + guardrail），非文件内容（cache-safe）；`session_before_compact` 注入**确定性 compaction 摘要**（替代 LLM 摘要）；`agent_end` 调度下一条 resume 消息。
 
 ### 1.2 架构
 
@@ -72,7 +72,7 @@
 | Shopify 官方"单测 300×/CI 65%/React 20%"         | **B** | 无公开 benchmark；300× 为数百小优化累计                                                                                        |
 | npm/GitHub                                       | —     | 总下载 16,102、月 4,885、周 1,189；stars 7,875/forks 447；最新 commit 2026-07-15（约 6 周暂停）；0 运行时依赖                  |
 
-**关键结论**：pi 自身**没有任何"N 倍自我提速"声称**——它的"效果"是"让 agent 替你批量跑实验"，证据以 S/A 级为主，且社区普遍警告噪声与过拟合。**最强效果证据（Liquid）来自 pi 生态配合，且前置条件是"指标清晰 + 防作弊 + 基准可复现"**——这正是我们已有机制（measure 锁定/checks/账本）所保证的。追平 pi 的能力，比追平它的"效果数字"更可验证。
+**关键结论**：pi 自身**没有任何"N 倍自我提速"声称**，它的"效果"是"让 agent 替你批量跑实验"，证据以 S/A 级为主，且社区普遍警告噪声与过拟合。**最强效果证据（Liquid）来自 pi 生态配合，且前置条件是"指标清晰 + 防作弊 + 基准可复现"**，这正是我们已有机制（measure 锁定/checks/账本）所保证的。追平 pi 的能力，比追平它的"效果数字"更可验证。
 
 ## 2. 我方插件审计（v0.1.0 对照 28 项）
 
@@ -88,7 +88,7 @@
 
 | pi 能力                | 我方现状 | 实现路径                                                                                                                                                     |
 | ---------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| #23 迭代钩子           | 缺失     | `run_experiment` 前跑 `.auto/hooks/before.sh`、`log_experiment` 后跑 `after.sh`（stdin JSON 契约、30s 超时、stdout→返回 steer 字段）——纯工具逻辑，无平台依赖 |
+| #23 迭代钩子           | 缺失     | `run_experiment` 前跑 `.auto/hooks/before.sh`、`log_experiment` 后跑 `after.sh`（stdin JSON 契约、30s 超时、stdout→返回 steer 字段），纯工具逻辑，无平台依赖 |
 | #26 hooks 教学 skill   | 缺失     | 移植 pi 的 SKILL.md 结构 + 示例脚本                                                                                                                          |
 | #28 clear 命令         | 缺失     | 新增 `/autoresearch:clear` command（删 .auto/log.jsonl + 重置）                                                                                              |
 | #15 ASI 提炼           | 部分     | memory-inject/stop-continue 从账本提取 `asi.hypothesis/next_action_hint/rollback` 注入                                                                       |
@@ -123,7 +123,7 @@
 
 **里程碑 1（quick wins，高价值低成本，1 个 change 可完成）**
 
-- 迭代钩子 before/after（#23）——**pi 唯一的外部扩展点，生态开放性的根基**；
+- 迭代钩子 before/after（#23），**pi 唯一的外部扩展点，生态开放性的根基**；
 - `clear` 命令（#28）+ ASI 三字段提炼（#15）+ 停摆护栏参数对齐（#8）。
 - 验证：单元测试（hooks 执行/超时/steer）+ 协议级（before 在 run 前、after 在 log 后触发）。
 
@@ -143,7 +143,7 @@
 
 ## 5. 决策记录
 
-- **ADR-3**（`adr/implemented/3-pi-gap-catch-up-priority-*.md`）：追平优先级——里程碑 1（迭代钩子/clear/ASI 提炼/停摆参数）先行；平台不可行项（compaction 摘要、无限 auto-resume、widget/overlay）明确放弃，以 memory-inject、Stop 3 次窗口、静态 dashboard 作为最终形态。
+- **ADR-3**（`adr/implemented/3-pi-gap-catch-up-priority-*.md`）：追平优先级是里程碑 1（迭代钩子/clear/ASI 提炼/停摆参数）先行；平台不可行项（compaction 摘要、无限 auto-resume、widget/overlay）明确放弃，以 memory-inject、Stop 3 次窗口、静态 dashboard 作为最终形态。
 
 ## 附录：证据索引
 

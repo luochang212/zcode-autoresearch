@@ -6,7 +6,7 @@
 ## 场景
 
 - **目标**：加速 `findPrimes(1000000)`（统计 1,000,000 内质数个数）。
-- **baseline**：对每个 n 用已找到的质数列表 `primes.every(p => n % p !== 0)` 全量试除——2.6s。
+- **baseline**：对每个 n 用已找到的质数列表 `primes.every(p => n % p !== 0)` 全量试除，耗时 2.6s。
 - **度量**：`METRIC time_ms`（lower is better），由 `.auto/measure.sh` 输出。
 - **正确性门禁**：`.auto/checks.sh` 断言 `findPrimes(1000000).length === 78498`（π(1,000,000)），防删循环作弊。
 - **驱动**：无头 CLI（`zcode --prompt`）+ 插件 MCP server，DeepSeek 通道，单次 prompt 自主迭代。
@@ -43,7 +43,7 @@
 1. **收敛/plateau 检测缺失**：agent 是**自发**在噪声区间判断"接近下限"收尾的，循环协议与 Stop hook 没有"平坦收敛"概念（`isStopReached` 只认迭代上限与连续失败）。R7 的"4ms 持平"被判 discard 合理，但若无 agent 自觉，会在噪声区无限空转。→ 候选：`log_experiment` 返回 plateau 提示（最近 N 轮 delta 无净改进），Stop hook 用同一逻辑。
 2. **confidence 未被 agent 使用**：`log_experiment` 返回了 `confidence`（MAD 校准），但 R5/R7 的判定（6ms vs best 5ms、4ms 持平）都没有引用它；噪声区间里 keep/discard 的边界判定完全靠 agent 直觉。→ 候选：SKILL 规程显式要求"低置信改进按 discard 或标注方向性"，工具返回中把 confidence 提到更醒目位置。
 3. **噪声度量下的判定校准**：4–6ms 区间波动 ~±2ms（Date.now() 1ms 分辨率 + 运行时抖动），改进/持平/变差的区分在噪声内。agent 靠"持平即 discard"处理得当，但没有机制提示"该跑多次取中位数"。→ 候选：SKILL setup-guide 已有"噪声就跑 3 次取 median"建议，可让 `run_experiment` 支持 `repeat: 3` 参数并自动取中位数。
-4. **无头模式的护栏缺口**（已知边界，复验确认）：本次无头运行没有 hook 护栏（写保护/记忆注入/Stop 续跑），agent 依然良好运行——说明机制（工具层）是护栏主力，hook 是增强；但也说明无头场景的"冻结文件"只靠 SKILL 章程约束。
+4. **无头模式的护栏缺口**（已知边界，复验确认）：本次无头运行没有 hook 护栏（写保护/记忆注入/Stop 续跑），agent 依然良好运行。这说明机制（工具层）是护栏主力，hook 是增强；但也说明无头场景的"冻结文件"只靠 SKILL 章程约束。
 
 ## 结论
 

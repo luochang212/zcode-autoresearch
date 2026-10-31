@@ -27,7 +27,7 @@ ZCode 已开源（github.com/zai-org/ZCode，本地核验版本 v3.14.3，commit
 执行：`configured-runner-callback.ts` / `configured-runner-input.ts`。
 
 - 事件集合：`SessionStart | UserPromptSubmit | PreToolUse | PermissionRequest |
-PostToolUse | PostToolUseFailure | Stop`——插件当前使用的 4 个（PermissionRequest 门禁已于 2026-10-29 移除）全部有效。
+PostToolUse | PostToolUseFailure | Stop`。插件当前使用的 4 个（PermissionRequest 门禁已于 2026-10-29 移除）全部有效。
 - **process 型 hook 超时字段是 `timeoutMs`**（`workspaceHookProcessConfigSchema`）；
   `timeout` 属于 `command` 型。插件 hooks.json 的 `timeoutMs: 5000` 正确生效。
 - stdin 兼容层：同时提供 zcode 原生 camelCase（`toolName/toolInput/…`）与 Claude
@@ -40,10 +40,10 @@ last_assistant_message/stop_hook_active/…`）。插件按双拼写读取是正
   additionalContexts，模型在同一 turn 内继续。`continue:true` 亦可触发续跑；
   `continue:false` 对 Stop 事件被显式忽略。
 - PreToolUse：`hookSpecificOutput.permissionDecision ∈ allow/ask/deny` +
-  `permissionDecisionReason`；`hookEventName` 写错事件名会直接抛错——插件当前 4 个
+  `permissionDecisionReason`；`hookEventName` 写错事件名会直接抛错。插件当前 4 个
   hook 的回写事件名全部正确。
 - PermissionRequest：`hookSpecificOutput.decision` 为
-  `{behavior:"allow",permissionUpdates?}|{behavior:"deny",interrupt?,message?}`——
+  `{behavior:"allow",permissionUpdates?}|{behavior:"deny",interrupt?,message?}`。
   （历史）permission-gate 已于 2026-10-29 移除，当前插件不再注册该 hook。
 - matcher 语义：`a|b|c` 简单列表或正则；PreToolUse 的 matchValue 是工具名，且
   zcode 真实写类工具就是 `Write`/`Edit`（`tool/handlers/{write,edit}.ts`），
@@ -88,7 +88,7 @@ homepage/heroImage/examplePrompts(_i18n)/requiresPaidPlan` 等可选展示字段
 2. **PreToolUse 支持 `updatedInput` 改写入参**：guard-frozen 理论上可「改写」而非
    「拒绝」，但 deny 语义更简单可预期，维持现状。
 3. **SessionStart `"compact"` 是预留枚举**：一旦未来版本实装压缩后触发，把插件
-   matcher 扩为 `startup|resume|compact` 即可让账本记忆在压缩后立即重注入——
+   matcher 扩为 `startup|resume|compact` 即可让账本记忆在压缩后立即重注入。
    这是 ADR-4 memory-inject 增强的天然延伸点。需要按 openspec change 流程实施
    （行为变更 + 版本升级），待 PR #1 合并后评估。
 4. **PostToolUse / PostToolUseFailure 事件存在**：可用于账本旁路富化（如自动

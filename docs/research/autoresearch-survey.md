@@ -5,7 +5,7 @@
 
 ## 0. 背景、方法与版本标注
 
-**什么是 autoresearch**：让一个 coding agent 在一个**固定且机械可验证的度量**上无限（或长程）自主迭代——改代码 → 跑基准 → 比较度量 → keep（保留改动）/ discard（回滚）→ 继续下一个假设。人只负责设定目标和约束，agent 负责全部实验执行。Karpathy 2026 年 3 月的原项目验证了"630 行训练脚本 + 114 行章程"就足以让 agent 过夜跑约 100 个实验。
+**什么是 autoresearch**：让一个 coding agent 在一个**固定且机械可验证的度量**上无限（或长程）自主迭代。迭代的具体形式是改代码 → 跑基准 → 比较度量 → keep（保留改动）/ discard（回滚）→ 继续下一个假设。人只负责设定目标和约束，agent 负责全部实验执行。Karpathy 2026 年 3 月的原项目验证了"630 行训练脚本 + 114 行章程"就足以让 agent 过夜跑约 100 个实验。
 
 **研究方法**：纯静态代码分析（archived/ 目录只读，不执行任何实验代码）。所有关键论断以仓库实际代码为准，README 声称逐一实测核对（见 §5.3）。karpathy 与 uditgoenka 仓库本地为 shallow clone（各只见 1 个 commit），uditgoenka 的历史声称已通过 GitHub tag 远端核对。
 
@@ -32,29 +32,29 @@
 | `train.py`   | 630  | GPT 模型 + 优化器 + 训练循环                             | **agent 唯一可改的文件**                       |
 | `program.md` | 114  | agent 的全部指令                                         | 人类编辑迭代                                   |
 
-README 自己说：program.md "is essentially a super lightweight 'skill'"——这就是全部"插件机制"：一个 markdown 章程，宿主 agent（Claude/Codex 等）直接读。没有任何宿主特定代码。
+README 自己说 program.md "is essentially a super lightweight 'skill'"。全部"插件机制"就是一个 markdown 章程，宿主 agent（Claude/Codex 等）直接读。没有任何宿主特定代码。
 
 ### 1.2 实验循环机制
 
 program.md 规定的循环（`program.md:94-104`，"LOOP FOREVER"），9 步：
 
 1. 看 git 状态（当前分支/commit）。
-2. "Tune `train.py` with an experimental idea by directly hacking the code"——选题完全由 agent 自主，没有候选清单。
-3. **先 `git commit` 再跑**——每个实验一个 commit。
-4. `uv run train.py > run.log 2>&1`——全量重定向，"do NOT use tee or let output flood your context"。
+2. "Tune `train.py` with an experimental idea by directly hacking the code"。选题完全由 agent 自主，没有候选清单。
+3. **先 `git commit` 再跑**，每个实验一个 commit。
+4. `uv run train.py > run.log 2>&1`，输出全量重定向，"do NOT use tee or let output flood your context"。
 5. `grep "^val_bpb:\|^peak_vram_mb:" run.log` 提取结果。
 6. grep 为空 = crash → `tail -n 50 run.log` 看栈回溯尝试修复，几次修不好就放弃该实验。
 7. 追加一行到 `results.tsv`（commit/val_bpb/memory_gb/status/description，status ∈ keep/discard/crash）。
 8. 改善（val_bpb 更低）→ keep，分支前进。
 9. 持平或变差 → "git reset back to where you started" 原子回滚。
 
-关键约束：首跑必须原样 baseline（program.md:39）；时间预算固定 5 分钟 wall-clock（排除编译，前 10 步不计入计时，`train.py:578-579,602-604`，`prepare.py:31` `TIME_BUDGET=300`）；超过 10 分钟 agent 应 kill 并视为失败（program.md:108）；**"NEVER STOP"——循环永不暂停问人，直到人手动打断**（program.md:112）；预期约 12 实验/小时、过夜约 100 个。
+关键约束：首跑必须原样 baseline（program.md:39）；时间预算固定 5 分钟 wall-clock（排除编译，前 10 步不计入计时，`train.py:578-579,602-604`，`prepare.py:31` `TIME_BUDGET=300`）；超过 10 分钟 agent 应 kill 并视为失败（program.md:108）；**"NEVER STOP"要求循环永不暂停问人，直到人手动打断**（program.md:112）；预期约 12 实验/小时、过夜约 100 个。
 
 ### 1.3 度量与验证
 
 - 度量：**val_bpb**（validation bits per byte），vocab-size 无关，`prepare.py:343-365` 实现，`train.py:622` 打印 `val_bpb: 0.xxxxxx` 供 grep。
 - 噪声不靠重复评估，靠**确定性**：固定种子 `torch.manual_seed(42)`、固定验证分片（`prepare.py:43` pin 到 shard_06542）、大评估量（约 21M tokens，`prepare.py:32`）。
-- 改进判据：无容差的单一标量比较——更低就 keep，持平/变差就 reset。唯一"软容差"是简洁性准则："~0 改进但代码更简单？Keep"（program.md:37）。
+- 改进判据是无容差的单一标量比较，更低就 keep，持平/变差就 reset。唯一"软容差"是简洁性准则："~0 改进但代码更简单？Keep"（program.md:37）。
 
 ### 1.4 状态与记忆
 
@@ -66,7 +66,7 @@ program.md 规定的循环（`program.md:94-104`，"LOOP FOREVER"），9 步：
 
 - 禁改 prepare.py（度量所在）、禁改评估 harness、禁装新依赖（program.md:28-31）。
 - VRAM 软上限、简洁性准则、10 分钟 kill、训练循环内 fast-fail（loss NaN/>100 直接 exit 1，`train.py:570-572`）。
-- **本质：除 5 分钟预算物理写死在冻结文件里，其余全是 prompt 契约**——没有哈希校验、没有只读位、没有 OS 级 timeout 包装。这是原版留给宿主生态的最大改进空间。
+- **本质：除 5 分钟预算物理写死在冻结文件里，其余全是 prompt 契约**。没有哈希校验、没有只读位、没有 OS 级 timeout 包装。这是原版留给宿主生态的最大改进空间。
 
 ### 1.6 上下文/token 控制
 
@@ -74,7 +74,7 @@ program.md 规定的循环（`program.md:94-104`，"LOOP FOREVER"），9 步：
 
 ### 1.7 对宿主 agent 的依赖
 
-只要 bash（uv/git/grep/tail/重定向）、文件编辑、能等 ≥5 分钟的长命令、无人值守权限（README:44 "disable all permissions"）。零宿主特定内容——这也是它最难被"插件化"增强、也最易移植的原因。
+只要 bash（uv/git/grep/tail/重定向）、文件编辑、能等 ≥5 分钟的长命令、无人值守权限（README:44 "disable all permissions"）。零宿主特定内容，这也是它最难被"插件化"增强、也最易移植的原因。
 
 ---
 
@@ -95,7 +95,7 @@ program.md 规定的循环（`program.md:94-104`，"LOOP FOREVER"），9 步：
 
 - `init_experiment`（index.ts:1563-1676）：会话名、`metric_name`、`metric_unit`、`direction`（lower/higher）→ 写 config 行进 `.auto/log.jsonl`。
 - `run_experiment`（index.ts:1682-2192）：跑命令（默认 600s 超时），wall-clock 计时；输出滚动 buffer + 超量溢写临时文件；**给 LLM 的回传硬截断 10 行/4KB** 并附全量日志路径；用正则 `^METRIC name=value` 提取度量；benchmark 过后自动跑 `.auto/checks.sh`（正确性背压）。
-- `log_experiment`（index.ts:2198-2569）：记录 status（keep/discard/crash/checks_failed）；**keep 时自动 `git add -A && git commit`（message 尾带结构化 Result JSON）并回填真实短 hash；非 keep 时自动 `git checkout -- . + git clean -fd`（豁免 `.auto/` 目录）**——revert 不是 reset，因为改动还没 commit。
+- `log_experiment`（index.ts:2198-2569）：记录 status（keep/discard/crash/checks_failed）；**keep 时自动 `git add -A && git commit`（message 尾带结构化 Result JSON）并回填真实短 hash；非 keep 时自动 `git checkout -- . + git clean -fd`（豁免 `.auto/` 目录）**。revert 不是 reset，因为改动还没 commit。
 
 ### 2.3 实验循环机制
 
@@ -110,27 +110,27 @@ keep/discard **判定权在 agent**（prompt 规则：主度量改善才 keep）
 ### 2.4 度量与验证
 
 - 度量在 init 时配置，方向（lower/higher）只是判定方向。
-- **confidence 噪声护栏**：当前 segment 全部结果的 MAD（中位绝对偏差）作为噪声底，`|best - baseline| / MAD` 给绿/黄/红——纯 advisory，从不自动 discard（index.ts:426-457）。
+- **confidence 噪声护栏**：当前 segment 全部结果的 MAD（中位绝对偏差）作为噪声底，`|best - baseline| / MAD` 给绿/黄/红，纯 advisory，从不自动 discard（index.ts:426-457）。
 - **checks.sh 正确性背压**：benchmark 过了但 checks 失败 → status=checks_failed、禁 keep、自动 revert。防"度量好了、功能坏了"。
 
 ### 2.5 状态与记忆
 
-`.auto/log.jsonl` 是 **append-only 单一事实源**（config 行/run 行/hook 观测行混排）；会话重启、/tree、compaction 后一律从文件全量重建内存态。segment 机制：每次 init_experiment 递增 segment，baseline/best 只在当前 segment 内计算——换目标不污染历史。`/autoresearch export` 把 jsonl + 模板渲染成浏览器 dashboard（SSE 实时刷新）。
+`.auto/log.jsonl` 是 **append-only 单一事实源**（config 行/run 行/hook 观测行混排）；会话重启、/tree、compaction 后一律从文件全量重建内存态。segment 机制：每次 init_experiment 递增 segment，baseline/best 只在当前 segment 内计算，换目标不污染历史。`/autoresearch export` 把 jsonl + 模板渲染成浏览器 dashboard（SSE 实时刷新）。
 
 ### 2.6 安全护栏
 
-1. **benchmark 脚本锁定**：`.auto/measure.sh` 存在时 run_experiment 拒绝跑任何其他命令，且剥掉 env/time/nice 包装后要求命令行首就是脚本——防 `evil.py; measure.sh` 注入（index.ts:1724-1747）。
+1. **benchmark 脚本锁定**：`.auto/measure.sh` 存在时 run_experiment 拒绝跑任何其他命令，且剥掉 env/time/nice 包装后要求命令行首就是脚本，以防 `evil.py; measure.sh` 注入（index.ts:1724-1747）。
 2. **工具模式门禁**：三工具只在 autoresearch 模式下对 LLM 可见，平时从工具列表摘除。
 3. maxIterations 上限、auto-resume 熔断（200 轮/20 连败）、各处硬超时。
 4. 未设防点：没有硬拦 agent 改 measure.sh/checks.sh 本身（靠 prompt 约束）；`git add -A` 会把无关脏文件一起 commit。
 
 ### 2.7 上下文/token 控制
 
-system prompt 每轮只注入**指针**不注入内容（"fully cache-safe"）；工具回传 10 行/4KB 截断；完整数据表渲染进 TUI widget 和浏览器 dashboard 给**人**看，agent 只拿一行式回执——**人机上下文分离**是显式设计。
+system prompt 每轮只注入**指针**不注入内容（"fully cache-safe"）；工具回传 10 行/4KB 截断；完整数据表渲染进 TUI widget 和浏览器 dashboard 给**人**看，agent 只拿一行式回执。**人机上下文分离**是显式设计。
 
 ### 2.8 对 pi 的依赖与可迁移性
 
-依赖 pi 的：工具注册+schema、生命周期事件钩子、**合成用户消息**（auto-resume 核心）、动态工具可见性、受控子进程执行、TUI widget。其中"工具三件套、jsonl 事实源、.auto/ 目录、auto-resume、确定性 compaction"全是纯 TS 逻辑，无 pi 依赖——概念上可整体平移到任何有等价原语的宿主。
+依赖 pi 的：工具注册+schema、生命周期事件钩子、**合成用户消息**（auto-resume 核心）、动态工具可见性、受控子进程执行、TUI widget。其中"工具三件套、jsonl 事实源、.auto/ 目录、auto-resume、确定性 compaction"全是纯 TS 逻辑，无 pi 依赖，概念上可整体平移到任何有等价原语的宿主。
 
 ---
 
@@ -150,14 +150,14 @@ system prompt 每轮只注入**指针**不注入内容（"fully cache-safe"）�
 1. **前置检查**：git 干净树、锁文件、detached HEAD；**对 Verify 命令做安全筛查**（拦 rm -rf、fork bomb、curl|sh、外传管道等）。
 2. **Baseline = Iteration 0**：建 `autoresearch/loop-{YYMMDD}-{HHMM}/` 目录 + results TSV（首行 `# metric_direction:` 注释）。
 3. 每次迭代 7 阶段：Review（读 TSV 尾部 + `git log -20` + 上一 keep 的 diff）→ Modify（ONE focused change）→ **先 Commit**（`experiment:` 前缀）→ Verify（提取新度量算 delta）→ Guard（失败则"revert regardless of metric improvement"）→ Decide（keep/discard/crash/no-op/hook-blocked/metric-error 六态）→ Log。
-4. **回滚用 `git revert` 而非 `git reset`**——失败实验保留在历史里供后续学习。
+4. **回滚用 `git revert` 而非 `git reset`**，失败实验保留在历史里供后续学习。
 5. 默认 25 次迭代上限，"unlimited" 需显式 opt-in（与 karpathy 的 NEVER STOP 相反）。
 
 ### 3.3 Orchestrator（v2.2.0）：自然语言目标 → 自动命令链
 
 plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬编码优先级**，9 个 archetype，README 说的 "fuzzy matching" 名不副实）→ 复用 plan 逻辑推导 **Success predicate**（一次性 goal-met 检查，如 `npm test` exit 0）→ 单次 AskUserQuestion 确认 → Round-0 dry-run 验证 predicate 可跑 → 循环中由 `next-hop` 决策表路由（有错→fix；回归→regression；predicate 满足→verify hop 独立复核→CONVERGED；末 5 cycle 平坦→plateau 停机）。
 
-**确定性 seam 模式**是本项目最值得抄的工程实践：分类、路由、plateau 判定、命令安全筛查、收敛判定全部下沉为**纯函数 shell 脚本**（8 个子命令，退出码可 CI 断言），markdown 只描述协议——LLM 不可靠的部分不给 LLM。
+**确定性 seam 模式**是本项目最值得抄的工程实践：分类、路由、plateau 判定、命令安全筛查、收敛判定全部下沉为**纯函数 shell 脚本**（8 个子命令，退出码可 CI 断言），markdown 只描述协议，LLM 不可靠的部分不给 LLM。
 
 ### 3.4 命令全景与泛化边界
 
@@ -171,7 +171,7 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 - **block 级**：scout-block（.ckignore 路径过滤）、dangerous-cmd-block（force push、rm -rf、git reset --hard、git clean -f 等）、simplify-gate（>800 行 diff 阻止 ship）。
 - **ask/warn 级**：privacy-block（.env/.pem/credentials 升级给权限 UI）。
-- **inject 级**：iteration-context（每 5 prompt 重注入 TSV 尾 3 行——上下文压缩后的记忆再注入）、session-init、subagent-context、stop-notify。
+- **inject 级**：iteration-context（每 5 prompt 重注入 TSV 尾 3 行，实现上下文压缩后的记忆再注入）、session-init、subagent-context、stop-notify。
 - 工程范式：**全部 fail-open**（hook 崩溃不阻断工作）、每个可 `AR_DISABLE_*` 环境变量关闭、无状态 stdin/stdout JSON 协议、有界日志。
 - loop 内：verify 命令安全筛查 + Guard 独立于 Metric（一个管安全网一个管目标，双信号）+ orchestrator 的 screen-cmd 黑名单（rm -rf 全变体、curl|sh、外传管道、DB 锚定 allowlist）。
 
@@ -186,7 +186,7 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 | "~5–8K tokens per invocation"（新架构）   | 单命令 4–6KB ≈ **1–1.5K tokens**          | ❌ 夸大 4–5 倍            |
 | "95% token reduction"                     | 实际削减约 **70–85%**（43.7KB→~13KB）     | ❌ 达不到，方向对幅度虚标 |
 
-结论：**架构重构本身真实且有效**（单次加载 43.7KB→~13KB），但营销数字系统性夸大。另一个教训：SKILL.md 在两个版本内从 41 行长回 107 行——**新能力总会往路由层回流**，要么把 orchestrator 协议放 reference 子文件只留指针，要么接受路由层膨胀并停止在文档里写死行数（该仓库 4 处文档数字全部过时）。
+结论：**架构重构本身真实且有效**（单次加载 43.7KB→~13KB），但营销数字系统性夸大。另一个教训：SKILL.md 在两个版本内从 41 行长回 107 行。**新能力总会往路由层回流**，要么把 orchestrator 协议放 reference 子文件只留指针，要么接受路由层膨胀并停止在文档里写死行数（该仓库 4 处文档数字全部过时）。
 
 ---
 
@@ -206,8 +206,8 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 **对 autoresearch 最关键的两个 hook 协议**（PLUGIN_DEVELOPMENT_CN.md §4.6）：
 
-1. **Stop hook → 循环续跑原语**：`{"decision":"block","reason":"…"}` 可让主模型再跑一轮，**连续最多 3 次**后强制结束。这是 zcode 里等价于 pi `agent_end + sendUserMessage` 的机制——但有 3 次硬顶，意味着"无限循环"需要"Stop 注入 → 3 轮耗尽 → 用户侧或 hook 侧重新点火"的组合策略，或让单轮承载多个实验。
-2. **PreToolUse → 硬护栏**：`permissionDecision: "deny"/"ask"/"allow"` + `updatedInput` 完整替换工具输入——可实现对度量文件写保护（拦截 Write/Edit 指向冻结文件）、危险命令拦截（Bash matcher），比三个项目里任何一家纯 prompt 护栏都硬。
+1. **Stop hook → 循环续跑原语**：`{"decision":"block","reason":"…"}` 可让主模型再跑一轮，**连续最多 3 次**后强制结束。这是 zcode 里等价于 pi `agent_end + sendUserMessage` 的机制，但有 3 次硬顶，意味着"无限循环"需要"Stop 注入 → 3 轮耗尽 → 用户侧或 hook 侧重新点火"的组合策略，或让单轮承载多个实验。
+2. **PreToolUse → 硬护栏**：`permissionDecision: "deny"/"ask"/"allow"` + `updatedInput` 完整替换工具输入。这可实现对度量文件写保护（拦截 Write/Edit 指向冻结文件）、危险命令拦截（Bash matcher），比三个项目里任何一家纯 prompt 护栏都硬。
 
 其他要点：PluginData 目录存长期数据（不写安装目录）；"启用插件即授予代码执行信任"；hook 进程 env 注入 ZCODE_PLUGIN_ROOT 等变量；MCP env 可引用 userConfig。
 
@@ -215,7 +215,7 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 > 验证方法：用 zcode 运行时 bundle（`/Applications/ZCode.app/Contents/Resources/glm/zcode.cjs`，v0.16.5）以无头模式（`-p`）在隔离沙盒（fake `HOME` + 沙盒 `.zcode/config.json`）驱动真实模型调用，配自定义 MCP server 与 hooks 探针。DeepSeek 通道（`deepseek-v4-flash`）验证通过。**注意：无头模式下 hooks 不执行**（SessionStart 探针未触发），因此 hook 行为以官方文档 + bundle 实现为准，MCP 行为以实测为准。
 
-**① 无会话注入 API —— 已确认"没有"**：bundle 全量搜索 `sendUserMessage` / `injectUserMessage` **零命中**。zcode 的续跑唯一原语是 **Stop hook**，实现级确认：
+**① 无会话注入 API 已确认为"没有"**：bundle 全量搜索 `sendUserMessage` / `injectUserMessage` **零命中**。zcode 的续跑唯一原语是 **Stop hook**，实现级确认：
 
 ```js
 function a9r(e, t) {
@@ -228,11 +228,11 @@ function a9r(e, t) {
 
 即：hook 返回 `decision:"block"` 且带 reason/additionalContext 时续跑，**同一 turn 窗口内连续续跑最多 3 次**（`stopHookContinuationCount` 达 3 后强制收尾），与官方文档一致。
 
-**② MCP 长驻状态 —— 实测通过**：自定义 stdio MCP server 在单次会话中连续两次 `tools/call`（n=1, n=2），**两次由同一进程（pid 3945）处理**，进程内状态保持（call 计数 1→2，`startedAt` 相同）。结论：MCP server 会话内长驻，可在服务端维护运行时状态（如 `experimentsThisSession`）；`.auto/` 落盘仍保留作崩溃恢复事实源。标准 JSON-RPC 头（`jsonrpc`/`method`/`id`）+ 换行分隔被原生接受；server 主动 `exit()` 后同一会话会重新拉起（initialize 重放）。**补充：工具无法从 schema 动态隐藏（`tools/list` 恒定），但权限层有门禁等价物**——`permission.allowedTools/disallowedTools` 配置 + `PermissionRequest` hook 的 `decision.behavior: "deny"/"allow"`（自动拒绝/放行权限询问，bundle 51 处命中）。
+**② MCP 长驻状态已实测通过**：自定义 stdio MCP server 在单次会话中连续两次 `tools/call`（n=1, n=2），**两次由同一进程（pid 3945）处理**，进程内状态保持（call 计数 1→2，`startedAt` 相同）。结论：MCP server 会话内长驻，可在服务端维护运行时状态（如 `experimentsThisSession`）；`.auto/` 落盘仍保留作崩溃恢复事实源。标准 JSON-RPC 头（`jsonrpc`/`method`/`id`）+ 换行分隔被原生接受；server 主动 `exit()` 后同一会话会重新拉起（initialize 重放）。**补充：工具无法从 schema 动态隐藏（`tools/list` 恒定），但权限层有门禁等价物**，靠 `permission.allowedTools/disallowedTools` 配置与 `PermissionRequest` hook 的 `decision.behavior: "deny"/"allow"`（自动拒绝/放行权限询问，bundle 51 处命中）。
 
-**③ hook matcher 只匹配工具名 —— 已确认**：官方文档明确 matcher 是**对工具名的正则**（`Bash`/`Write`/`Edit`…），无法按路径过滤；路径判断必须在 hook 脚本内读 stdin（`tool_input.file_path`）。PreToolUse 返回 `permissionDecision:"deny"` + `permissionDecisionReason` 即可硬拒绝，`updatedInput` 可整体替换工具输入（替换后重新校验 schema）。aggregation 规则：deny 优先于 ask，ask 优先于 allow。
+**③ hook matcher 只匹配工具名，已确认**：官方文档明确 matcher 是**对工具名的正则**（`Bash`/`Write`/`Edit`…），无法按路径过滤；路径判断必须在 hook 脚本内读 stdin（`tool_input.file_path`）。PreToolUse 返回 `permissionDecision:"deny"` + `permissionDecisionReason` 即可硬拒绝，`updatedInput` 可整体替换工具输入（替换后重新校验 schema）。aggregation 规则：deny 优先于 ask，ask 优先于 allow。
 
-**④ 无头模式边界 —— 已确认**：`--prompt` 无头模式加载 MCP 与 workspace 配置，但 **hooks 不执行**（SessionStart/UserPromptSubmit/Stop 探针均未触发）。交互式桌面/TUI 会话才有 hook runner。对插件的影响：护栏与续跑依赖 hooks，意味着**无头/CI 驱动的 autoresearch 会话拿不到 hook 护栏**——首版明确以交互式会话为目标场景。
+**④ 无头模式边界已确认**：`--prompt` 无头模式加载 MCP 与 workspace 配置，但 **hooks 不执行**（SessionStart/UserPromptSubmit/Stop 探针均未触发）。交互式桌面/TUI 会话才有 hook runner。对插件的影响：护栏与续跑依赖 hooks，意味着**无头/CI 驱动的 autoresearch 会话拿不到 hook 护栏**，首版明确以交互式会话为目标场景。
 
 **⑤ 模型配置链路**（供后续复现）：无头 CLI 读 `~/.zcode/cli/config.json`（可用 `HOME` 重定向隔离），schema 为顶层 `provider`（记录 `kind/options{apiKey,baseURL}/models`）+ `model.main`（字符串 `"provider/model"`）。`providers`/`providersId` 等写法会被 schema 校验静默丢弃导致 `Model config is missing`。附带发现：BigModel 账号有 5 小时使用上限（错误码 1308），DeepSeek 通道无此限制。
 
@@ -260,7 +260,7 @@ function a9r(e, t) {
 ### 5.2 三条路线的本质
 
 - **karpathy 证明了概念**：循环的最小充分集 = 冻结度量 + 单一可改对象 + git 状态机 + 一行式账本 + 永续 prompt。其他一切都是增强。
-- **pi-autoresearch 证明了工程形态**：把"agent 不可靠的部分"（计时、解析、commit/revert、账本、续跑、截断）全部下沉为工具/hook，agent 只做决策——是三者中**机制设计最完整**的实现。
+- **pi-autoresearch 证明了工程形态**：把"agent 不可靠的部分"（计时、解析、commit/revert、账本、续跑、截断）全部下沉为工具/hook，agent 只做决策，是三者中**机制设计最完整**的实现。
 - **uditgoenka 证明了泛化路径与边界**：多宿主分发（canonical + transform + parity 测试）、确定性 seam（shell 纯函数）、也演示了泛化过度（14 命令中仅 2 个属于本体）与营销失真（token 数字夸大）。
 
 ### 5.3 事实核对汇总
@@ -283,7 +283,7 @@ zcode-autoresearch/
 ├── .mcp.json                        # MCP 服务：autoresearch 三件套工具
 ├── mcp/server.mjs                   # init_experiment / run_experiment / log_experiment
 │                                    #   （计时、METRIC 解析、10行/4KB 截断、自动 commit/revert、
-│                                    #     benchmark 脚本锁定、checks 背压——全部下沉到工具）
+│                                    #     benchmark 脚本锁定、checks 背压，全部下沉到工具）
 ├── skills/
 │   └── autoresearch/SKILL.md        # 薄路由（≤60 行）：安全不变量 + 循环规程 + 状态文件指针
 │       references/loop-protocol.md  # 详细循环协议（防 SKILL.md 膨胀回流）
