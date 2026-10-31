@@ -14,9 +14,9 @@
 - 正常且有 stdout → 原 `steer` 文本
 - 正常无 stdout → null(静默是默认)
 
-错误文本走既有 `before_steer`/`after_steer` 字段(对齐 pi `steerMessageFor` 的"错误也是 steer"设计),不新增返回字段，agent 读文本即可行动,机器侧无需区分。
+错误文本走既有 `before_steer`/`after_steer` 字段(对齐 pi `steerMessageFor` 的"错误也是 steer"设计),不新增返回字段,agent 读文本即可行动,机器侧无需区分。
 
-**G2.1 观测条目**:每次 fire(含 spawn 失败)后 `appendLedgerEntry` 写 `{type:"hook", stage, exit_code, duration_ms, stdout_bytes, timed_out}`(对齐 pi `hookLogEntry` 字段)。写入点:before 在 `runBeforeHook` 返回前,after 在 `runAfterHook` 返回前，观测条目与实际触发严格相邻。
+**G2.1 观测条目**:每次 fire(含 spawn 失败)后 `appendLedgerEntry` 写 `{type:"hook", stage, exit_code, duration_ms, stdout_bytes, timed_out}`(对齐 pi `hookLogEntry` 字段)。写入点:before 在 `runBeforeHook` 返回前,after 在 `runAfterHook` 返回前,观测条目与实际触发严格相邻。
 
 ## 已核实的兼容性(审计阶段完成)
 
