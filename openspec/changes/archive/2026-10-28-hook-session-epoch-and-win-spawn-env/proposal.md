@@ -19,7 +19,7 @@
 
 ### Modified Capabilities
 
-- `autoresearch/experiment-loop`：`run_experiment` 与 `log_experiment` 两个 Requirement 的钩子 stdin 契约——`session` 内容被显式枚举并新增 `started_at_epoch`。
+- `autoresearch/experiment-loop`：`run_experiment` 与 `log_experiment` 两个 Requirement 的钩子 stdin 契约，`session` 内容被显式枚举并新增 `started_at_epoch`。
 
 ## Impact
 

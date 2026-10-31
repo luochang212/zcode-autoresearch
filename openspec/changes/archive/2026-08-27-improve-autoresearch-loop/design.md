@@ -1,6 +1,6 @@
 ## Context
 
-改进依据：`docs/research/autoresearch-field-test.md`。三个缺口——plateau 检测、confidence 规程化、噪声中位数——全部落在已归档 capability `autoresearch/experiment-loop` 与 `autoresearch/guardrails` 的行为增强。既有契约（账本格式、git 语义、measure 锁定、checks 背压）不变，新增字段全部 additive，旧账本文件与旧调用兼容。
+改进依据：`docs/research/autoresearch-field-test.md`。plateau 检测、confidence 规程化、噪声中位数三个缺口，全部落在已归档 capability `autoresearch/experiment-loop` 与 `autoresearch/guardrails` 的行为增强。既有契约（账本格式、git 语义、measure 锁定、checks 背压）不变，新增字段全部 additive，旧账本文件与旧调用兼容。
 
 ## Goals / Non-Goals
 
@@ -13,16 +13,16 @@
 **Non-Goals:**
 
 - 不改账本/git/锁定/背压等既有机制。
-- 不做 uditgoenka 式完整 orchestrator（goal 分类、命令路由）——plateau 只在单 segment 循环内。
+- 不做 uditgoenka 式完整 orchestrator（goal 分类、命令路由），plateau 只在单 segment 循环内。
 - 不引入额外依赖或改变 MCP 协议。
 
 ## Decisions
 
 **1. plateau 检测语义：窗口最佳相对改善 < 1%。**
-`detectPlateau(runs, { window = 5, minImprovement = 0.01 })`：取当前 segment 最近 `window` 轮中 metric 非空的记录；`first` = 窗口首轮 metric，`best` = 窗口内最优（direction-aware）；相对改善 `|best - first| / |first|`（first=0 时用绝对差）< `minImprovement` → true；窗口内有效记录不足 `window` 轮 → false（不判定）。备选：uditgoenka 的"末 5 cycle 净平坦或更差"——用相对阈值更直接且对量纲无关，选定。注意 plateau 只在 keep 序列上无意义（discard 也会产生 metric），用全部记录。
+`detectPlateau(runs, { window = 5, minImprovement = 0.01 })`：取当前 segment 最近 `window` 轮中 metric 非空的记录；`first` = 窗口首轮 metric，`best` = 窗口内最优（direction-aware）；相对改善 `|best - first| / |first|`（first=0 时用绝对差）< `minImprovement` → true；窗口内有效记录不足 `window` 轮 → false（不判定）。备选：uditgoenka 的"末 5 cycle 净平坦或更差"。用相对阈值更直接且对量纲无关，选定。注意 plateau 只在 keep 序列上无意义（discard 也会产生 metric），用全部记录。
 
 **2. repeat 中位数：`run_experiment` 的 `repeat` 参数（1..10，默认 1）。**
-每次独立 spawn + 计时；主度量（与 config.metricName 同名者）收集为数组，返回 `metrics`（每次完整值）+ `median_metric`（中位数，复用 `experiment.mjs` 的 `median`）。checks 只在最后一次运行后执行一次（正确性不随重复变化）。timeout 按单次计算。备选：在 measure.sh 内自行循环——不可（measure.sh 冻结，且工具应负责计时语义）。
+每次独立 spawn + 计时；主度量（与 config.metricName 同名者）收集为数组，返回 `metrics`（每次完整值）+ `median_metric`（中位数，复用 `experiment.mjs` 的 `median`）。checks 只在最后一次运行后执行一次（正确性不随重复变化）。timeout 按单次计算。备选：在 measure.sh 内自行循环，不可行（measure.sh 冻结，且工具应负责计时语义）。
 
 **3. confidence 规程化：SKILL + loop-protocol 显式规则。**
 

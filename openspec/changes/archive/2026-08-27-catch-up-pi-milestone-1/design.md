@@ -1,6 +1,6 @@
 ## Context
 
-实现依据：`docs/research/pi-gap-analysis.md` + ADR-3 的里程碑 1——迭代钩子（pi #23）、clear（#28）、ASI 三字段提炼（#15 补全）、停摆护栏参数（#8 对齐）。全部零平台依赖：迭代钩子是 MCP server 内的子进程执行；clear 是工具+命令；ASI 提炼是 hook 文本处理；护栏参数是配置读取。参考 pi 的 hooks 契约（hooks.ts：stdin JSON、30s 超时、8KB 截断、fail-open）与 auto-resume 护栏（20 连败），按 zcode 语义简化（我方无 steer 消息通道，钩子 stdout 作为工具返回字段给 agent）。
+实现依据：`docs/research/pi-gap-analysis.md` + ADR-3 的里程碑 1 四项：迭代钩子（pi #23）、clear（#28）、ASI 三字段提炼（#15 补全）、停摆护栏参数（#8 对齐）。全部零平台依赖：迭代钩子是 MCP server 内的子进程执行；clear 是工具+命令；ASI 提炼是 hook 文本处理；护栏参数是配置读取。参考 pi 的 hooks 契约（hooks.ts：stdin JSON、30s 超时、8KB 截断、fail-open）与 auto-resume 护栏（20 连败），按 zcode 语义简化（我方无 steer 消息通道，钩子 stdout 作为工具返回字段给 agent）。
 
 ## Goals / Non-Goals
 
@@ -15,7 +15,7 @@
 
 - 不移植 pi 的 hooks 教学 skill 全套（M1 只做机制 + SKILL 简要指引；教学 examples 后置）。
 - 不实现 before 钩子对 run 的"阻断"语义（pi 是 steer，非阻断；保持 fail-open）。
-- 不改账本格式（asi 已存；钩子输出不入账本——pi 会把 hook 观测行写入 jsonl，M1 不做，避免账本格式变更，后置评估）。
+- 不改账本格式（asi 已存；钩子输出不入账本。pi 会把 hook 观测行写入 jsonl，M1 不做，避免账本格式变更，后置评估）。
 
 ## Decisions
 
@@ -23,11 +23,11 @@
 
 - `before.sh` 在 run_experiment 的基准执行前跑；`after.sh` 在 log_experiment 记录后跑。均 spawn `bash <path>`，stdin 写单行 JSON，30s 超时 kill，stdout 截 8KB。**fail-open**：钩子缺失/不可执行/失败都不阻断主流程。
 - stdin JSON：before `{event:"before", cwd, next_run, last_run, session}`；after `{event:"after", cwd, run_entry, session}`（session 含 metricName/direction/baseline/best/runCount）。
-- 返回：`before_steer` / `after_steer` 字段（钩子 stdout 或空）。备选（阻断式、写账本）——放弃：改变现有契约面，且 pi 亦非阻断。
+- 返回：`before_steer` / `after_steer` 字段（钩子 stdout 或空）。备选（阻断式、写账本），放弃：改变现有契约面，且 pi 亦非阻断。
 
-**2. clear 走工具而非纯命令：** `clear_experiments` MCP 工具删 `.auto/log.jsonl`（仅该文件），返回确认；命令 `/autoresearch:clear` 指引 agent 调用。理由：机制可靠（agent 一步到位），且 spec 明确工具行为。备选（命令里让 agent 手动 rm）——放弃：不可靠、无状态返回。
+**2. clear 走工具而非纯命令：** `clear_experiments` MCP 工具删 `.auto/log.jsonl`（仅该文件），返回确认；命令 `/autoresearch:clear` 指引 agent 调用。理由：机制可靠（agent 一步到位），且 spec 明确工具行为。备选（命令里让 agent 手动 rm），放弃：不可靠、无状态返回。
 
-**3. 护栏参数来源：** `.auto/config.json` 的 `consecutiveFailures`（默认 3）；server 的 `sessionState()` 与 stop-continue hook 都经 `readSessionConfig` 读取，行为一致。pi 用 20——默认保守 3，文档提示可配 20。
+**3. 护栏参数来源：** `.auto/config.json` 的 `consecutiveFailures`（默认 3）；server 的 `sessionState()` 与 stop-continue hook 都经 `readSessionConfig` 读取，行为一致。pi 用 20，我方默认保守 3，文档提示可配 20。
 
 **4. ASI 提炼放在注入文本层：** memory-inject/stop-continue 从账本 run 行读 `asi` 对象，单行化 `hyp:`/`next:`/`rollback:` 追加。不改账本、不改 server。
 

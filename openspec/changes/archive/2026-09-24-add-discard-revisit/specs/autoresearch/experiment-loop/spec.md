@@ -2,7 +2,7 @@
 
 ### Requirement: log_experiment 提示重访假设失效的 discard
 
-当前 segment 的账本中存在 status 为 discard 或 checks_failed 且 `asi.rollback` 非空的行时，`log_experiment` 工具 SHALL 在返回中包含 `revisit_nudge` 字段：固定提问文案，要求 agent 在选择下一实验前，先判断最新结果或发现是否推翻了某条 discard 的 rollback 理由——若推翻，SHALL 说明改变了什么，并把针对该 discard 的定向重试与其他候选一起权衡（重试时可通过 `asi.revisits_run: <run 号>` 标注来源，且在 description 中记录所依据的变化）；若未推翻，SHALL 跳过继续。无 discard/checks_failed 行、或此类行均无 `asi.rollback` 理由时，返回 SHALL 省略该字段。该信号为 advisory（提示性），不构成硬校验：`asi.revisits_run` 指向不存在的 run 号时不拒绝写入，账本照实透传。
+当前 segment 的账本中存在 status 为 discard 或 checks_failed 且 `asi.rollback` 非空的行时，`log_experiment` 工具 SHALL 在返回中包含 `revisit_nudge` 字段：固定提问文案，要求 agent 在选择下一实验前，先判断最新结果或发现是否推翻了某条 discard 的 rollback 理由。若推翻，SHALL 说明改变了什么，并把针对该 discard 的定向重试与其他候选一起权衡（重试时可通过 `asi.revisits_run: <run 号>` 标注来源，且在 description 中记录所依据的变化）；若未推翻，SHALL 跳过继续。无 discard/checks_failed 行、或此类行均无 `asi.rollback` 理由时，返回 SHALL 省略该字段。该信号为 advisory（提示性），不构成硬校验：`asi.revisits_run` 指向不存在的 run 号时不拒绝写入，账本照实透传。
 
 #### Scenario: 存在带理由的 discard 行时返回重访提示
 

@@ -12,7 +12,7 @@
 ## Decisions
 
 - **`goal` 取 `state.config?.name ?? null`**：与 pi 的 `goal: state.name ?? ""` 同源同义（会话名，非目标文本）；null 语义与载荷内其余可选字段一致。
-- **matcher 用 alternation 追加**：`startup|resume|compact`，不动 hooks.json 其余结构；`clear` 不加——clear 后账本已删，session-start 前置检查自然静默。
+- **matcher 用 alternation 追加**：`startup|resume|compact`，不动 hooks.json 其余结构；`clear` 不加，clear 后账本已删，session-start 前置检查自然静默。
 - **文档与 spec 同步**：session 枚举在两份规程文档与主 spec 的两个 Requirement 中同步扩展，各加一个对齐场景。
 
 ## Risks / Trade-offs
@@ -27,5 +27,5 @@
 ## 验证边界
 
 - `goal` 字段：集成测试（新钩子 echo `.session.goal`，断言等于 init 的 name）实打实通过真实 server 进程。
-- `compact` matcher：hooks.json 的 matcher 由 ZCode 平台在运行时解释，插件测试无法模拟压缩事件——**未实测，验证边界记录于此**；依据是 zcode-guide:diagnosing-hooks 权威文档（SessionStart matcher 值含 `compact`）与 matcher 为大小写敏感正则 alternation 的既有用法（`startup|resume` 同构）。
+- `compact` matcher：hooks.json 的 matcher 由 ZCode 平台在运行时解释，插件测试无法模拟压缩事件，**未实测，验证边界记录于此**；依据是 zcode-guide:diagnosing-hooks 权威文档（SessionStart matcher 值含 `compact`）与 matcher 为大小写敏感正则 alternation 的既有用法（`startup|resume` 同构）。
 - 两项否决的实证：平台事件清单引自权威文档；既有界限引自 stop-continue.ts 源码（isStopReached + failureThreshold 默认 3）与平台 README（3 次 Stop 窗口）。

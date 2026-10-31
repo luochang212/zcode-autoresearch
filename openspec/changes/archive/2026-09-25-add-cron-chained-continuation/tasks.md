@@ -1,11 +1,11 @@
 # Tasks: add-cron-chained-continuation
 
-## 1. E2E 门禁（先行，消证——design D6）
+## 1. E2E 门禁（先行，消证 design D6）
 
 > 执行单见 `e2e.md`（ZCode 桌面应用为本机运行时；独立 CLI 无凭据）。由用户执行 Steps 1-3 并回传 4 问结果，agent 负责回填。
 
 - [x] 1.1 真机会话验证 CronCreate 可用性：agent 可调用、创建 recurring 任务（interval+maxRuns）、CronList 可见
-- [x] 1.2 验证唤醒 turn 形态：是否 automation turn、模型来源、能否调用 MCP 实验工具、Stop hook 是否触发（Stop hook 未观测——两种结果均可用，列为第二阶段观察项，见 design D6 结论 5）
+- [x] 1.2 验证唤醒 turn 形态：是否 automation turn、模型来源、能否调用 MCP 实验工具、Stop hook 是否触发（Stop hook 未观测，两种结果均可用，列为第二阶段观察项，见 design D6 结论 5）
 - [x] 1.3 验证空转与防失控：不活跃状态下唤醒 turn 的行为；automation turn 内 CronCreate 被宿主拒绝（实测更强：工具面不可见，物理不可调）
 - [x] 1.4 结论回填本 change design.md（D6 四点逐条记录）与 ADR；任一点证伪 → 终止本 change（任务 2+ 不开工），ADR 回滚为「不可行」记录（实测：门禁通过，change 存活）
 
@@ -28,7 +28,7 @@
 ## 5. README 与 ADR
 
 - [x] 5.1 `plugin/README.md` / `README_CN.md` 已知边界段落：auto-resume 描述更新为「Stop 3 次窗口 + 有界 cron 自唤醒（无人值守需用户授权）」双层
-- [x] 5.2 ADR（adrkit decide）：平台可行性判定——CronCreate 有界自唤醒可行、E2E 结论、与 ADR-3/4 的关系（Stop 硬顶与无限 auto-resume 原判维持）；`adrkit validate` 通过（ADR-7 已建并回填 E2E 结论）
+- [x] 5.2 ADR（adrkit decide）：平台可行性判定，结论为 CronCreate 有界自唤醒可行，记录 E2E 结论与 ADR-3/4 的关系（Stop 硬顶与无限 auto-resume 原判维持）；`adrkit validate` 通过（ADR-7 已建并回填 E2E 结论）
 
 ## 6. 收尾
 

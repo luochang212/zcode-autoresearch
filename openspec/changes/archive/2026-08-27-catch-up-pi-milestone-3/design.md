@@ -17,9 +17,9 @@
 
 ## Decisions
 
-**1. 门禁判断 = "有无活动会话"（`.auto/log.jsonl` 存在与否），而非模式标记。** 理由：会话存在性可从磁盘可靠判定，且语义自然（无会话时实验工具无意义）。无会话 → deny；有会话 → allow。备选（维护运行时模式标记）——放弃：zcode 无模式事件通道，标记状态不可靠。
+**1. 门禁判断 = "有无活动会话"（`.auto/log.jsonl` 存在与否），而非模式标记。** 理由：会话存在性可从磁盘可靠判定，且语义自然（无会话时实验工具无意义）。无会话 → deny；有会话 → allow。备选（维护运行时模式标记），放弃：zcode 无模式事件通道，标记状态不可靠。
 
-**2. off 决策 = `.auto/config.json` 的 `autoresearchOff: true`，由 `/autoresearch:off` 命令写入。** SessionStart 读取：有 off → 不提示；无 off 且有 log → 提示续跑。clear 已删 log（自然无会话），off 覆盖"保留会话但暂停"场景。备选（独立 state 文件）——放弃：config.json 已是会话配置载体。
+**2. off 决策 = `.auto/config.json` 的 `autoresearchOff: true`，由 `/autoresearch:off` 命令写入。** SessionStart 读取：有 off → 不提示；无 off 且有 log → 提示续跑。clear 已删 log（自然无会话），off 覆盖"保留会话但暂停"场景。备选（独立 state 文件），放弃：config.json 已是会话配置载体。
 
 **3. PermissionRequest hook 全工具 matcher（不写死 matcher，脚本内判断工具名）。** 脚本读 stdin 的 `tool_name`，属于实验工具集且无会话 → deny。理由：PermissionRequest 的 matcher 语义与 PreToolUse 相同（工具名），但工具集判断放脚本内更清晰、可单测。
 

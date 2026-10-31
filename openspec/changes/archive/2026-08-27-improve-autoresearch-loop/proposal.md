@@ -1,6 +1,6 @@
 ## Why
 
-实跑报告（`docs/research/autoresearch-field-test.md`）验证核心循环有效（9 轮 713× 加速），但暴露三个可改进点：① 无 plateau（平坦收敛）检测——agent 靠自觉判断"接近下限"收尾，协议层没有这个概念，会在噪声区空转；② `confidence`（MAD 校准）工具返回了但 agent 的 keep/discard 判定没引用它；③ 噪声度量（4–6ms 波动 ±2ms）无取中位数支持，改进/持平/变差在噪声内难分。
+实跑报告（`docs/research/autoresearch-field-test.md`）验证核心循环有效（9 轮 713× 加速），但暴露三个可改进点：① 无 plateau（平坦收敛）检测，agent 靠自觉判断"接近下限"收尾，协议层没有这个概念，会在噪声区空转；② `confidence`（MAD 校准）工具返回了但 agent 的 keep/discard 判定没引用它；③ 噪声度量（4–6ms 波动 ±2ms）无取中位数支持，改进/持平/变差在噪声内难分。
 
 ## What Changes
 

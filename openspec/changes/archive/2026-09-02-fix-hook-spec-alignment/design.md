@@ -2,7 +2,7 @@
 
 ## D1 平台期放行的输出形态
 
-guardrails 规范要求 plateau 时"放行，reason 中说明"。zcode Stop hook 的输出契约只有两种有效形态：stdout JSON `{decision: "block", reason}`（请求续跑，3 次窗口）与 exit 0（放行）；schema 严格校验，无 allow-with-reason 形态。因此放行 = exit 0 + 空 stdout，平台期建议（复测/开新 segment/收尾）写 stderr——留在 hook 日志里可观测，不进模型上下文。
+guardrails 规范要求 plateau 时"放行，reason 中说明"。zcode Stop hook 的输出契约只有两种有效形态：stdout JSON `{decision: "block", reason}`（请求续跑，3 次窗口）与 exit 0（放行）；schema 严格校验，无 allow-with-reason 形态。因此放行 = exit 0 + 空 stdout，平台期建议（复测/开新 segment/收尾）写 stderr，留在 hook 日志里可观测，不进模型上下文。
 
 顺序上 plateau 判定保持在 isStopReached 之后（连败/上限优先级更高，两者皆放行，不冲突）。
 

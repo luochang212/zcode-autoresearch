@@ -2,7 +2,7 @@
 
 ### Requirement: 从账本导出静态 dashboard
 
-`/autoresearch:export` 命令 SHALL 读取 `.auto/log.jsonl`，生成自包含的静态 HTML（无外部网络依赖），展示：会话配置（度量、方向）、全部实验记录（iteration/status/metric/delta/description）、基线对比、best 与置信度信息。`export_dashboard` 工具 SHALL 额外支持 **live server 模式**：在本机 127.0.0.1 随机端口启动 HTTP 服务，提供 `/`（live HTML）、`/autoresearch.jsonl`（账本原文）与 `/events`（SSE）三个路由；`init_experiment` 与 `log_experiment` 写账本后 SHALL 广播 `jsonl-updated` 事件使浏览器自动刷新；工具返回 SHALL 包含 live URL 与静态文件路径。live server 与 MCP server 同进程，路由处理 SHALL 容错：`/autoresearch.jsonl` 在账本文件不存在时 SHALL 返回 404（不抛未捕获异常）；SSE 广播对已断开/写失败的客户端 SHALL 容错并把它从广播列表剔除——任何单个请求或客户端故障都不得使 MCP server 进程崩溃。
+`/autoresearch:export` 命令 SHALL 读取 `.auto/log.jsonl`，生成自包含的静态 HTML（无外部网络依赖），展示：会话配置（度量、方向）、全部实验记录（iteration/status/metric/delta/description）、基线对比、best 与置信度信息。`export_dashboard` 工具 SHALL 额外支持 **live server 模式**：在本机 127.0.0.1 随机端口启动 HTTP 服务，提供 `/`（live HTML）、`/autoresearch.jsonl`（账本原文）与 `/events`（SSE）三个路由；`init_experiment` 与 `log_experiment` 写账本后 SHALL 广播 `jsonl-updated` 事件使浏览器自动刷新；工具返回 SHALL 包含 live URL 与静态文件路径。live server 与 MCP server 同进程，路由处理 SHALL 容错：`/autoresearch.jsonl` 在账本文件不存在时 SHALL 返回 404（不抛未捕获异常）；SSE 广播对已断开/写失败的客户端 SHALL 容错并把它从广播列表剔除，任何单个请求或客户端故障都不得使 MCP server 进程崩溃。
 
 #### Scenario: 导出成功
 

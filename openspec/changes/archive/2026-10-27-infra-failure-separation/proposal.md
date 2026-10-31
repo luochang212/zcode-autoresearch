@@ -19,7 +19,7 @@
 
 ### Modified Capabilities
 
-- `autoresearch/experiment-loop`：新增 requirement「log_experiment 区分基础设施故障与代码故障」——`asi.infra` 标注约定、doom-loop 检测排除 infra 行、doom-loop 提示含调研逃逸语义。现有 doom-loop 场景（非 infra 重复触发）语义不变，不受影响。
+- `autoresearch/experiment-loop`：新增 requirement「log_experiment 区分基础设施故障与代码故障」，含 `asi.infra` 标注约定、doom-loop 检测排除 infra 行、doom-loop 提示含调研逃逸语义。现有 doom-loop 场景（非 infra 重复触发）语义不变，不受影响。
 
 ## Impact
 

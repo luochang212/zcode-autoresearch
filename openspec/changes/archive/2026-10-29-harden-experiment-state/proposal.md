@@ -6,7 +6,7 @@
 
 坐实的证据（真实 MCP server + 临时 git 仓库）：
 
-- baseline 记 42（discard）后，首条 keep 记 45 仍被接受，返回 `delta:-3`、`best:45`——审计的 `retained` 与状态投影的 baseline 不是同一基准。
+- baseline 记 42（discard）后，首条 keep 记 45 仍被接受，返回 `delta:-3`、`best:45`，审计的 `retained` 与状态投影的 baseline 不是同一基准。
 - `autoresearchOff: true` 时 Stop hook 仍返回 `decision:block`，UserPromptSubmit 仍注入账本摘要；只有 SessionStart 静默。
 - 未 init 时 `run_experiment` 会执行 benchmark 并创建 `.auto/config.json`；无 `.auto/` 时 `run_experiment` 与 `clear_experiments` 都返回原始 ENOENT。
 - `.auto/` 之外只改 `autoresearch-dashboard.html`，`log_experiment(keep)` 仍成功，commit 包含该 session 文件；同一文件又会触发 crash 未回滚门禁。
@@ -51,4 +51,4 @@
 - 行为变化（**BREAKING** 级别的工具语义，均在 spec 留痕）：未 init 调 `run_experiment` 现在报错；只有 dashboard 变化不再能 keep；`autoresearchOff` 现在真的暂停循环；empty repo 不能 init。
 - 文档：README/README_CN、plugin/README(_CN)、AGENTS、SKILL/loop-protocol/setup-guide、commands/clear/finalize/autoresearch/off、三份主 spec。
 - 依赖：无新增依赖；仍为零第三方、Node ≥24、无构建。
-- 不在本 change：workingDir 贯通到 commands/finalize/guard、noop metric 语义、runCommand 后台子进程、niceTicks 极小量程、memory 注入截断、finalize 并集内容校验、示例脚本——理由见 design.md Deferred。
+- 不在本 change：workingDir 贯通到 commands/finalize/guard、noop metric 语义、runCommand 后台子进程、niceTicks 极小量程、memory 注入截断、finalize 并集内容校验、示例脚本，理由见 design.md Deferred。

@@ -1,19 +1,19 @@
-# 提案：冻结语义修正——记录后不可改写，setup 首次创建放行
+# 提案：冻结语义修正（记录后不可改写，setup 首次创建放行）
 
 ## Why
 
-guard-frozen 对受保护路径做无条件 deny（没有「文件已存在」判断），而 setup-guide 第 2–5 步指示 agent 用 Write 创建这四个文件——setup 流程与写保护自相矛盾，每次 setup 必吃 deny。
+guard-frozen 对受保护路径做无条件 deny（没有「文件已存在」判断），而 setup-guide 第 2–5 步指示 agent 用 Write 创建这四个文件，setup 流程与写保护自相矛盾，每次 setup 必吃 deny。
 
 worth-fix 验证（红证据，2026-10-27）：
 
-- **实测**：空目录下 Write `.auto/goal.md` 被 hook deny，理由为 "it was recorded verbatim from the user and cannot be rewritten"——此刻尚无任何记录，理由与事实相反。
+- **实测**：空目录下 Write `.auto/goal.md` 被 hook deny，理由为 "it was recorded verbatim from the user and cannot be rewritten"，此刻尚无任何记录，理由与事实相反。
 - **实证**：既有测试 `guard-frozen denies deep-goal edits` 的 `tempCwd()` 是空目录，deny 断言在文件不存在时即通过（deny-on-absent 已被测试套件坐实）。
 - **文档矛盾**：setup-guide "Write the user's deep goal verbatim … into `.auto/goal.md`"；全文档（setup-guide / loop-protocol）无 Bash 变通指引（grep 无命中）。
-- **后果分层**：最重——听话的 agent 因 deny 跳过 goal/scope 记录，循环失去锚点；中等——agent 以 Bash heredoc 即兴变通（matcher 只拦 Write|Edit|ApplyPatch），每次 setup 多一轮摩擦；最轻——deny 理由在创建场景误导。
+- **后果分层**：最重的一档，听话的 agent 因 deny 跳过 goal/scope 记录，循环失去锚点；中等一档，agent 以 Bash heredoc 即兴变通（matcher 只拦 Write|Edit|ApplyPatch），每次 setup 多一轮摩擦；最轻一档，deny 理由在创建场景误导。
 
 ## What Changes
 
-- `plugin/hooks/guard-frozen.ts`：FROZEN 命中后增加 existsSync 判断——目标不存在 → 放行（创建窗口）；已存在 → deny（改写拒绝）。冻结语义定格为「记录后不可改写」。
+- `plugin/hooks/guard-frozen.ts`：FROZEN 命中后增加 existsSync 判断，目标不存在 → 放行（创建窗口）；已存在 → deny（改写拒绝）。冻结语义定格为「记录后不可改写」。
 - 回归测试：deny 断言全部前置文件创建；新增「首次创建放行、落盘后拒绝」用例（红→绿：新期望先在未修复 hook 上跑红，修复后转绿）。
 - 文档：setup-guide 第 2/4/5 步措辞对齐（创建是合法动作，冻结自落盘起生效）；README / README_CN 写保护行同步。
 

@@ -23,7 +23,7 @@
 ## Decisions
 
 **1. server 单文件可拆分：`mcp/server.mjs` + `mcp/lib/` 纯逻辑模块。**
-理由：hooks 和 tests 需要复用纯逻辑（度量解析、判定、账本），从 server 中拆出 `lib/experiment.mjs`（parseMetric、computeConfidence、segment 状态）与 `lib/ledger.mjs`（.auto/log.jsonl 读写、git 操作）。server.mjs 只做 JSON-RPC 与工具分发。备选：全部塞进 server.mjs（pi 的做法）——测试难写，放弃。
+理由：hooks 和 tests 需要复用纯逻辑（度量解析、判定、账本），从 server 中拆出 `lib/experiment.mjs`（parseMetric、computeConfidence、segment 状态）与 `lib/ledger.mjs`（.auto/log.jsonl 读写、git 操作）。server.mjs 只做 JSON-RPC 与工具分发。备选：全部塞进 server.mjs（pi 的做法），测试难写，放弃。
 
 **2. 状态：`.auto/log.jsonl` append-only 事实源 + 内存缓存，每请求前从文件重建状态头。**
 理由：崩溃恢复与多 hook 一致性（hooks 是独立进程，读同一账本）。MCP server 会话内长驻（实测 pid 保持），进程内缓存加速，但每次 run/log 后写盘，任何时刻 kill 都不丢已记录实验。ASI（Actionable Side Information）随 discard 记录，revert 后唯一幸存记忆。
@@ -31,7 +31,7 @@
 **3. git 语义（ADR-2）：keep 才 commit；非 keep `git checkout -- .` + `git clean -fd`，豁免 `.auto/`。**
 实现：`git checkout -- . ':(exclude,glob)**/.auto/**'` + `git clean -fd -e .auto -e .auto/`。实验分支隔离（init 时若在 master 提示建 `autoresearch/<tag>` 分支，不强推）。commit message：`experiment: <desc>\n\nResult: <json>`。
 
-**4. hooks 四件套（交互式会话生效，headless 不执行——已验证）：**
+**4. hooks 四件套（交互式会话生效，headless 不执行，已验证）：**
 
 - `Stop`：读 `.auto/log.jsonl` 判循环是否结束，未结束返回 `{decision:"block", reason: 进度摘要+下一步}`；3 次窗口由平台限制。
 - `PreToolUse`（matcher `Write|Edit|Bash`）：拦截对 `.auto/measure.sh`/`.auto/checks.sh` 的写入（deny）；对 Bash 不做拦截（命令锁定在 server 内做）。
@@ -56,4 +56,4 @@ server 提供 `export_dashboard` 工具（读账本渲染 HTML，纯函数），
 
 ## Open Questions
 
-（无——研究阶段开放问题已结案，本 change 无新的可延后未知。）
+（无，研究阶段开放问题已结案，本 change 无新的可延后未知。）

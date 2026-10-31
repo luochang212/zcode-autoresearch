@@ -16,13 +16,13 @@
 
 ### New Capabilities
 
-- `autoresearch/experiment-loop`: 实验循环的行为契约——init/run/log 三件套工具的输入输出、`.auto/log.jsonl` 账本格式与 segment、度量解析与方向判定、keep 提交 / 非 keep 回滚的 git 语义、迭代上限。
-- `autoresearch/guardrails`: 护栏与记忆的行为契约——benchmark 脚本锁定、checks 正确性背压、`.auto/` 写保护、Stop 续跑窗口、记忆注入。
-- `autoresearch/dashboard`: dashboard 导出的行为契约——`/autoresearch:export` 从账本生成静态 HTML 的内容与格式。
+- `autoresearch/experiment-loop`: 实验循环的行为契约，涵盖 init/run/log 三件套工具的输入输出、`.auto/log.jsonl` 账本格式与 segment、度量解析与方向判定、keep 提交 / 非 keep 回滚的 git 语义、迭代上限。
+- `autoresearch/guardrails`: 护栏与记忆的行为契约，涵盖 benchmark 脚本锁定、checks 正确性背压、`.auto/` 写保护、Stop 续跑窗口、记忆注入。
+- `autoresearch/dashboard`: dashboard 导出的行为契约，规定 `/autoresearch:export` 从账本生成静态 HTML 的内容与格式。
 
 ### Modified Capabilities
 
-（无——本仓库此前无 capability。）
+（无，本仓库此前无 capability。）
 
 ## Impact
 

@@ -54,7 +54,7 @@ Deferred（明确不修，理由）：
 
 `validateLedger` 内部维护 `baseline`（第一条有限 metric）与 `retained`（当前保留值）。首条 keep 必须 direction-aware 地不差于 baseline（允许相等），之后才更新 retained。选择在纯函数内完成，而不是把 baseline 塞进 config 参数：审计的输入已经是完整 run 序列，新增参数只会让调用方多一个可漂移的事实源。
 
-替代方案：把 state.baseline 传入 validate——否决，server 已有 state，但 validate 的单元测试与全账本回放会失去独立性。
+替代方案：把 state.baseline 传入 validate。否决，理由是 server 已有 state，但 validate 的单元测试与全账本回放会失去独立性。
 
 ### D2. 段边界在 `rebuildState` 的 config 分支重置
 
@@ -68,7 +68,7 @@ config 行 = 新 segment，重置 `runs/baseline/best/consecutiveFailures/lastRu
 
 `git.ts` 从 `ledger.ts` 引入 `DASHBOARD_FILE`，commit/isDirty/rollback checkout 都排除它。选择引入已有常量而不是复制字符串：复制正是这次不一致的根因。
 
-替代方案：新建 session-path 模块——对当前规模过重，等 workingDir 全链路改造时再做。
+替代方案：新建 session-path 模块。对当前规模过重，等 workingDir 全链路改造时再做。
 
 ### D5. `off` 是“暂停循环”，不是“只静音提示”
 

@@ -2,7 +2,7 @@
 
 ### Requirement: 会话目录写保护
 
-PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、checks.sh、goal.md、scope.md）的 Write/Edit，返回 deny；对 `.auto/` 其它文件的写入放行。goal.md 承载用户的深层目标原文（setup 时逐字记录），scope.md 承载用户同意的范围边界（Files-in-scope 与 Off-Limits）——二者是 harness 编辑步不可触碰的锚：深层目标为根，范围边界为栏，表层目标表示（度量代理、章程措辞、方向池）可被证据驱动的编辑步修订，但 SHALL 不与二者矛盾。
+PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、checks.sh、goal.md、scope.md）的 Write/Edit，返回 deny；对 `.auto/` 其它文件的写入放行。goal.md 承载用户的深层目标原文（setup 时逐字记录），scope.md 承载用户同意的范围边界（Files-in-scope 与 Off-Limits）。二者是 harness 编辑步不可触碰的锚：深层目标为根，范围边界为栏，表层目标表示（度量代理、章程措辞、方向池）可被证据驱动的编辑步修订，但 SHALL 不与二者矛盾。
 
 #### Scenario: 修改度量脚本
 

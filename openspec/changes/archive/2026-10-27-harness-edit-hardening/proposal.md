@@ -1,16 +1,16 @@
-# 提案：harness-edit-loop 收口——范围冻结与经验保真
+# 提案：harness-edit-loop 收口（范围冻结与经验保真）
 
 ## Why
 
 harness-edit-loop 落地后经审视（worth-fix 流程验证）发现两个必须修的缺口：
 
-- **P1（约束绕过）**：可编辑面包含 `prompt.md` 表层区块，而 Off-Limits / Files-in-scope 就写在其中——hook 是路径级的（`plugin/tests/hooks.test.ts` 实测 prompt.md 写请求放行），范围漂移机械可行。安全不变量 4（只碰约定范围）被编辑步的合法出口绕开，plateau 下 agent 扩大范围的动机最强。
-- **P2（数据丢失）**：`plugin/commands/finalize.md` 第 6 步的清理注释指示 `rm -r .auto`，而 experience.md 的"人审并入 AGENTS.md"在该命令流程中零提及（已核实：`finalize.sh` 自身不删 `.auto`，删除责任在命令文本）——每次 finalize 按注释清理都会无声丢掉经验库。
+- **P1（约束绕过）**：可编辑面包含 `prompt.md` 表层区块，而 Off-Limits / Files-in-scope 就写在其中，hook 是路径级的（`plugin/tests/hooks.test.ts` 实测 prompt.md 写请求放行），范围漂移机械可行。安全不变量 4（只碰约定范围）被编辑步的合法出口绕开，plateau 下 agent 扩大范围的动机最强。
+- **P2（数据丢失）**：`plugin/commands/finalize.md` 第 6 步的清理注释指示 `rm -r .auto`，而 experience.md 的"人审并入 AGENTS.md"在该命令流程中零提及（已核实：`finalize.sh` 自身不删 `.auto`，删除责任在命令文本），每次 finalize 按注释清理都会无声丢掉经验库。
 
 ## What Changes
 
-- 新增冻结会话文件 `.auto/scope.md`：用户同意的 Files-in-scope 与 Off-Limits 原文，加入 PreToolUse 写保护（与 goal.md 同一 FROZEN 机制）；`prompt.md` 对应段落改为对 scope.md 的逐字引用；范围修订不经编辑步——只能由用户手改或 `init_experiment` 新 segment
-- `plugin/commands/finalize.md`：在清理前插入正式步骤——与用户人审 `.auto/experience.md`，幸存 lesson 并入项目 AGENTS.md；清理（含 `rm -r .auto`）SHALL 在该步完成后执行
+- 新增冻结会话文件 `.auto/scope.md`：用户同意的 Files-in-scope 与 Off-Limits 原文，加入 PreToolUse 写保护（与 goal.md 同一 FROZEN 机制）；`prompt.md` 对应段落改为对 scope.md 的逐字引用；范围修订不经编辑步，只能由用户手改或 `init_experiment` 新 segment
+- `plugin/commands/finalize.md`：在清理前插入正式步骤，与用户人审 `.auto/experience.md`，幸存 lesson 并入项目 AGENTS.md；清理（含 `rm -r .auto`）SHALL 在该步完成后执行
 
 ## Capabilities
 

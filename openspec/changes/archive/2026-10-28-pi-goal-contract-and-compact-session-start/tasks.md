@@ -4,7 +4,7 @@
 
 - [x] 1. `plugin/mcp/server.ts`：`hookSessionPayload` 增加 `goal: state.config?.name ?? null`（含 pi 契约注释）
 - [x] 2. `plugin/hooks/hooks.json`：SessionStart matcher `startup|resume` → `startup|resume|compact`
-- [x] 3. 集成测试：`plugin/tests/mcp-integration.test.ts` 新增 "session payload carries the session name as goal (pi contract)"——before.sh echo `.session.goal`，断言等于 init 的 name
+- [x] 3. 集成测试：`plugin/tests/mcp-integration.test.ts` 新增 "session payload carries the session name as goal (pi contract)"，before.sh echo `.session.goal`，断言等于 init 的 name
 - [x] 4. 文档同步：`skills/autoresearch-hooks/SKILL.md` 与 `skills/autoresearch/references/loop-protocol.md` 的 session 枚举加 `goal` 及语义说明
 
 ## 规范

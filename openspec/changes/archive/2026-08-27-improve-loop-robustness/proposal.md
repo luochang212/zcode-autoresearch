@@ -1,11 +1,11 @@
 ## Why
 
-`docs/research/next-steps.md` + ADR-4 的 P0 两件：① memory-inject 增强（确定性 compaction 的低成本变相——补长会话信息连续性）；② doom-loop 检测（ml-intern 借鉴——防 agent 在重复/震荡模式里死循环空转）。均为低成本、零平台依赖、直接提升长跑健壮性。
+`docs/research/next-steps.md` + ADR-4 的 P0 两件：① memory-inject 增强（确定性 compaction 的低成本变相，补长会话信息连续性）；② doom-loop 检测（ml-intern 借鉴，防 agent 在重复/震荡模式里死循环空转）。均为低成本、零平台依赖、直接提升长跑健壮性。
 
 ## What Changes
 
 - **doom-loop 检测**：新增 `detectDoomLoop` 纯函数（对 run 的 description/假设做规范化哈希，检测 3+ 连续重复与 A→B→A→B 震荡）；`log_experiment` 返回 `doom_loop` 标志并在 `next_action_hint` 提示换方向；memory-inject/stop-continue 报告重复-震荡模式。
-- **memory-inject 聚合摘要**（compaction 变相）：从"最近 3 条"升级为聚合摘要——已尝试方向去重（从 description/asi.hypothesis 提炼）、best 轨迹（baseline → best）、最近 N 条 + ASI 提炼、doom-loop 提示。
+- **memory-inject 聚合摘要**（compaction 变相）：从"最近 3 条"升级为聚合摘要，包含已尝试方向去重（从 description/asi.hypothesis 提炼）、best 轨迹（baseline → best）、最近 N 条 + ASI 提炼、doom-loop 提示。
 - SKILL/README 更新记忆格式说明。
 
 ## Capabilities

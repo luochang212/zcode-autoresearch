@@ -17,7 +17,7 @@
 - 每个数据事件（stdout/stderr 共用 handler）先过扫描器再入累积器。
 - **METRIC 扫描器**：行携带缓冲（`carry`，无换行时上限 64KB 防病态长行），完整行以 `METRIC ` 前缀预筛后推入 `metricLines`（上限 1000 行）。溢出与否都扫，每行恰好一次。
 - **尾部环**：`tail` 保存最近 64KB（Buffer 数组 + 字节数，超限从头丢弃），供 `output_tail` 显示。
-- **累积器**：未溢出时照旧全量 `chunks`（≤2MB+一个 chunk）；溢出触发后 `chunks` 清空，后续事件**立即 appendFileSync 到溢出文件**（不再驻留内存）——内存从触发点起有界。
+- **累积器**：未溢出时照旧全量 `chunks`（≤2MB+一个 chunk）；溢出触发后 `chunks` 清空，后续事件**立即 appendFileSync 到溢出文件**（不再驻留内存），内存从触发点起有界。
 - `RunOutcome` 拆分：`output`（度量解析用：未溢出=全量，溢出=`metricLines.join("\n")`）与 `outputTail`（显示用：未溢出=全量，溢出=尾部环）。调用方 `truncateTail(last.outputTail)`、`parseMetricLines(last.output)`。
 
 不采用"溢出后重读文件再解析"：文件可能巨大（GB 级），重读浪费且延迟不可控。
@@ -28,7 +28,7 @@
 
 ## D4 init 拒绝非 git 研究目录
 
-`toolInitExperiment` 参数校验后加 `isGitRepo(cwd)` 前置检查，返回明确错误。workingDir 场景检查的是研究目录（与后续 git 操作同一 cwd）。noop/discard 的 rollback 在非 git 下会 throw，由 dispatch 的 try/catch 转 RPC 错误——前置拒绝后该路径不可达，无需另改。
+`toolInitExperiment` 参数校验后加 `isGitRepo(cwd)` 前置检查，返回明确错误。workingDir 场景检查的是研究目录（与后续 git 操作同一 cwd）。noop/discard 的 rollback 在非 git 下会 throw，由 dispatch 的 try/catch 转 RPC 错误。前置拒绝后该路径不可达，无需另改。
 
 ## D5 dashboard live server 容错
 
@@ -37,7 +37,7 @@
 
 ## D6 repeat>1 metrics 聚合
 
-现状 `metrics: runs[0]?.metrics`（第一次运行的字典）与 `metric: medianMetric` 来源不一致，次级度量约束的基线因此失真。改为对全部 run 的 metrics 按名取中位数聚合（出现于任一次即入并集，取其中有限值的中位数），主度量不特殊化——主度量中位数=字典聚合的特例，天然一致。
+现状 `metrics: runs[0]?.metrics`（第一次运行的字典）与 `metric: medianMetric` 来源不一致，次级度量约束的基线因此失真。改为对全部 run 的 metrics 按名取中位数聚合（出现于任一次即入并集，取其中有限值的中位数），主度量不特殊化，主度量中位数=字典聚合的特例，天然一致。
 
 ## D7 noop 连败语义（对齐 guardrails 主规范）
 
@@ -49,7 +49,7 @@
 
 ## D8 crash 续跑门禁的 isDirty 口径
 
-主规范 scenario 已写明"工作区有改动（除 `.auto/`）"，代码 `isDirty` 是裸 `git status --porcelain`——crash 记账本身弄脏 `.auto/log.jsonl`，导致 crash 后续跑被永久阻断（未 gitignore `.auto` 的项目必现）。修法：`isDirty` 改 `git status --porcelain -- . ':(exclude).auto'`（与 `commitExperiment` 的排除口径一致）。纯实现修正，规范不动。
+主规范 scenario 已写明"工作区有改动（除 `.auto/`）"，代码 `isDirty` 是裸 `git status --porcelain`，crash 记账本身弄脏 `.auto/log.jsonl`，导致 crash 后续跑被永久阻断（未 gitignore `.auto` 的项目必现）。修法：`isDirty` 改 `git status --porcelain -- . ':(exclude).auto'`（与 `commitExperiment` 的排除口径一致）。纯实现修正，规范不动。
 
 ## D9 漂移删除文案
 

@@ -6,7 +6,7 @@
 
 ### Requirement: init_experiment 建立实验会话
 
-`init_experiment` 工具 SHALL 接受会话名、主度量名、可选度量单位与方向（lower/higher，默认 lower），并在 `.auto/log.jsonl` 追加一条 config 记录；重复调用时 SHALL 递增 segment，使新目标的数据不污染旧 baseline。当 `.auto/config.json` 含 `workingDir` 时，工具 SHALL 将该目录解析为**研究目录**：此后 init/run/log、git 操作、迭代钩子与 dashboard 全部作用于该目录（config 文件本身留在项目目录）。工具 SHALL 将**冻结文件哈希**写入 `.auto/config.json` 的 `benchmarkHashes`（`measure.sh` 与 `checks.sh` 存在时的 sha256；文件不存在时为 null，"首见即基准"——首次运行时记录）；config 账本记录本身 SHALL NOT 包含哈希（账本 append-only，无法回填首见值）。研究目录不是 git 仓库时，工具 SHALL 拒绝初始化并返回明确错误；是 git 仓库但没有任何 commit（unborn HEAD）时，工具 SHALL 同样拒绝并提示先提交 baseline（实验循环的 keep/discard 依赖 git 提交与回滚语义，空仓库上的首次回滚必然失败）。初始化 SHALL 清除 `autoresearchOff` 标记，使显式新建/重开实验会话即恢复续跑语义。
+`init_experiment` 工具 SHALL 接受会话名、主度量名、可选度量单位与方向（lower/higher，默认 lower），并在 `.auto/log.jsonl` 追加一条 config 记录；重复调用时 SHALL 递增 segment，使新目标的数据不污染旧 baseline。当 `.auto/config.json` 含 `workingDir` 时，工具 SHALL 将该目录解析为**研究目录**：此后 init/run/log、git 操作、迭代钩子与 dashboard 全部作用于该目录（config 文件本身留在项目目录）。工具 SHALL 将**冻结文件哈希**写入 `.auto/config.json` 的 `benchmarkHashes`（`measure.sh` 与 `checks.sh` 存在时的 sha256；文件不存在时为 null，遵循"首见即基准"，在首次运行时记录）；config 账本记录本身 SHALL NOT 包含哈希（账本 append-only，无法回填首见值）。研究目录不是 git 仓库时，工具 SHALL 拒绝初始化并返回明确错误；是 git 仓库但没有任何 commit（unborn HEAD）时，工具 SHALL 同样拒绝并提示先提交 baseline（实验循环的 keep/discard 依赖 git 提交与回滚语义，空仓库上的首次回滚必然失败）。初始化 SHALL 清除 `autoresearchOff` 标记，使显式新建/重开实验会话即恢复续跑语义。
 
 #### Scenario: 首次初始化
 
@@ -35,7 +35,7 @@
 
 ### Requirement: run_experiment 运行基准并解析度量
 
-`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB），同时提供完整输出的日志文件路径。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行——增量扫描全部输出、与 METRIC 行在输出中的位置（开头/结尾）无关——`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"before", cwd, next_run, last_run, session}`，其中 `last_run` SHALL 透传上一条 run 的 `{run, status, metric, description, asi}`（无上轮或无 asi 时为 null）；`session` SHALL 含 `{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`——`started_at_epoch` 为 segment 起始时刻的 epoch 秒（账本无 config 行时为 null），使墙钟预算类钩子无需解析 `.auto/log.jsonl` 即可判定预算；`goal` 为 `init_experiment` 设定的会话名（账本无 config 行或未设名时为 null），与 pi-autoresearch 的 session 契约对齐；钩子失败（非零退出/超时/启动失败）SHALL 不阻断基准执行，但 SHALL 以 `before_steer` 返回错误提示（形如 `[before hook exited N] <stderr 摘要>` 或 `[before hook timed out after 30s]`）；每次触发 SHALL 向 `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", exit_code, duration_ms, stdout_bytes, timed_out}` 观测条目。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"——文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
+`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB），同时提供完整输出的日志文件路径。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行，解析为增量扫描全部输出，与 METRIC 行在输出中的位置（开头/结尾）无关，`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"before", cwd, next_run, last_run, session}`，其中 `last_run` SHALL 透传上一条 run 的 `{run, status, metric, description, asi}`（无上轮或无 asi 时为 null）；`session` SHALL 含 `{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`，其中 `started_at_epoch` 为 segment 起始时刻的 epoch 秒（账本无 config 行时为 null），使墙钟预算类钩子无需解析 `.auto/log.jsonl` 即可判定预算；`goal` 为 `init_experiment` 设定的会话名（账本无 config 行或未设名时为 null），与 pi-autoresearch 的 session 契约对齐；钩子失败（非零退出/超时/启动失败）SHALL 不阻断基准执行，但 SHALL 以 `before_steer` 返回错误提示（形如 `[before hook exited N] <stderr 摘要>` 或 `[before hook timed out after 30s]`）；每次触发 SHALL 向 `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", exit_code, duration_ms, stdout_bytes, timed_out}` 观测条目。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"。文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
 
 #### Scenario: 漂移警告
 
@@ -100,7 +100,7 @@
 #### Scenario: session 携带会话名（pi 契约）
 
 - **WHEN** `.auto/hooks/before.sh` 从 stdin 读取 `session.goal`，且 `init_experiment` 以 name 设定会话名
-- **THEN** 值为该会话名；未设定时为 null——pi-autoresearch 官方示例钩子（读 `.session.goal`）无需修改即可运行
+- **THEN** 值为该会话名；未设定时为 null，pi-autoresearch 官方示例钩子（读 `.session.goal`）无需修改即可运行
 
 #### Scenario: 钩子失败可见且不阻断
 
@@ -248,7 +248,7 @@
 
 ### Requirement: log_experiment 提示重访假设失效的 discard
 
-当前 segment 的账本中存在 status 为 discard 或 checks_failed 且 `asi.rollback` 非空的行时，`log_experiment` 工具 SHALL 在返回中包含 `revisit_nudge` 字段：固定提问文案，要求 agent 在选择下一实验前，先判断最新结果或发现是否推翻了某条 discard 的 rollback 理由——若推翻，SHALL 说明改变了什么，并把针对该 discard 的定向重试与其他候选一起权衡（重试时可通过 `asi.revisits_run: <run 号>` 标注来源，且在 description 中记录所依据的变化）；若未推翻，SHALL 跳过继续。无 discard/checks_failed 行、或此类行均无 `asi.rollback` 理由时，返回 SHALL 省略该字段。该信号为 advisory（提示性），不构成硬校验：`asi.revisits_run` 指向不存在的 run 号时不拒绝写入，账本照实透传。
+当前 segment 的账本中存在 status 为 discard 或 checks_failed 且 `asi.rollback` 非空的行时，`log_experiment` 工具 SHALL 在返回中包含 `revisit_nudge` 字段：固定提问文案，要求 agent 在选择下一实验前，先判断最新结果或发现是否推翻了某条 discard 的 rollback 理由。若推翻，SHALL 说明改变了什么，并把针对该 discard 的定向重试与其他候选一起权衡（重试时可通过 `asi.revisits_run: <run 号>` 标注来源，且在 description 中记录所依据的变化）；若未推翻，SHALL 跳过继续。无 discard/checks_failed 行、或此类行均无 `asi.rollback` 理由时，返回 SHALL 省略该字段。该信号为 advisory（提示性），不构成硬校验：`asi.revisits_run` 指向不存在的 run 号时不拒绝写入，账本照实透传。
 
 #### Scenario: 存在带理由的 discard 行时返回重访提示
 
@@ -286,7 +286,7 @@
 
 ### Requirement: finalize 将保留实验整理为独立分支
 
-`/autoresearch:finalize` 命令 SHALL 引导 agent 把账本中的 kept 实验按文件依赖分组，并通过 `scripts/finalize.sh` 从基线为每组创建独立分支（`autoresearch/<goal>/NN-<slug>`）。脚本 SHALL 以**增量口径**计算各组文件集：第 i 组的文件集为 `git diff --name-status <上一组 last_commit 或 merge-base> <本组 last_commit>`（剔除会话文件），查重校验与分支构造 SHALL 复用同一增量集合，故第 N 个分支只含本组改动。组内 status=D 的文件 SHALL 以删除语义落入分支（`git rm`），不得因 pathspec 错误失败。脚本 SHALL 验证各分支文件并集与原分支一致（剔除会话文件）；构造阶段的任何失败（含分支名冲突、verify 失败）SHALL 触发完整回滚——先恢复原分支再删除本次已建分支——不产生残留分支，修复输入后可立即重跑。`groups.json` 路径 SHALL 支持裸相对路径（相对调用者 cwd），解析经参数传递而非字符串插值，不受路径中引号影响；文件名含空格 SHALL 被正确处理（NUL 分隔枚举 + 整行比对）。
+`/autoresearch:finalize` 命令 SHALL 引导 agent 把账本中的 kept 实验按文件依赖分组，并通过 `scripts/finalize.sh` 从基线为每组创建独立分支（`autoresearch/<goal>/NN-<slug>`）。脚本 SHALL 以**增量口径**计算各组文件集：第 i 组的文件集为 `git diff --name-status <上一组 last_commit 或 merge-base> <本组 last_commit>`（剔除会话文件），查重校验与分支构造 SHALL 复用同一增量集合，故第 N 个分支只含本组改动。组内 status=D 的文件 SHALL 以删除语义落入分支（`git rm`），不得因 pathspec 错误失败。脚本 SHALL 验证各分支文件并集与原分支一致（剔除会话文件）；构造阶段的任何失败（含分支名冲突、verify 失败）SHALL 触发完整回滚，先恢复原分支再删除本次已建分支，不产生残留分支，修复输入后可立即重跑。`groups.json` 路径 SHALL 支持裸相对路径（相对调用者 cwd），解析经参数传递而非字符串插值，不受路径中引号影响；文件名含空格 SHALL 被正确处理（NUL 分隔枚举 + 整行比对）。
 
 #### Scenario: 分组整理
 
@@ -360,7 +360,7 @@ doom-loop 检测 SHALL 将 `asi.infra === true` 的 run 行排除在检测窗口
 
 ### Requirement: harness 编辑步与经验库资产
 
-插件技能 SHALL 定义 **harness 编辑步**（advisory，二阶循环）：在 plateau、doom_loop、连续失败达到阈值、固定间隔（约 8 轮）或 segment 收尾时触发；触发后 SHALL 先写**编辑行**再动手——每行 `{component, change, observed, verdict}`，verdict SHALL 取 helped / hurt / no observed effect / confounded 之一，一次改动涉及多个组件且无执行可隔离归因时 SHALL 优先标 confounded（一行发明归因毒害整个经验库）。编辑 SHALL 遵循 KEEP_BASE 纪律：证据不支持的编辑 SHALL 不做（无编辑是合法结局）；可编辑面 SHALL 限于 `prompt.md` 表层区块（不得改写对 goal.md 与 scope.md 的逐字引用）、`ideas.md`、`.auto/hooks/` 配置与 repeat/segment 决策参数；`.auto/goal.md`、`.auto/scope.md` 与 measure.sh/checks.sh SHALL 不可编辑（范围边界的扩大或收窄不经编辑步：须由用户手改 scope.md 或 `init_experiment` 开新 segment）。表层目标的实质更换（更换度量代理或优化对象）SHALL 同样不经编辑步完成，而 SHALL 经 `init_experiment` 开新 segment。
+插件技能 SHALL 定义 **harness 编辑步**（advisory，二阶循环）：在 plateau、doom_loop、连续失败达到阈值、固定间隔（约 8 轮）或 segment 收尾时触发；触发后 SHALL 先写**编辑行**再动手，每行 `{component, change, observed, verdict}`，verdict SHALL 取 helped / hurt / no observed effect / confounded 之一，一次改动涉及多个组件且无执行可隔离归因时 SHALL 优先标 confounded（一行发明归因毒害整个经验库）。编辑 SHALL 遵循 KEEP_BASE 纪律：证据不支持的编辑 SHALL 不做（无编辑是合法结局）；可编辑面 SHALL 限于 `prompt.md` 表层区块（不得改写对 goal.md 与 scope.md 的逐字引用）、`ideas.md`、`.auto/hooks/` 配置与 repeat/segment 决策参数；`.auto/goal.md`、`.auto/scope.md` 与 measure.sh/checks.sh SHALL 不可编辑（范围边界的扩大或收窄不经编辑步：须由用户手改 scope.md 或 `init_experiment` 开新 segment）。表层目标的实质更换（更换度量代理或优化对象）SHALL 同样不经编辑步完成，而 SHALL 经 `init_experiment` 开新 segment。
 
 插件 SHALL 定义 `.auto/experience.md` 为跨 segment 经验库：每个 segment 至多追加一条 lesson（`{cue, lesson, evidence, confidence}`），`cue` SHALL 描述模式适用的情境形状（非本任务事实），`lesson` SHALL 是可执行可检验的操作且指名组件，`evidence` SHALL 引用账本 run 号或编辑行；无具体可复用的行为对比时 SHALL 写 `NO_ENTRY` 而非编造。写作指引 SHALL 区分三类内容：workspace fact（本次验证的事实，标注仅此处成立）、procedure（可迁移操作）、too generic（禁止入库）。setup-guide SHALL 定义 `.auto/goal.md`（用户深层目标逐字原文）、`.auto/scope.md`（用户同意的 Files-in-scope 与 Off-Limits 原文）及 `prompt.md` 目标段、范围段对二者的逐字引用关系。`experience.md` SHALL 跨 segment 存活（clear 保留）；`/autoresearch:finalize` SHALL 在清理会话目录前与用户人审 `experience.md` 并把幸存 lesson 并入项目 AGENTS.md，删除 `.auto/` 的清理 SHALL 在该步骤完成后执行；跨项目复用旧 lesson 时 SHALL 按假设对待、重新验证。
 
@@ -462,7 +462,7 @@ doom-loop 检测 SHALL 将 `asi.infra === true` 的 run 行排除在检测窗口
 
 ### Requirement: harness 留痕（强制记账）
 
-harness 可编辑面（`.auto/prompt.md`、`.auto/ideas.md`、`.auto/experience.md`、`.auto/hooks/before.sh`、`.auto/hooks/after.sh`）的任何磁盘变更 SHALL 在账本留痕，不经 agent 自觉：`init_experiment` SHALL 记录可编辑面哈希基线（session config `harnessHashes`）；`run_experiment`、`log_experiment`、`export_dashboard` SHALL 在执行前对账，哈希相对基线变化的文件各追加一行 `{type:"harness_edit", ts, segment, file, digest_before, digest_after}` 并刷新基线。无基线的旧会话 SHALL 静默补基线、不追溯行。`.auto/config.json` 不在留痕集合内。留痕行 SHALL 只记机械事实（谁动了什么、何时），不承载归因——verdict 仍由编辑行与 experience.md 的 advisory 规程负责。
+harness 可编辑面（`.auto/prompt.md`、`.auto/ideas.md`、`.auto/experience.md`、`.auto/hooks/before.sh`、`.auto/hooks/after.sh`）的任何磁盘变更 SHALL 在账本留痕，不经 agent 自觉：`init_experiment` SHALL 记录可编辑面哈希基线（session config `harnessHashes`）；`run_experiment`、`log_experiment`、`export_dashboard` SHALL 在执行前对账，哈希相对基线变化的文件各追加一行 `{type:"harness_edit", ts, segment, file, digest_before, digest_after}` 并刷新基线。无基线的旧会话 SHALL 静默补基线、不追溯行。`.auto/config.json` 不在留痕集合内。留痕行 SHALL 只记机械事实（谁动了什么、何时），不承载归因，verdict 仍由编辑行与 experience.md 的 advisory 规程负责。
 
 #### Scenario: 编辑后 log_experiment 留痕
 

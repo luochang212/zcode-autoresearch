@@ -3,7 +3,7 @@
 ## 1. 信号层（工具）
 
 - [x] 1.1 `plugin/mcp/lib/experiment.ts`：`detectDoomLoop` 入口剔除 `asi.infra === true` 的 run 行（先剔除再取末窗），更新 JSDoc 说明 infra 语义。验证：`cd plugin && node --test tests/experiment.test.ts`
-- [x] 1.2 `plugin/tests/experiment.test.ts`：新增断言——(a) 同假设反复 crash 且均 `asi.infra: true` 不触发；(b) 剔除 infra 行后 3 连相似仍触发；(c) A→B→A→B 非 infra 行为不变。验证：同上全绿
+- [x] 1.2 `plugin/tests/experiment.test.ts`：新增断言，覆盖 (a) 同假设反复 crash 且均 `asi.infra: true` 不触发；(b) 剔除 infra 行后 3 连相似仍触发；(c) A→B→A→B 非 infra 行为不变。验证：同上全绿
 - [x] 1.3 `plugin/mcp/server.ts`：doom-loop 分支的 `next_action_hint` 文案加入「先做一轮调研（重读 prompt.md 的 What's Been Tried/相关文档/近失实验）再换结构性不同方向」。验证：`node --test tests/` 相关用例全绿
 
 ## 2. 规程层（SKILL.md）

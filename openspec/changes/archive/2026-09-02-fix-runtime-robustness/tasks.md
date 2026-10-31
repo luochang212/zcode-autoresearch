@@ -2,7 +2,7 @@
 
 ## 1. 超时升级兜底（D1）
 
-- [x] 1.1 回归测试先行（红）：`plugin/tests/mcp-integration.test.ts`——`trap '' TERM` + 长睡眠的 measure.sh，`timeout_seconds: 1` 调用 run_experiment，断言调用在宽限期（SIGTERM+5s）内返回、`timed_out: true`、无残留基准进程（pgrep 兜底 try/catch）
+- [x] 1.1 回归测试先行（红）：`plugin/tests/mcp-integration.test.ts`，用 `trap '' TERM` + 长睡眠的 measure.sh，`timeout_seconds: 1` 调用 run_experiment，断言调用在宽限期（SIGTERM+5s）内返回、`timed_out: true`、无残留基准进程（pgrep 兜底 try/catch）
 - [x] 1.2 `plugin/mcp/server.ts`：`runCommand` 超时路径加 SIGTERM→5s→SIGKILL（进程组）升级，`close` 清理升级定时器
 
 ## 2. 溢出度量恢复与有界内存（D2）
@@ -32,12 +32,12 @@
 
 ## 7. noop 连败语义（D7）
 
-- [x] 7.1 单测先行（红）：`plugin/tests/experiment.test.ts`——isStopReached [d,c,n] 与 [d,c,n,d] 不停、[d,c,d] 停；`plugin/tests/ledger.test.ts`——rebuildState 连败计数同语义
+- [x] 7.1 单测先行（红）：`plugin/tests/experiment.test.ts` 验证 isStopReached [d,c,n] 与 [d,c,n,d] 不停、[d,c,d] 停；`plugin/tests/ledger.test.ts` 验证 rebuildState 连败计数同语义
 - [x] 7.2 `plugin/mcp/lib/experiment.ts`：`isStopReached` 改尾部连续失败段判定；`plugin/mcp/lib/ledger.ts`：`rebuildState` noop 归零连败链
 
 ## 8. isDirty 排除 .auto + 漂移删除文案（D8/D9）
 
-- [x] 8.1 单测先行（红）：`plugin/tests/git.test.ts`——仅 `.auto/` 下改动 isDirty=false、真实文件改动 true；mcp 集成：crash 记账后（工作区仅账本变动）续跑不被拒
+- [x] 8.1 单测先行（红）：`plugin/tests/git.test.ts`，仅 `.auto/` 下改动 isDirty=false、真实文件改动 true；mcp 集成：crash 记账后（工作区仅账本变动）续跑不被拒
 - [x] 8.2 `plugin/mcp/lib/git.ts`：`isDirty` pathspec 排除 `.auto`
 - [x] 8.3 `plugin/mcp/server.ts`：driftWarn 区分 deleted/modified 文案
 

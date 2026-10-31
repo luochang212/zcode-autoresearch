@@ -8,7 +8,7 @@
 
 ## 2. 规程与文档
 
-- [x] 2.1 `plugin/skills/autoresearch/references/setup-guide.md`：第 2/4/5 步措辞对齐——创建是合法动作，冻结自文件落盘起生效
+- [x] 2.1 `plugin/skills/autoresearch/references/setup-guide.md`：第 2/4/5 步措辞对齐，创建是合法动作，冻结自文件落盘起生效
 - [x] 2.2 `plugin/README.md` / `plugin/README_CN.md`：写保护行改「改写拒绝 / setup 创建放行」
 
 ## 3. 全量验证

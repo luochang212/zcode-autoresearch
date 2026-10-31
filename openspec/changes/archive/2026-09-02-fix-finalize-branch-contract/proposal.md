@@ -26,10 +26,10 @@ worth-fix 实测审计（复现脚本 `archived/worth-fix/repro.sh`，2026-09-02
 
 ### Modified Capabilities
 
-- `autoresearch/experiment-loop`: 「finalize 将保留实验整理为独立分支」requirement 修正——明确各组文件集统一为增量口径（构造与查重同一集合）、删除文件正确落分支、失败回滚无残留可立即重跑、groups.json 路径与含空格文件名的处理契约。
+- `autoresearch/experiment-loop`: 「finalize 将保留实验整理为独立分支」requirement 修正，明确各组文件集统一为增量口径（构造与查重同一集合）、删除文件正确落分支、失败回滚无残留可立即重跑、groups.json 路径与含空格文件名的处理契约。
 
 ## Impact
 
 - `plugin/scripts/finalize.sh`：上述五项修复（唯一行为变更文件）。
-- `plugin/tests/finalize.test.ts`：新增回归测试——N=2 组第二分支只含本组文件、含删除文件的组成功、失败回滚无残留可重跑、含空格文件名、裸相对路径 groups.json。
+- `plugin/tests/finalize.test.ts`：新增回归测试，覆盖 N=2 组第二分支只含本组文件、含删除文件的组成功、失败回滚无残留可重跑、含空格文件名、裸相对路径 groups.json。
 - 兼容性：修复收紧行为（分支不再混入前序组文件、失败清理更彻底），不改变成功路径的对外产物格式（分支命名、commit 结构、verify 语义不变）。

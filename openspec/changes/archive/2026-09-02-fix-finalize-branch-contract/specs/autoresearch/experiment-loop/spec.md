@@ -2,7 +2,7 @@
 
 ### Requirement: finalize 将保留实验整理为独立分支
 
-`/autoresearch:finalize` 命令 SHALL 引导 agent 把账本中的 kept 实验按文件依赖分组，并通过 `scripts/finalize.sh` 从基线为每组创建独立分支（`autoresearch/<goal>/NN-<slug>`）。脚本 SHALL 以**增量口径**计算各组文件集：第 i 组的文件集为 `git diff --name-status <上一组 last_commit 或 merge-base> <本组 last_commit>`（剔除会话文件），查重校验与分支构造 SHALL 复用同一增量集合，故第 N 个分支只含本组改动。组内 status=D 的文件 SHALL 以删除语义落入分支（`git rm`），不得因 pathspec 错误失败。脚本 SHALL 验证各分支文件并集与原分支一致（剔除会话文件）；构造阶段的任何失败（含分支名冲突、verify 失败）SHALL 触发完整回滚——先恢复原分支再删除本次已建分支——不产生残留分支，修复输入后可立即重跑。`groups.json` 路径 SHALL 支持裸相对路径（相对调用者 cwd），解析经参数传递而非字符串插值，不受路径中引号影响；文件名含空格 SHALL 被正确处理（NUL 分隔枚举 + 整行比对）。
+`/autoresearch:finalize` 命令 SHALL 引导 agent 把账本中的 kept 实验按文件依赖分组，并通过 `scripts/finalize.sh` 从基线为每组创建独立分支（`autoresearch/<goal>/NN-<slug>`）。脚本 SHALL 以**增量口径**计算各组文件集：第 i 组的文件集为 `git diff --name-status <上一组 last_commit 或 merge-base> <本组 last_commit>`（剔除会话文件），查重校验与分支构造 SHALL 复用同一增量集合，故第 N 个分支只含本组改动。组内 status=D 的文件 SHALL 以删除语义落入分支（`git rm`），不得因 pathspec 错误失败。脚本 SHALL 验证各分支文件并集与原分支一致（剔除会话文件）；构造阶段的任何失败（含分支名冲突、verify 失败）SHALL 触发完整回滚，先恢复原分支再删除本次已建分支，不产生残留分支，修复输入后可立即重跑。`groups.json` 路径 SHALL 支持裸相对路径（相对调用者 cwd），解析经参数传递而非字符串插值，不受路径中引号影响；文件名含空格 SHALL 被正确处理（NUL 分隔枚举 + 整行比对）。
 
 #### Scenario: 分组整理
 

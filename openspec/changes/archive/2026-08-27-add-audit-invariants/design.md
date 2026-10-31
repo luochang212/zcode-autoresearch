@@ -12,7 +12,7 @@
 
 **Non-Goals:**
 
-- 不引入 target/complete/terminal 事件（leo 全套状态机超出需要——我们无 target 概念）。
+- 不引入 target/complete/terminal 事件（leo 全套状态机超出需要，我们无 target 概念）。
 - 不做价值/意图判断（只对账，不裁判"值不值得"）。
 - 不改账本格式与既有工具行为（纯增量校验层）。
 
@@ -30,7 +30,7 @@
 **2. server 接线：**
 
 - `log_experiment`：构造拟追加 run 行 → `validateLedger(现有 runs + 拟追加行, config)` → 有违规拒收（返回 `{ok:false, error: "audit: <violation>"}`）→ 无违规才执行 git 操作与落盘。
-- `run_experiment`：开始前查上一条 run——status 为 crash 且 `isDirty(cwd)`（工作区脏，.auto 豁免在 isDirty 判定中）→ 拒绝。
+- `run_experiment`：开始前查上一条 run，status 为 crash 且 `isDirty(cwd)`（工作区脏，.auto 豁免在 isDirty 判定中）→ 拒绝。
 - keep 后 `shortHash` 回填即天然 HEAD 一致（commitExperiment 返回实际 hash），无需额外 git 校验。
 
 **3. 人工解锁出口（副作用缓解）：** 违规时错误信息给出修正路径（如"改用 discard"、"说明 checks 失败"、"先 clear_experiments"）；`.auto/config.json` 的 `auditBypass: true` 可跳过校验（显式用户决策，文档警示）。避免 leo 式卡死。

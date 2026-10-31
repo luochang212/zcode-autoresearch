@@ -1,7 +1,7 @@
 ## 1. validateLedger 纯函数
 
 - [x] 1.1 实现 lib/validate.mjs：validateLedger(runs, config) 返回违规列表（keep_without_improvement / discarded_improvement / event_order / missing_baseline / commit_field）
-- [x] 1.2 单元测试：合法序列零违规；对抗用例——keep 无改进、discard 真改进无 guard、跳号、无 baseline、keep 无 commit / 非 keep 有 commit、noop 语义
+- [x] 1.2 单元测试：合法序列零违规；对抗用例，覆盖 keep 无改进、discard 真改进无 guard、跳号、无 baseline、keep 无 commit / 非 keep 有 commit、noop 语义
 
 ## 2. server 接线
 

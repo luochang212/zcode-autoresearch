@@ -24,7 +24,7 @@
 ## 5. 文档
 
 - [x] 5.1 `plugin/README.md` / `plugin/README_CN.md`：账本行清单补 harness_edit/frozen_attempt，护栏段补「可编辑面强制记账」
-- [x] 5.2 SKILL/loop-protocol 若干（编辑步一节提一句留痕为机械保证）——仅在无争议处补一句，不重写规程
+- [x] 5.2 SKILL/loop-protocol 若干（编辑步一节提一句留痕为机械保证），仅在无争议处补一句，不重写规程
 
 ## 6. 收口
 

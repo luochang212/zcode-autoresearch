@@ -26,13 +26,13 @@
   - **连续重复**：最近 3 条规范化后相同（或互相包含）→ `{doomLoop: true, pattern: 'repeat'}`。
   - **震荡**：最近 4 条成 [X,Y,X,Y]（规范化后 X==X、Y==Y 且 X≠Y）→ `{doomLoop: true, pattern: 'oscillate'}`。
   - 否则 null。
-    备选（词频/embedding 相似度）——放弃：成本与不确定性，文本层够用。
+    备选（词频/embedding 相似度），放弃：成本与不确定性，文本层够用。
 
 **2. 方向标签提炼 = description 首段/asi.hypothesis 截断：** `directionLabel(run)`：优先 asi.hypothesis，其次 description，取首个逗号/句号/分号前的片段（≤40 字符），空则用 status。聚合时去重（规范化后相同视为同一方向）。
 
 **3. 聚合摘要格式（memory-inject）：** 单块文本：进度行（segment/metric/direction/run/limit/baseline/best）→ 已尝试方向（去重列表，≤8 个）→ best 轨迹（baseline → 各 keep 的 metric，≤6 步）→ 最近 3 条（含 ASI 提炼）→ doom-loop 提示（若有）→ 下一步。
 
-**4. 信号分布：** `detectDoomLoop` 供三处复用——`log_experiment` 返回 `doom_loop` + hint；`memory-inject` 注入提示；`stop-continue` reason 提示。均为 advisory（不硬停，保持决策权在 agent/用户）。
+**4. 信号分布：** `detectDoomLoop` 供三处复用：`log_experiment` 返回 `doom_loop` + hint；`memory-inject` 注入提示；`stop-continue` reason 提示。均为 advisory（不硬停，保持决策权在 agent/用户）。
 
 ## Risks / Trade-offs
 

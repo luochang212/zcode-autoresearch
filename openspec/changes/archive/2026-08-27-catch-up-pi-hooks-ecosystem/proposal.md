@@ -1,6 +1,6 @@
 ## Why
 
-差距矩阵（`docs/research/pi-gap-analysis.md`）最后一个可追平项 #26：pi 的钩子生态（教学 skill + 10 个开箱即用示例）。我们已有钩子**机制**（M1：before/after 执行 + 契约），但缺**生态**——用户要写钩子得自己从零琢磨。补上教学 skill 与示例脚本，让"抄着就能用"。
+差距矩阵（`docs/research/pi-gap-analysis.md`）最后一个可追平项 #26：pi 的钩子生态（教学 skill + 10 个开箱即用示例）。我们已有钩子**机制**（M1：before/after 执行 + 契约），但缺**生态**，用户要写钩子得自己从零琢磨。补上教学 skill 与示例脚本，让"抄着就能用"。
 
 ## What Changes
 

@@ -19,12 +19,12 @@
 
 ## Decisions
 
-### D1: checks 门禁对齐 pi——「待记录」状态持久化 + 账本审计轨迹
+### D1: checks 门禁对齐 pi（「待记录」状态持久化 + 账本审计轨迹）
 
-原实现（`server.ts` keep 门禁读 `rebuildState` 的 `lastRunChecksFailed`）是死代码的根因：账本只在 `log_experiment` 时写行，门禁评估时「本轮刚跑完、尚未记录」的 checks 结果根本不在账本里；且即使 agent 诚实记 `checks_failed`，基于账本的门禁会把**恢复性 keep**（修复后重跑通过的那次）也误杀——上一轮记录永远是 checks_failed。pi 的做法（`runtime.lastRunChecks`：`run_experiment` 写运行时状态、`log_experiment` 门禁读它、记录后清除）是唯一自洽的语义，本设计对齐之，并做两处适配：
+原实现（`server.ts` keep 门禁读 `rebuildState` 的 `lastRunChecksFailed`）是死代码的根因：账本只在 `log_experiment` 时写行，门禁评估时「本轮刚跑完、尚未记录」的 checks 结果根本不在账本里；且即使 agent 诚实记 `checks_failed`，基于账本的门禁会把**恢复性 keep**（修复后重跑通过的那次）也误杀，上一轮记录永远是 checks_failed。pi 的做法（`runtime.lastRunChecks`：`run_experiment` 写运行时状态、`log_experiment` 门禁读它、记录后清除）是唯一自洽的语义，本设计对齐之，并做两处适配：
 
 - **落盘而非内存**：`run_experiment` 把 checks 结果写 `.auto/config.json` 的 `pendingChecksFailed`（true 仅当 checks 跑了且失败），抗 MCP server 中途重启；与 `benchmarkHashes` 同为 server 托管键。`log_experiment` 任意 status 成功记录后清除；`init_experiment`/`clear_experiments` 重置。
-- **账本仍留审计轨迹**：`log_experiment` 以 `status=checks_failed` 记录时写 `checksFailed: true`；`rebuildState` 的 `lastRunChecksFailed` 改每 run 覆盖（`run.checksFailed === true || run.status === "checks_failed"`）——修单向闩锁，语义归位为「最近一条账本 run 是否 checks 失败」，供记忆注入/状态展示使用，**不再参与 keep 门禁**。
+- **账本仍留审计轨迹**：`log_experiment` 以 `status=checks_failed` 记录时写 `checksFailed: true`；`rebuildState` 的 `lastRunChecksFailed` 改每 run 覆盖（`run.checksFailed === true || run.status === "checks_failed"`）以修单向闩锁，语义归位为「最近一条账本 run 是否 checks 失败」，供记忆注入/状态展示使用，**不再参与 keep 门禁**。
 
 替代方案「纯账本门禁 + 每 run 覆盖」被否：恢复性 keep（checks_failed 行之后的第一条 keep）必然被拒，与「闩锁复位后放行」的验收场景直接冲突。
 
@@ -34,7 +34,7 @@
 
 - 为什么白名单：黑名单已被证明枚举不全（换行、`>`、反引号、引号、`$`、`~`、glob 都是面）。shell 注入面无法枚举完，白名单是唯一可论证完备的方案。
 - 注意 `\s` 不能用：`\s` 含 `\n`/`\r`，白名单必须显式 `[ \t]`。
-- 代价：带引号的参数（`--name="a b"`）会被拒——可接受，benchmark 参数应是简单 token，复杂参数属于 measure.sh 内部。
+- 代价：带引号的参数（`--name="a b"`）会被拒，这可接受，benchmark 参数应是简单 token，复杂参数属于 measure.sh 内部。
 
 ### D3: 漂移检测补齐按「记录值 × 当前值」四象限
 

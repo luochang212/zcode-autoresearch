@@ -17,7 +17,7 @@ init_experiment 与 run_experiment（只报有无，不要调用）。不做其�
 ```
 
 预期：创建成功；recurring 且 maxRuns=3（有界）；CronList 可见；任务绑定当前会话。
-（若创建时弹出权限确认，批准它——权限面是否放行 CronCreate 本身就是观察项之一。）
+（若创建时弹出权限确认，批准它，权限面是否放行 CronCreate 本身就是观察项之一。）
 
 ## Step 2：观察三次唤醒（验证 1.2 形态 + 1.3 防失控）
 
@@ -42,7 +42,7 @@ init_experiment 与 run_experiment（只报有无，不要调用）。不做其�
 4. init_experiment / run_experiment 在唤醒 turn 的可用工具里吗（有/无）？
 
 > 第 4 项决定 design D6 的「MCP 工具在 automation turn 可达性」结论。
-> 「Stop hook 是否在 automation turn 触发」列为第二阶段观察（影响每次唤醒跑 1 个还是 1+3 个实验；design D6 已注明两种结果均可用，不阻塞本门禁）——cron 通道验证通过后，在带活跃实验循环的会话里顺带观察。
+> 「Stop hook 是否在 automation turn 触发」列为第二阶段观察（影响每次唤醒跑 1 个还是 1+3 个实验；design D6 已注明两种结果均可用，不阻塞本门禁）。cron 通道验证通过后，在带活跃实验循环的会话里顺带观察。
 > E2E 失败（工具不可用 / 唤醒不触发 / automation turn 不可用）→ 按 tasks.md 1.4 终止 change 并回滚 ADR-7。
 
 ## 前提核验（agent 只读侦察，2026-09-24）

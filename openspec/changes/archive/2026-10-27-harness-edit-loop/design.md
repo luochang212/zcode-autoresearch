@@ -2,7 +2,7 @@
 
 ## Context
 
-- 一阶循环（改代码→跑基准→keep/discard）的 harness 在 init 时写死；账本证据无消费闭环。来源：Harness²（`archived/harness2/`，arXiv:2610.14224）——任务级 Propose–Probe–Compose 的**编辑行 verdict 纪律**与 harnessing 级经验库的 **{cue, lesson, evidence, confidence} 格式**直接借用。
+- 一阶循环（改代码→跑基准→keep/discard）的 harness 在 init 时写死；账本证据无消费闭环。来源：Harness²（`archived/harness2/`，arXiv:2610.14224）。任务级 Propose–Probe–Compose 的**编辑行 verdict 纪律**与 harnessing 级经验库的 **{cue, lesson, evidence, confidence} 格式**直接借用。
 - 用户第一设计条件：**根表分层**。深层目标（用户 init 时的原话意图）为根，不可变；表层目标（度量代理、章程措辞、方向池）为根的表示，可被证据驱动的编辑修订。harness 编辑步的权力边界由此划定。
 - 现有可复用基建：PreToolUse 写保护（`plugin/hooks/guard-frozen.ts` 的 FROZEN 集合）、advisory 信号（plateau/doom_loop/consecutiveFailures）、`.auto/` 豁免回滚、clear 保留清单（只删 log.jsonl）、finalize 命令（人审节点）。
 
@@ -24,11 +24,11 @@
 ## Decisions
 
 **D1：根表分层的机械边界 = 独立文件 + 既有写保护。**
-深层目标放独立 `.auto/goal.md`（setup 时逐字记录用户原话），加入 guard-frozen 的 FROZEN 集合——一行改动复用被验证的机制（ADR-5"能用代码表达的约束不放 Prompt"）。`prompt.md` 目标段 SHALL 逐字引用 goal.md：引用即审计（读 diff 即可核对根未被改写）。备选"prompt.md 受保护区块 + hash 比对"被否：区块内编辑检测要新代码且与既有机制重复；独立文件 + hook 零新逻辑。
-表层目标的**实质**更换（换度量代理、换优化对象）不经编辑步——那是新 segment（`init_experiment`）的事，冻结脚本不动，跨 segment 对表靠人的判断。
+深层目标放独立 `.auto/goal.md`（setup 时逐字记录用户原话），加入 guard-frozen 的 FROZEN 集合，一行改动复用被验证的机制（ADR-5"能用代码表达的约束不放 Prompt"）。`prompt.md` 目标段 SHALL 逐字引用 goal.md：引用即审计（读 diff 即可核对根未被改写）。备选"prompt.md 受保护区块 + hash 比对"被否：区块内编辑检测要新代码且与既有机制重复；独立文件 + hook 零新逻辑。
+表层目标的**实质**更换（换度量代理、换优化对象）不经编辑步，那是新 segment（`init_experiment`）的事，冻结脚本不动，跨 segment 对表靠人的判断。
 
 **D2：编辑行与 lesson 格式照搬 Harness² 纪律，verdict 四值、confounded 优先、NO_ENTRY。**
-理由：归因纪律是这套方法的命门——"被采纳"不等于"有效"，confounded 行是有用记录，编造归因毒害后续所有编辑。来源标注在 loop-protocol.md（archived/harness2/core/prompts.py experience 模板）。
+理由：归因纪律是这套方法的命门，"被采纳"不等于"有效"，confounded 行是有用记录，编造归因毒害后续所有编辑。来源标注在 loop-protocol.md（archived/harness2/core/prompts.py experience 模板）。
 
 **D3：触发走 advisory 信号 + 固定间隔，不做硬阻断。**
 plateau / doom_loop / 连续失败阈值（信号已在返回中）+ 每 ~8 轮 + segment 收尾。编辑步本身耗 token，固定间隔防高频空转。符合 ADR-5：决策权在 agent。
@@ -37,7 +37,7 @@ plateau / doom_loop / 连续失败阈值（信号已在返回中）+ 每 ~8 轮 
 八组件对应到本插件：system prompt=prompt.md、guardrails=checks/审计/漂移（冻结）、memory=asi+experience.md、tool guidance=SKILL.md（本 change 的产出本身）、scripts=hooks/examples。v1 只开放前四个中真正安全的面；SKILL.md 自身不进编辑面（改循环规程是 openspec change 的事）。
 
 **D5：experience.md 跨 segment 存活、finalize 人审并入 AGENTS.md。**
-clear 只删 log.jsonl（主规范既有语义），experience.md 天然存活；跨项目不自动迁移——AGENTS.md 收编前经人审，复用时按"旧 lesson 是假设"原则重新验证（Harness² library 纪律：早期任务的事实在新任务是 hypothesis）。
+clear 只删 log.jsonl（主规范既有语义），experience.md 天然存活；跨项目不自动迁移，AGENTS.md 收编前经人审，复用时按"旧 lesson 是假设"原则重新验证（Harness² library 纪律：早期任务的事实在新任务是 hypothesis）。
 
 ## Risks / Trade-offs
 

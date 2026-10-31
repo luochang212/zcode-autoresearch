@@ -4,11 +4,11 @@ worth-fix 实测（真实 `renderDashboard()` 生成页面 + 浏览器量测 + �
 
 - **P1 confidence 卡孤行**：统计卡片 flex 行在 6 卡（confidence 存在）时，第 6 卡必然单独换行（实测 top 126→227 两行）。根因：`min-width:120px` 作用于 content-box，实卡宽 160px，5 卡+间隙 864px 贴着容器 868px 极限。
 - **P3 no-op 被套 crash 红色**：状态色 class 只认 keep/discard，noop 与 checks_failed 一律落入 crash 红（实测 `badge crash` + rgb(198,40,40)）。no-op 不是失败（连败语义刚在 fix-runtime-robustness 中定为中立），红色误导。
-- **P4 暗色模式不可读**：`color-scheme: light dark` 使画布/文字自动适配深色，但表头 `#fafafa`、徽章浅色底、`code` 背景、meta `#666` 等 7 处硬编码亮色不跟随——深色系统下表头呈"浅底+浅字"不可读（实测于深色系统：thBg rgb(250,250,250) + 透明 body 深色画布）。
+- **P4 暗色模式不可读**：`color-scheme: light dark` 使画布/文字自动适配深色，但表头 `#fafafa`、徽章浅色底、`code` 背景、meta `#666` 等 7 处硬编码亮色不跟随，深色系统下表头呈"浅底+浅字"不可读（实测于深色系统：thBg rgb(250,250,250) + 透明 body 深色画布）。
 - **P5/P6 长字段溢出无滚动**：`.desc` 只限宽不断词，长 URL 实测 scrollW 659 > clientW 419；表格 scrollW 1108 撑出 900px 视口，页面整体横向溢出（截图可见右侧截断的重复面板）。
 - **P7 无度量趋势可视化**：账本 metric 轨迹是进度 dashboard 最有信息量的呈现，目前只有表格。
 
-证伪修正：原报告称"卡片宽窄不齐"——实测六卡全部等宽 160px（min-width 主导），不齐不成立，唯一卡片缺陷是孤行换行。
+证伪修正：原报告称"卡片宽窄不齐"。实测六卡全部等宽 160px（min-width 主导），不齐不成立，唯一卡片缺陷是孤行换行。
 
 ## What Changes
 

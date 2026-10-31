@@ -8,7 +8,7 @@
   1. **pi 触发机制**：如何被用户触发与自动激活（`/autoresearch` 命令、skill 展开、auto-activation 判定、会话生命周期事件），agent 进入循环的完整路径。
   2. **pi 架构**：三层解耦（extension 基础设施 / skill 流程 / slash command 模式开关）的组成文件、边界、状态流。
   3. **pi 能力清单**：工具三件套、auto-resume、确定性 compaction、dashboard（widget/全屏/浏览器 SSE）、finalize 分支整理、hooks 教学 skill、confidence/ASI/segment 等，逐项给出现状与行为细节。
-  4. **pi 效果证据**：npm 下载量、GitHub stars、README/CHANGELOG 声称、用户证据（issues/discussions）——区分"验证过的效果"与"营销声称"。
+  4. **pi 效果证据**：npm 下载量、GitHub stars、README/CHANGELOG 声称、用户证据（issues/discussions），区分"验证过的效果"与"营销声称"。
   5. **我方插件审计**：`plugin/` 当前能力逐项对照 pi，标出已有 / 部分 / 缺失。
   6. **差距矩阵**：每个差距标注 可追平 / zcode 受限（有替代方案）/ 平台不可行（无法实现），附原因。
   7. **追平路线图**：按"差距大小 × 对核心循环的价值 × 实现成本"排序的里程碑。
@@ -19,7 +19,7 @@
 
 ### New Capabilities
 
-- `pi-gap-analysis`: 差距研究报告能力——规定报告必须覆盖 pi 的触发/架构/能力/效果四维、我方审计、差距矩阵（三分类）、追平路线图，且结论以代码/数据核实为准。
+- `pi-gap-analysis`: 差距研究报告能力，规定报告必须覆盖 pi 的触发/架构/能力/效果四维、我方审计、差距矩阵（三分类）、追平路线图，且结论以代码/数据核实为准。
 
 ### Modified Capabilities
 

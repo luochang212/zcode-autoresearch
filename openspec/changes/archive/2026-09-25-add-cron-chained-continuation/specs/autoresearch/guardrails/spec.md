@@ -2,7 +2,7 @@
 
 ### Requirement: 无人值守定时唤醒（有界）
 
-用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建 recurring 的 `CronCreate` 定时唤醒任务（interval + maxRuns 双参数均须有界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）——automation turn 无法写 Cron（宿主强制），清理只发生在用户交互轮。
+用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建 recurring 的 `CronCreate` 定时唤醒任务（interval + maxRuns 双参数均须有界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）。automation turn 无法写 Cron（宿主强制），清理只发生在用户交互轮。
 
 #### Scenario: 授权后创建有界唤醒
 
@@ -38,7 +38,7 @@
 
 ### Requirement: Stop hook 驱动循环续跑
 
-当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）——该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**——noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutiveFailures` 计数 SHALL 采用同一语义。
+当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）。该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**，noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutiveFailures` 计数 SHALL 采用同一语义。
 
 #### Scenario: 循环未结束
 

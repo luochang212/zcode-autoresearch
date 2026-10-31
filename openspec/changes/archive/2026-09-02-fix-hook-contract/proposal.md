@@ -17,7 +17,7 @@
 
 ### Modified Capabilities
 
-- `autoresearch/experiment-loop`: 三个 requirement 变更——`run_experiment 运行基准并解析度量`(before 钩子 payload 契约补 asi、失败可见、观测条目)、`log_experiment 记录结果并执行 git 语义`(after 钩子同三项)、`钩子教学与示例资产`(stdin 契约描述补 asi 与失败可见语义)。
+- `autoresearch/experiment-loop`: 三个 requirement 变更，分别是 `run_experiment 运行基准并解析度量`(before 钩子 payload 契约补 asi、失败可见、观测条目)、`log_experiment 记录结果并执行 git 语义`(after 钩子同三项)、`钩子教学与示例资产`(stdin 契约描述补 asi 与失败可见语义)。
 
 ## Impact
 

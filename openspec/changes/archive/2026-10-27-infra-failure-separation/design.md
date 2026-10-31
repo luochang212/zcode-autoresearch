@@ -2,7 +2,7 @@
 
 ## Context
 
-- `detectDoomLoop`（`plugin/mcp/lib/experiment.ts:203`）：纯文本层检测——取末窗（默认 6）行、normalize 假设文本（`asi.hypothesis` 优先、回退 `description`）、判 3 连相似（repeat）或 A→B→A→B（oscillate）。
+- `detectDoomLoop`（`plugin/mcp/lib/experiment.ts:203`）是纯文本层检测，取末窗（默认 6）行、normalize 假设文本（`asi.hypothesis` 优先、回退 `description`）、判 3 连相似（repeat）或 A→B→A→B（oscillate）。
 - crash 行 metric=null 已保证不污染 baseline/best/置信度/平台期（主规范既有语义）；受污染的 advisory 信号是 doom-loop 与连续失败计数。
 - 信号均为 advisory（ADR-5）：本改动全部落在信号层与提示文案，不新增硬校验。
 - SKILL.md 的循环规程（`plugin/skills/autoresearch/SKILL.md` 步骤 4/5）是 agent 侧唯一的行为约定面。
@@ -27,7 +27,7 @@
 **D1：成因判断放 agent（`asi.infra` 自标），工具不自动识别。**
 同一 crash 现象两种成因都可能（OOM 可能是想法超内存也可能是机器被占），工具侧无可靠判据；agent 有报错全文与上下文。与 ASI 既有约定（`rollback`/`next_action_hint`/`revisits_run`）同构：agent 写、工具透传、账本为事实源。备选"工具按 exit code/超时自动归类"被否：判据不可靠且跨基准不可迁移。
 
-**D2：过滤时机在 detectDoomLoop 入口——先剔除 `asi.infra === true` 行、再取末窗。**
+**D2：过滤时机在 detectDoomLoop 入口，先剔除 `asi.infra === true` 行、再取末窗。**
 语义 = "infra 行从时间线上拿掉"，与"环境故障不占假设历史"直觉一致；不改 normalize/相似度逻辑，改动面最小。备选"保留行但匹配时跳过"被否：会在窗口内挤出真实行，边界更绕。
 
 **D3：调研逃逸只改提示文案，不引入强制阻断。**

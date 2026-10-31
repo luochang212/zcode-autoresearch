@@ -31,21 +31,21 @@
 ### D2: NUL 分隔枚举 + 换行分隔集合（bash 3.2 兼容）
 
 - 枚举：`git diff --name-status -z --no-renames "$PREV" "$LAST"`，经 `grep -z -v -E '(^|/)\.auto/|autoresearch-dashboard\.html$'` 过滤会话文件，再 `while IFS= read -r -d '' status && IFS= read -r -d '' path` 成对读取（-z 输出为 `STATUS\0path\0` 交替）。
-- overlap 集合：`ALL_FILES_SET` 改换行分隔字符串，成员判定用 `printf '%s\n' "$ALL_FILES_SET" | grep -Fxq -- "$path"`（整行精确匹配，替代原空格分隔的子串匹配——子串匹配对含空格路径与互为前缀的路径都不安全）。
+- overlap 集合：`ALL_FILES_SET` 改换行分隔字符串，成员判定用 `printf '%s\n' "$ALL_FILES_SET" | grep -Fxq -- "$path"`（整行精确匹配，替代原空格分隔的子串匹配，子串匹配对含空格路径与互为前缀的路径都不安全）。
 - bash 3.2 注意点：`read -d ''` 在 3.2 可用；进程替换 `< <(...)` 可用；不用 `mapfile`/nameref/关联数组。
 
 ### D3: 删除文件用 `git rm --ignore-unmatch`
 
 构造分支时 status=D 的走 `git rm -q --ignore-unmatch -- "$path"`，其余 status（A/M 及 --no-renames 展开后的组合）走 `git checkout -q <commit> -- "$path"`。`--ignore-unmatch` 覆盖「文件在组内先增后删、merge-base 上不存在」的边缘情形（pathspec 未匹配也返回 0），此时净效果为空，正确。
 
-### D4: 回滚契约——先切回、即入册、出口统一
+### D4: 回滚契约（先切回、即入册、出口统一）
 
 - rollback 内顺序改为：先 `git checkout -q "$ORIG_BRANCH"`，再逐个 `git branch -D`。原顺序（先删后切）对「当前正站在待删分支上」必然失败，是残留的直接根因。
 - `git checkout -q -b "$NAME"` 成功后立即 `CREATED+=("$NAME")`，随后任何一步失败（文件 checkout、commit）该分支都在册。
 - 构造阶段的显式退出（`exit 2` 分支名冲突、verify 失败后 `exit 1`）改为显式调用 `rollback`（其自身 `exit 1`）。ERR trap 依赖 `set -e` 触发链，显式 exit 不触发；统一走 rollback 调用使头注释的「任何失败都回滚」成为真实契约。
 - 第一阶段（查重，尚未建任何分支）的 `exit 2` 保持不变：彼时 `CREATED` 为空且人在原分支上，回滚是空操作。
 
-### D5: groups.json 读取——绝对路径归一 + argv 传参 + readFileSync
+### D5: groups.json 读取（绝对路径归一 + argv 传参 + readFileSync）
 
 - `cd "$PROJECT"` 之前把 `GJSON` 归一为绝对路径（相对路径基于调用者 cwd 解析，与脚本后续 `cd` 解耦）。
 - `jq_or_node()` 改为 `node -e "$1" "$GJSON"`，脚本体经 `process.argv[1]`（`node -e` 无脚本路径占位，argv 首元素即用户参数）读取：`JSON.parse(require('fs').readFileSync(path, 'utf8'))`。

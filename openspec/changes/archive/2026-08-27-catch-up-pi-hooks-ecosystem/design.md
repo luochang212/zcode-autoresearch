@@ -13,14 +13,14 @@
 **Non-Goals:**
 
 - 不改变钩子机制（不改 server 执行逻辑、不改契约）。
-- 不把示例数量堆到 pi 的 10 个——精选 6 个覆盖高频场景。
+- 不把示例数量堆到 pi 的 10 个，精选 6 个覆盖高频场景。
 - 不做钩子输出入账本（评估过的账本格式变更，后置）。
 
 ## Decisions
 
 **1. 示例 6 个（3 before + 3 after），语义参考 pi、代码从零写：**
 
-- before：`anti-thrash`（读 jsonl 尾 N 条，连续 discard/crash ≥ 阈值 → 结构反思建议）、`idea-rotator`（读 `.auto/ideas.md` 的未尝试方向，轮换提醒）、`hypothesis-reflection`（检查 agent 是否给出本轮假设——通过 last_run.asi.hypothesis 缺失时提醒）。
+- before：`anti-thrash`（读 jsonl 尾 N 条，连续 discard/crash ≥ 阈值 → 结构反思建议）、`idea-rotator`（读 `.auto/ideas.md` 的未尝试方向，轮换提醒）、`hypothesis-reflection`（检查 agent 是否给出本轮假设，last_run.asi.hypothesis 缺失时提醒）。
 - after：`learnings-journal`（追加 markdown 到 `.auto/learnings.md`）、`macos-notify`（osascript 弹通知，macOS 专用）、`auto-tag-winners`（新 best 打 `autoresearch/best-run-N-metric` git tag）。
 - 全部：bash 外壳 + node 内嵌解析 stdin（heredoc），短小自包含（20-40 行），带注释说明契约字段。
 
@@ -28,7 +28,7 @@
 
 **3. mock 测试工具：** 教学 skill 内嵌一个 `node -e` 一行式生成示例 payload（`{"event":"before","cwd":".","next_run":1,...}`）管道给钩子脚本验证，不新增文件。
 
-**4. 集成测试：** `tests/hooks.test.mjs` 扩展——对 6 个示例逐一：构造对应 payload 管道运行，断言（anti-thrash 连败时输出建议、否则静默；auto-tag-winners keep 且新 best 时打 tag、否则静默；macos-notify 存在 osascript 时输出通知命令…）。测试需验证"复制即用"契约。
+**4. 集成测试：** `tests/hooks.test.mjs` 扩展，对 6 个示例逐一：构造对应 payload 管道运行，断言（anti-thrash 连败时输出建议、否则静默；auto-tag-winners keep 且新 best 时打 tag、否则静默；macos-notify 存在 osascript 时输出通知命令…）。测试需验证"复制即用"契约。
 
 ## Risks / Trade-offs
 

@@ -2,7 +2,7 @@
 
 ## Context
 
-harness-edit-loop 归档后 worth-fix 审视发现两处缺口（验证记录见 proposal）。根因一句话：**P1** ——边界类内容（scope）被放进了内容可编辑的文件（prompt.md），而写保护是路径级的，管不住区块；**P2** ——experience 的保真被写在了参考文档里，却没接进唯一会删除它的流程（finalize 命令的清理注释）。
+harness-edit-loop 归档后 worth-fix 审视发现两处缺口（验证记录见 proposal）。根因一句话：**P1** 是边界类内容（scope）被放进了内容可编辑的文件（prompt.md），而写保护是路径级的，管不住区块；**P2** 是 experience 的保真被写在了参考文档里，却没接进唯一会删除它的流程（finalize 命令的清理注释）。
 
 ## Goals / Non-Goals
 
@@ -20,7 +20,7 @@ harness-edit-loop 归档后 worth-fix 审视发现两处缺口（验证记录见
 ## Decisions
 
 **D1：scope 独立成冻结文件，不做成 prompt.md 受保护区块。**
-与 D1(goal.md) 同构：路径级 hook 只能保护整文件；独立 `.auto/scope.md` 让"边界不可变"复用被验证的机制（一行 FROZEN）。prompt.md 的范围段改为逐字引用（引用即审计）。备选"hook 解析 prompt.md 拦截区块编辑"被否：内容级匹配脆弱且把护栏逻辑写进文本比对。副作用照单全收：**收窄**范围也需用户手改或新 segment——边界双向冻结，语义与"用户同意的边界"一致，agent 想收窄时向用户提出即可。
+与 D1(goal.md) 同构：路径级 hook 只能保护整文件；独立 `.auto/scope.md` 让"边界不可变"复用被验证的机制（一行 FROZEN）。prompt.md 的范围段改为逐字引用（引用即审计）。备选"hook 解析 prompt.md 拦截区块编辑"被否：内容级匹配脆弱且把护栏逻辑写进文本比对。副作用照单全收：**收窄**范围也需用户手改或新 segment，边界双向冻结，语义与"用户同意的边界"一致，agent 想收窄时向用户提出即可。
 
 **D2：finalize 的 experience 人审做成正式步骤，清理以它为前提。**
 插在 cron 清理之后、报告之前：与用户过 experience.md → 幸存 lesson 并入 AGENTS.md → 之后才允许 `rm -r .auto`。命令文本是删除的唯一责任方（脚本无涉），修文本即修根因。

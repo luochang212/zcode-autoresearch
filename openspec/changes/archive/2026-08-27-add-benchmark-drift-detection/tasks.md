@@ -5,7 +5,7 @@
 
 ## 2. 漂移检测
 
-- [x] 2.1 run_experiment 开始前：读 config.json 的 benchmarkHashes 与当前文件 hash 比对——不一致 → 返回 benchmark_drift: true + 警告文本（仍执行）；首见（记录 null 且文件存在）→ 记录并提示；无变化 → 无字段
+- [x] 2.1 run_experiment 开始前：读 config.json 的 benchmarkHashes 与当前文件 hash 比对，不一致 → 返回 benchmark_drift: true + 警告文本（仍执行）；首见（记录 null 且文件存在）→ 记录并提示；无变化 → 无字段
 - [x] 2.2 协议测试：改 measure.sh 后 run 返回 benchmark_drift；未改静默；首见记录
 
 ## 3. 文档与收尾

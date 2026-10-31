@@ -2,7 +2,7 @@
 
 ### Requirement: checks 正确性背压
 
-当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 产生**判定**且判定为失败时为 true，其余为 false——判定指脚本运行到完成并以 0（通过）或 1–125（判定失败）退出；126/127（不可执行/不存在）、null（被信号终止）及更大的致命退出码表示门禁未产生判定，属基础设施故障（infra），SHALL NOT 置位该状态（不否决 keep），并 SHALL 在返回中如实呈现 `verdict: false` 供 agent 披露），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
+当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 产生**判定**且判定为失败时为 true，其余为 false。判定指脚本运行到完成并以 0（通过）或 1–125（判定失败）退出；126/127（不可执行/不存在）、null（被信号终止）及更大的致命退出码表示门禁未产生判定，属基础设施故障（infra），SHALL NOT 置位该状态（不否决 keep），并 SHALL 在返回中如实呈现 `verdict: false` 供 agent 披露），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
 
 #### Scenario: checks 失败
 

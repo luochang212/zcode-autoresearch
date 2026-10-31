@@ -35,7 +35,7 @@
 
 ### Requirement: checks 正确性背压
 
-当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 产生**判定**且判定为失败时为 true，其余为 false——判定指脚本运行到完成并以 0（通过）或 1–125（判定失败）退出；126/127（不可执行/不存在）、null（被信号终止）及更大的致命退出码表示门禁未产生判定，属基础设施故障（infra），SHALL NOT 置位该状态（不否决 keep），并 SHALL 在返回中如实呈现 `verdict: false` 供 agent 披露），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
+当 `.auto/checks.sh` 存在时，`run_experiment` SHALL 在 benchmark 通过后自动执行它，并把 checks 结果作为「待记录」状态持久化到 `.auto/config.json`（`pendingChecksFailed`：checks 产生**判定**且判定为失败时为 true，其余为 false。判定指脚本运行到完成并以 0（通过）或 1–125（判定失败）退出；126/127（不可执行/不存在）、null（被信号终止）及更大的致命退出码表示门禁未产生判定，属基础设施故障（infra），SHALL NOT 置位该状态（不否决 keep），并 SHALL 在返回中如实呈现 `verdict: false` 供 agent 披露），MCP server 重启后仍有效；该状态为 true 时 `log_experiment` 的 keep SHALL 被拒绝（提示改用 checks_failed/discard），任意 status 成功记录后 SHALL 清除该状态，`init_experiment`/`clear_experiments` SHALL 重置它。`log_experiment` 以 `status=checks_failed` 记录时 SHALL 在账本行写入 `checksFailed: true`；会话状态重建 SHALL 按每 run 覆盖方式判定「最近一条账本 run 是否 checks 失败」（账本行 `checksFailed === true` 或 `status === "checks_failed"` 均视为失败），不单向闩锁。
 
 #### Scenario: checks 失败
 
@@ -64,7 +64,7 @@
 
 ### Requirement: 会话目录写保护
 
-PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、checks.sh、goal.md、scope.md）**已存在版本**的 Write/Edit，返回 deny；目标文件尚不存在时 hook SHALL 放行——冻结语义为「记录后不可改写」：setup 在用户在场时创建这些文件（逐字记录深层目标、用户同意的范围边界、基准与检查脚本）是协议的正当步骤，hook 区分创建与改写的判据是文件是否已在磁盘。对 `.auto/` 其它文件的写入放行。deny 时 hook SHALL 尝试向账本追加一行 `{type:"frozen_attempt", ts, file, tool}`——被拦截的改写企图是事实，须与 deny 同步留痕；账本写入失败 SHALL 不影响 deny 本身（fail-open 纪律不变），首次创建放行路径 SHALL 不产生任何账本行。goal.md 承载用户的深层目标原文（setup 时逐字记录），scope.md 承载用户同意的范围边界（Files-in-scope 与 Off-Limits）——二者是 harness 编辑步不可触碰的锚：深层目标为根，范围边界为栏，表层目标表示（度量代理、章程措辞、方向池）可被证据驱动的编辑步修订，但 SHALL 不与二者矛盾。
+PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、checks.sh、goal.md、scope.md）**已存在版本**的 Write/Edit，返回 deny；目标文件尚不存在时 hook SHALL 放行。冻结语义为「记录后不可改写」：setup 在用户在场时创建这些文件（逐字记录深层目标、用户同意的范围边界、基准与检查脚本）是协议的正当步骤，hook 区分创建与改写的判据是文件是否已在磁盘。对 `.auto/` 其它文件的写入放行。deny 时 hook SHALL 尝试向账本追加一行 `{type:"frozen_attempt", ts, file, tool}`，因为被拦截的改写企图是事实，须与 deny 同步留痕；账本写入失败 SHALL 不影响 deny 本身（fail-open 纪律不变），首次创建放行路径 SHALL 不产生任何账本行。goal.md 承载用户的深层目标原文（setup 时逐字记录），scope.md 承载用户同意的范围边界（Files-in-scope 与 Off-Limits）。二者是 harness 编辑步不可触碰的锚：深层目标为根，范围边界为栏，表层目标表示（度量代理、章程措辞、方向池）可被证据驱动的编辑步修订，但 SHALL 不与二者矛盾。
 
 #### Scenario: setup 首次创建放行
 
@@ -93,7 +93,7 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 
 ### Requirement: Stop hook 驱动循环续跑
 
-当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）——该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**——noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutiveFailures` 计数 SHALL 采用同一语义。
+当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）。该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**，noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutiveFailures` 计数 SHALL 采用同一语义。
 
 #### Scenario: 循环未结束
 
@@ -127,7 +127,7 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 
 ### Requirement: 无人值守定时唤醒（有界）
 
-用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建 recurring 的 `CronCreate` 定时唤醒任务（interval + maxRuns 双参数均须有界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）——automation turn 无法写 Cron（宿主强制，实测工具面亦不含 Cron 写工具），清理只发生在用户交互轮。
+用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建 recurring 的 `CronCreate` 定时唤醒任务（interval + maxRuns 双参数均须有界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）。automation turn 无法写 Cron（宿主强制，实测工具面亦不含 Cron 写工具），清理只发生在用户交互轮。
 
 #### Scenario: 授权后创建有界唤醒
 

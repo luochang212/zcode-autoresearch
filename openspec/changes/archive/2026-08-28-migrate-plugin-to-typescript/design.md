@@ -19,7 +19,7 @@
 
 - **方案：Node ≥24 原生 type stripping**。替代方案：JSDoc `@ts-check`（补丁式，否决）、tsc 编译产物（引入构建步骤与双维护，否决）、Node 22 `--experimental-strip-types`（需逐个 node 调用加 flag 且 22.6 前不可用，否决）。完整记录见 ADR-6。
 - **`erasableSyntaxOnly` + `verbatimModuleSyntax`**：编译期强制「仅可剥离语法」与 `import type` 纪律，保证原生执行与类型检查一致。
-- **`RunLike` 宽松输入**：分析函数（`isStopReached` / `detectDoomLoop` / `detectPlateau` / `validateLedger`）收部分行对象——auditor 本就该处理宽松/异常行，语义更准确。
+- **`RunLike` 宽松输入**：分析函数（`isStopReached` / `detectDoomLoop` / `detectPlateau` / `validateLedger`）收部分行对象，auditor 本就该处理宽松/异常行，语义更准确。
 - **JSON-RPC 边界显式类型化**：`JsonRpcRequest` / `RunOutcome` / `HookOutcome` / 五个工具入参接口，边界处 cast，内部全类型。
 
 ## Risks / Trade-offs
