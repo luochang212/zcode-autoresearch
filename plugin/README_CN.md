@@ -48,7 +48,7 @@
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init_experiment`   | 建立/重启实验 segment（名称、主度量、方向 lower/higher）                                                                                                                                                                                                                                                                                                                                                                               |
 | `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                                                                                                                                                                                                                                                                                     |
-| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/` 与 dashboard）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注，环境导致的 crash 以 `asi.infra: true` 标注——infra 行不计入 doom-loop 信号）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
+| `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/` 与 dashboard）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注，环境导致的 crash 以 `asi.infra: true` 标注，infra 行不计入 doom-loop 信号）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
 | `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                                                                                                                                                                                                                                                                                    |
 | `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                                                                                                                                                                                                                                                                                          |
 
@@ -56,8 +56,8 @@
 
 - **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
-- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外——冻结指「记录后不可改写」；goal.md 是深层目标原文——循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界——循环在栏内工作，扩围/收围由用户手改或新 segment）。被 deny 的改写企图以 `frozen_attempt` 行记入账本。
-- **harness 留痕**：可编辑面（`prompt.md`、`ideas.md`、`experience.md`、`.auto/hooks/before.sh` / `after.sh`）在记账时点（`run_experiment` / `log_experiment` / `export_dashboard`）做哈希对账，相对基线有变化的文件各记一条 `harness_edit` 行——连手改也逃不掉。编辑步的 verdict 纪律仍是 advisory，但「动过」这件事是机械保证。
+- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外，冻结指「记录后不可改写」；goal.md 是深层目标原文，循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界，循环在栏内工作，扩围/收围由用户手改或新 segment）。被 deny 的改写企图以 `frozen_attempt` 行记入账本。
+- **harness 留痕**：可编辑面（`prompt.md`、`ideas.md`、`experience.md`、`.auto/hooks/before.sh` / `after.sh`）在记账时点（`run_experiment` / `log_experiment` / `export_dashboard`）做哈希对账，相对基线有变化的文件各记一条 `harness_edit` 行，连手改也逃不掉。编辑步的 verdict 纪律仍是 advisory，但「动过」这件事是机械保证。
 - **暂停开关**：`/autoresearch:off` 写入 `autoresearchOff: true`，同时静音 Stop 续跑、记忆注入与 SessionStart 提示；`init_experiment`/`clear_experiments` 与 resume 命令会清除标记。
 - **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
 - **循环续跑**：Stop hook 在循环未结束且未暂停时 `decision:block`（zcode 平台限制连续 3 次窗口）。
@@ -109,7 +109,7 @@ plugin/
 
 ## 已知边界（研究实证，详见报告 §4.1）
 
-- **无人值守**：双层形态——会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（recurring + maxRuns，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
+- **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（recurring + maxRuns，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
 - `git add -A` 会把无关脏文件一起 commit（继承 pi 的已知弱点）；setup 时先提交干净基线。
 
