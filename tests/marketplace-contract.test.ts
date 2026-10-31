@@ -3,7 +3,7 @@
  *
  * 背景：上游 zai-org/zcode-plugins 的内部校验（scripts/validate.py，跑在 PR 与
  * main 的合并结果上）对市场条目做硬校验，plugin.json 与 marketplace.json 条目
- * 不一致会直接拒收——PR #1 曾因 description_i18n 漂移被拒。本文件把上游硬规则
+ * 不一致会直接拒收，PR #1 曾因 description_i18n 漂移被拒。本文件把上游硬规则
  * 镜像为本地测试，在推送前拦截漂移：
  *
  * - 本仓库：plugin/.zcode-plugin/plugin.json ↔ 根 marketplace.json 条目必须一致
@@ -33,7 +33,7 @@ const MANIFEST_PATH = join(PLUGIN_DIR, ".zcode-plugin", "plugin.json");
 const DEV_MARKETPLACE = join(ROOT, "marketplace.json");
 const FORK_CLONE = join(ROOT, "archived", "zcode-plugins");
 
-// —— 上游 validate.py 的规则常量（逐字镜像）——
+// 上游 validate.py 的规则常量（逐字镜像）
 const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const SEMVER = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const LOCALE = /^[a-z]{2}(-[A-Za-z0-9]+)*$/;
