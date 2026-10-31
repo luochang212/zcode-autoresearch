@@ -138,6 +138,9 @@ button, summary { font: inherit; color: inherit; cursor: pointer; }
 .viewer-stats strong { margin-right: 4px; }
 .canvas-dock { position: absolute; z-index: 4; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; pointer-events: none; }
 .canvas-dock > * { pointer-events: auto; }
+/* The cluster keeps the trailing corner whether or not a legend shares the
+   dock, so losing the legend does not move the controls across the canvas. */
+.canvas-dock .controls { margin-inline-start: auto; }
 /* Without the script there is no floating canvas: the dock sits at the end of the content. */
 body:not(.interactive) main { padding-bottom: 84px; }
 /* Frosted chips: the dotted ground and panned cards blur behind the panel
@@ -854,14 +857,18 @@ html{scroll-padding-top:68px}.archive-masthead{padding:0 24px}.masthead-inner{ma
 
   function paint() {
     // Every gesture and control commits through here, so none can pan past
-    // the drawing. Small diagrams stay centered; large ones get a 24px rim.
+    // the drawing. A narrow diagram stays centered across the canvas; a short
+    // one starts at the top rim, the way a tall one does — centering a single
+    // row in the canvas leaves the map floating with empty space above it.
     const dock = viewport.querySelector('.canvas-dock');
     const roomY = Math.max(1, viewport.clientHeight - (dock ? dock.offsetHeight : 0));
-    const bound = (offset, size, room) => size <= room
+    const across = (offset, size, room) => size <= room
       ? (room - size) / 2
       : Math.max(room - size - 24, Math.min(24, offset));
-    tx = bound(tx, world.offsetWidth * scale, viewport.clientWidth);
-    ty = bound(ty, world.offsetHeight * scale, roomY);
+    const down = (offset, size, room) =>
+      Math.max(Math.min(-24, room - size - 24), Math.min(24, offset));
+    tx = across(tx, world.offsetWidth * scale, viewport.clientWidth);
+    ty = down(ty, world.offsetHeight * scale, roomY);
     world.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + scale + ')';
     const zoom = document.getElementById('zoom');
     if (zoom) zoom.value = Math.round(scale * 100) + '%';
@@ -1597,7 +1604,7 @@ function buildTimeline() {
     svg.append(svgEl('line', { class: 'timeline-grid', x1: x, x2: x, y1: top - 12, y2: height - 36 }), svgEl('text', { class: 'timeline-axis', x, y: height - 14, 'text-anchor': 'middle' }, new Date(day).toISOString().slice(5, 10)));
   }
   for (const n of [...new Set([1, ...Array.from({ length: Math.floor(max / 5) }, (_, i) => (i + 1) * 5), max])]) svg.append(svgEl('text', { class: 'timeline-axis', x: left - 12, y: Y(n) + 3, 'text-anchor': 'end' }, '#' + n));
-  svg.append(svgEl('text', { class: 'timeline-axis', x: left, y: 12 }, '编号 / 创建日期（UTC）'));
+  svg.append(svgEl('text', { class: 'timeline-axis', x: left, y: 12 }, '编号 / 创建日期'));
   timelineEdges = supersessions.map(edge => {
     const a = byNumber.get(edge.dataset.from), b = byNumber.get(edge.dataset.to);
     const ax = X(stamp(a.created)), bx = X(stamp(b.created)), ay = Y(a.number), by = Y(b.number);
@@ -2021,6 +2028,11 @@ renderDirectory(); buildTimeline();
   if (!records.some(r => r.lifecycle === 'implemented' && r['raised-by'] != null && r['decided-by'] != null)) drop('provenance');
   if (!records.some(r => r.lifecycle === 'archived')) { hide(document.querySelector('.legend-archive')); hide(document.querySelector('.key-archived')); }
   if (!nodes.some(n => n.dataset.hasDeliberation === 'true')) hide(document.querySelector('.legend-delib'));
+  // The panel is chrome around the entries, not a block of its own: once the
+  // last entry that explains a mark is gone, the border and padding would still
+  // draw an empty frame over the map.
+  const legend = document.querySelector('.canvas-legend');
+  if (legend && !legend.querySelector('.legend > span')) hide(legend);
   const columns = document.querySelector('.insight-columns');
   if (columns) {
     if (!columns.querySelector('.atlas-section')) columns.remove();
