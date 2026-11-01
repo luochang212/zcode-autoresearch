@@ -18,7 +18,7 @@ paths: [plugin/**]
 
 插件采用三层解耦，映射到 zcode 插件五类组件（依据 zcode-plugins @ c06b727 官方文档）：
 
-1. **MCP 服务承载机制**（`.mcp.json` + `mcp/server.mjs`）：`init_experiment` / `run_experiment` / `log_experiment` 三件套工具，实现计时、`METRIC name=value` 解析、10 行/4KB 回传截断、benchmark 脚本锁定、checks 背压、keep 自动 commit / 非 keep 自动 revert、`.auto/log.jsonl` append-only 账本。借自 pi-autoresearch。
+1. **MCP 服务承载机制**（`.mcp.json` + `mcp/server.ts`）：`init_experiment` / `run_experiment` / `log_experiment` 三件套工具，实现计时、`METRIC name=value` 解析、10 行/4KB 回传截断、benchmark 脚本锁定、checks 背压、keep 自动 commit / 非 keep 自动 revert、`.auto/log.jsonl` append-only 账本。借自 pi-autoresearch。
 2. **skill 承载流程**：`skills/autoresearch/SKILL.md` 保持薄路由（≤60 行，安全不变量 + 循环规程 + 状态文件指针），详细协议放 `references/` 按需展开。借自 uditgoenka 的薄路由教训（其 SKILL.md 两个版本内从 41 行膨胀回 107 行，协议放 reference 才能延缓回流）。
 3. **hooks 承载护栏与续跑**（`hooks/hooks.json`）：Stop hook（`decision:block` + reason）驱动循环续跑；PreToolUse hook deny 写保护 `.auto/` 度量脚本（把 karpathy 的 prompt 契约升级为硬护栏）；UserPromptSubmit/SessionStart 重注入账本尾行（compaction 后记忆再注入）。
 
