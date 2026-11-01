@@ -155,22 +155,27 @@ export function commitExperiment(
   cwd: string,
   { description, result }: { description: string; result: unknown },
 ): string | null {
-  // Excluding paths from add does not remove files already in the index.
-  // Reset only session paths to HEAD; preserve their working-tree contents.
-  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
+  // Unstage the whole index first (working tree untouched): the commit below
+  // must describe this experiment and nothing else. Excluding paths from add
+  // does not remove files already in the index, so pre-staged state from
+  // outside the research dir would otherwise ride into the commit — and, when
+  // the research dir itself has no changes, would fake a non-empty experiment
+  // (a keep whose commit contains none of the experiment).
+  git(cwd, ["reset", "-q", "HEAD"]);
   // Stage with `-- .`, then unstage session paths again. Two constraints meet
   // here:
   // - No exclude pathspec: an exclude that covers a gitignored path makes add
   //   exit 1 ("paths are ignored"), which aborted every keep in repos with
   //   gitignored session state (evidence 2026-11-01: ml-auto; reproduced on
-  //   git 2.54.0 with the exact quoted argv). Plain `-- .` skips ignored
+  //   git 2.55.0 with the exact quoted argv). Plain `-- .` skips ignored
   //   files instead of failing on them.
   // - Keep the pathspec: it scopes the commit to the research dir. A bare
   //   `git add -A` is repo-wide, so under `workingDir: work/` it also staged
   //   the project's own `.auto/` (the post-add reset is cwd-relative and
   //   cannot reach it) and unrelated files elsewhere in the repo.
   // The post-add reset removes session paths even when they are tracked or
-  // pre-staged.
+  // pre-staged; with the index cleared above, the cached diff below answers
+  // exactly "did this experiment change anything".
   git(cwd, ["add", "-A", "--", "."]);
   git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
   // git diff --cached --quiet exits 0 when there are no staged changes.

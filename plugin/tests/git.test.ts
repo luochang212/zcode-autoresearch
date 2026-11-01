@@ -223,7 +223,6 @@ test("keep stages only the research dir when cwd is a workingDir subdir", () => 
     join(root, ".auto", "config.json"),
     JSON.stringify({ workingDir: "work" }),
   );
-  writeFileSync(join(work, "code.js"), "v1\n");
   writeFileSync(join(work, "code.js"), "v2\n");
   writeFileSync(join(root, "main.js"), "v2\n");
   writeFileSync(join(root, "scratch.md"), "draft\n");
@@ -238,6 +237,65 @@ test("keep stages only the research dir when cwd is a workingDir subdir", () => 
   assert.ok(existsSync(join(root, ".auto", "config.json")));
   assert.ok(existsSync(join(root, "scratch.md")));
   assert.match(git(work, ["status", "--porcelain"]), /scratch\.md/);
+});
+
+test("keep succeeds when the research dir's .auto is gitignored", () => {
+  // git >= 2.55 exits 1 from add when an exclude pathspec covers a gitignored
+  // path, which once killed every keep in repos that gitignore .auto/ (780e211)
+  // — and 5e47f0f re-shaped the add argv in exactly that vicinity. So: the
+  // pathspec-less exclude must stay gone, and add must stage the code while
+  // silently skipping the ignored session dir.
+  const cwd = tempRepo();
+  writeFileSync(join(cwd, ".gitignore"), ".auto/\n");
+  mkdirSync(join(cwd, ".auto"));
+  writeFileSync(join(cwd, ".auto", "config.json"), "{}\n");
+  git(cwd, ["add", "-A"]);
+  git(cwd, ["commit", "-qm", "gitignore session state"]);
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  writeFileSync(join(cwd, ".auto", "config.json"), '{"workingDir":"."}\n');
+  const hash = commitExperiment(cwd, {
+    description: "ignored session dir",
+    result: {},
+  });
+  assert.ok(hash, "keep must not abort on a gitignored .auto");
+  assert.equal(
+    git(cwd, ["show", "--name-only", "--format=", "HEAD"]),
+    "main.js",
+  );
+  // Session content stays on disk, untouched by the staging round-trip.
+  assert.equal(
+    readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
+    '{"workingDir":"."}\n',
+  );
+});
+
+test("out-of-scope staged files neither fake nor join a keep", () => {
+  const root = tempRepo();
+  const work = join(root, "work");
+  mkdirSync(work);
+  writeFileSync(join(work, "code.js"), "v1\n");
+  git(work, ["add", "-A"]);
+  git(work, ["commit", "-qm", "research baseline"]);
+  // The user staged an unrelated root file before asking for a keep.
+  writeFileSync(join(root, "main.js"), "v2\n");
+  git(root, ["add", "main.js"]);
+  // No research-dir change: that staged file must not masquerade as an
+  // experiment. keep relies on the cached diff meaning "this experiment".
+  assert.equal(
+    commitExperiment(work, { description: "noop", result: {} }),
+    null,
+  );
+  // With a real research-dir change, only that change is committed.
+  writeFileSync(join(work, "code.js"), "v2\n");
+  git(root, ["add", "main.js"]);
+  const hash = commitExperiment(work, { description: "scoped", result: {} });
+  assert.ok(hash);
+  assert.equal(
+    git(work, ["show", "--name-only", "--format=", "HEAD"]),
+    "work/code.js",
+  );
+  // The out-of-scope file survives in the worktree (unstaged, still edited).
+  assert.equal(readFileSync(join(root, "main.js"), "utf8"), "v2\n");
 });
 
 test("rollbackWorkingTree discards changes but keeps .auto/", () => {
