@@ -15,6 +15,8 @@
 3. 插件提供：MCP 服务（5 个工具）、skill `autoresearch`、5 个命令、4 个 hook。启用插件即授予代码执行信任（官方约定）。
 
 > 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库 TypeScript 脚本（Node ≥24，类型由 Node 原生剥离，无构建步骤）。
+>
+> 运行要求：机器上需存在 Node ≥24，但不要求它在宿主 PATH 上。MCP server 与 hooks 经 `scripts/run-node.sh` 启动，按 PATH → nvm（`$NVM_DIR`）→ Homebrew → `/usr/local/bin` 自动解析，可用 `AUTORESEARCH_NODE_BIN` 显式指定（`sh scripts/run-node.sh --resolve` 可查看解析结果）。启动入口依赖 POSIX sh；Windows 上仅 node 在 PATH 的旧组合不再覆盖（基准脚本本就是 bash，需要 POSIX shell）。
 
 ## 安全与副作用
 

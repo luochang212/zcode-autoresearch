@@ -18,6 +18,8 @@ This plugin executes code and operates on a git repository. Enabling it grants c
 
 No third-party npm dependencies: the MCP server and hooks are Node-stdlib TypeScript scripts (Node ≥24, types stripped natively, no build step).
 
+Node ≥24 must exist on the machine, but it does not have to be on the host's PATH: the MCP server and hooks launch through `scripts/run-node.sh`, which resolves Node from PATH, then nvm (`$NVM_DIR`), Homebrew or `/usr/local/bin`, and honors `AUTORESEARCH_NODE_BIN` to pin one explicitly (run `sh scripts/run-node.sh --resolve` to see what it picks). The launcher needs a POSIX `sh`; on Windows, node-on-PATH alone is not enough (the benchmark scripts are bash and require a POSIX shell anyway).
+
 ## Install
 
 This repository is itself a plugin marketplace (`marketplace.json` points to `./plugin`). In ZCode:

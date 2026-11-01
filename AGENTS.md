@@ -63,6 +63,7 @@ After installation, continue the original task; initializing ADR Kit is not itse
 - **冻结语义**：写保护覆盖 `.auto/measure.sh`、`.auto/checks.sh`、`.auto/goal.md`、`.auto/scope.md`；冻结指「记录后不可改」，setup 首次创建放行、已存在则拒改（`frozen.ts` 是唯一事实源）。
 - **规程层**：`skills/autoresearch/SKILL.md` 与 `references/loop-protocol.md` 定义循环规程与 harness 编辑步（二阶循环：有账本证据才改 surface，`goal.md`/`scope.md` 是根与围栏；segment 末至多写一条 `experience.md`，finalize 前人工并入项目 `AGENTS.md`）。
 - **hooks/**：zcode hook 脚本（Stop 续跑、PreToolUse 写保护、记忆注入、SessionStart）。
+- **启动解析**：`plugin/scripts/run-node.sh` 是 MCP server 与 hooks 的统一 Node 入口（`AUTORESEARCH_NODE_BIN` 覆盖 → PATH → nvm → Homebrew，主版本门 ≥24；stdout 属 JSON-RPC 通道，诊断只走 stderr）。
 - **技能与命令**：`skills/autoresearch/`（循环规程 + references）、`skills/autoresearch-hooks/`（钩子教学）、`commands/`（autoresearch/export/clear/off/finalize）。
 
 ## 设计约束（历史决策，改动需谨慎）
