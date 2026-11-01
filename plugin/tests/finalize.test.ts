@@ -2,7 +2,7 @@
 // incremental file sets, deletions, whitespace paths, relative groups.json).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
@@ -284,4 +284,31 @@ test("finalize accepts a bare relative groups.json path", () => {
   });
   assert.match(out, /autoresearch\/opt\/01-a/);
   assert.match(out, /autoresearch\/opt\/02-b/);
+});
+
+test("finalize refuses a dirty working tree instead of gambling it on checkout -f", () => {
+  const { cwd, c1 } = setup();
+  // Uncommitted work in progress: the rollback path's `git checkout -f`
+  // would discard exactly this, so finalize must refuse up front.
+  writeFileSync(join(cwd, "a.js"), "v3-uncommitted\n");
+  const g = groups(cwd, "opt", [{ title: "t1", last_commit: c1, slug: "a" }]);
+  let threw = false;
+  try {
+    execFileSync(resolveBash(), [FINALIZE, cwd, g], { encoding: "utf8" });
+  } catch (e) {
+    threw = true;
+    assert.equal((e as { status?: number }).status, 2);
+    assert.match(
+      String((e as { stderr?: unknown }).stderr ?? ""),
+      /uncommitted changes/,
+    );
+  }
+  assert.equal(threw, true, "dirty tree must abort finalize");
+  // Nothing was built and the uncommitted content is still there.
+  assert.equal(
+    git(cwd, ["branch", "--list", "autoresearch/opt/*"]).trim(),
+    "",
+    "no finalize branches created",
+  );
+  assert.equal(readFileSync(join(cwd, "a.js"), "utf8"), "v3-uncommitted\n");
 });
