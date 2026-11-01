@@ -1,5 +1,5 @@
 ---
-description: Clear the autoresearch session by deleting .auto/log.jsonl, then start fresh. Keeps measure.sh / checks.sh / prompt.md. Usage: /autoresearch:clear
+description: Clear the autoresearch session by deleting .auto/log.jsonl, then start fresh. All other .auto/ files are kept. Usage: /autoresearch:clear
 ---
 
 Clear the current autoresearch session.

@@ -16,7 +16,7 @@
 
 > 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库 TypeScript 脚本（Node ≥24，类型由 Node 原生剥离，无构建步骤）。
 >
-> 运行要求：机器上需存在 Node ≥24，但不要求它在宿主 PATH 上。MCP server 与 hooks 经 `scripts/run-node.sh` 启动，按 PATH → nvm（`$NVM_DIR`）→ Homebrew → `/usr/local/bin` 自动解析，可用 `AUTORESEARCH_NODE_BIN` 显式指定（`sh scripts/run-node.sh --resolve` 可查看解析结果）。启动入口依赖 POSIX sh；Windows 上仅 node 在 PATH 的旧组合不再覆盖（基准脚本本就是 bash，需要 POSIX shell）。
+> 运行要求：机器上需存在 Node ≥24，但不要求它在宿主 PATH 上。MCP server 与 hooks 经 `scripts/run-node.sh` 启动，按 PATH → nvm（`$NVM_DIR`）→ Homebrew → `/usr/local/bin` 自动解析，可用 `AUTORESEARCH_NODE_BIN` 显式指定（`sh scripts/run-node.sh --resolve` 可查看解析结果）。启动入口依赖 POSIX sh；Windows 上仅 node 在 PATH 的旧组合不再覆盖（基准脚本本就是 bash，需要 POSIX shell）。hooks 同样经 `sh`（`hooks.json`）拉起：Windows 上需要 Git-Bash（或其他 `sh`）在 PATH 上，否则 hooks（含冻结写保护）会静默失效。
 
 ## 安全与副作用
 
@@ -52,7 +52,7 @@
 | `run_experiment`    | 跑基准：计时、`METRIC name=value` 解析、10 行/4KB 截断回传、超时杀进程组、`repeat` 取中位数、执行 `before.sh` 钩子                                                                                                                                                                                                                                                                                                                     |
 | `log_experiment`    | 记录结果：keep 自动 `git commit`（`experiment:` 前缀）；非 keep 自动回滚（豁免 `.auto/` 与 dashboard）；返回 baseline/best/delta/confidence/plateau 与下一步提示；segment 内存在带 rollback 理由的 discard 时返回 `revisit_nudge` 重访提示（有意重试时以 `asi.revisits_run: <run 号>` 标注，环境导致的 crash 以 `asi.infra: true` 标注，infra 行不计入 doom-loop 信号）；本次 confidence 同时快照写入账本 run 行；执行 `after.sh` 钩子 |
 | `export_dashboard`  | 起本地 live dashboard（127.0.0.1 + SSE 自动刷新）并写静态 HTML 兜底                                                                                                                                                                                                                                                                                                                                                                    |
-| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（保留 measure/checks/prompt）                                                                                                                                                                                                                                                                                                                                                                          |
+| `clear_experiments` | 删除 `.auto/log.jsonl` 重置会话（其余 `.auto/` 文件全部保留）                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## 护栏
 
@@ -64,7 +64,7 @@
 - **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
 - **循环续跑**：Stop hook 在循环未结束且未暂停时 `decision:block`（zcode 平台限制连续 3 次窗口）。
 - **迭代钩子**：`.auto/hooks/before.sh`（基准前）与 `after.sh`（记录后）每次实验自动执行（fail-open，30s 超时，stdout→`*_steer`）。
-- **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/` 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 即用（node 解析，无 jq 依赖）。
+- **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/before/` 与 `hooks/examples/after/` 共 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 并改名为 `before.sh`（before/ 下的示例）或 `after.sh`（after/ 下的示例）——server 只执行这两个固定文件名（node 解析，无 jq 依赖）。
 - **止损**：连续失败达 `.auto/config.json` 的 `consecutiveFailures`（默认 3，可配）时提示停止。
 - **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 字段），违规拒收；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 会同时跳过审计与次级度量约束（不推荐）。
 - **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对；基准中途变更时返回 `benchmark_drift` 警告（暴露基准改动，不静默接受不可比 metric）。
@@ -100,16 +100,19 @@ plugin/
 
 ## 会话状态（`.auto/`）
 
-| 文件          | 作用                                                                                                                                                                     |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `log.jsonl`   | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进；hook / harness_edit / frozen_attempt 行是随行的观测记录，不影响循环状态                        |
-| `prompt.md`   | 会话章程（目标/度量/范围/Off Limits/What's Been Tried）                                                                                                                  |
-| `measure.sh`  | 基准脚本（冻结）                                                                                                                                                         |
-| `checks.sh`   | 可选正确性门禁（冻结）                                                                                                                                                   |
-| `config.json` | 可选会话覆盖项：`maxIterations`、`consecutiveFailures`、`workingDir`、`auditBypass`、`autoresearchOff`（`benchmarkHashes`/`pendingChecksFailed` 等服务端管理键也存于此） |
-| `ideas.md`    | 可选假设清单                                                                                                                                                             |
+| 文件            | 作用                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `log.jsonl`     | **append-only 单一事实源**：config 行 + run 行；segment 由 config 行推进；hook / harness_edit / frozen_attempt 行是随行的观测记录，不影响循环状态                        |
+| `goal.md`       | 深层目标，setup 时逐字记录自用户（冻结）                                                                                                                                 |
+| `scope.md`      | 用户同意的范围边界（范围内文件 + 禁改项，冻结）                                                                                                                          |
+| `prompt.md`     | 会话章程（目标/度量/范围/Off Limits/What's Been Tried）                                                                                                                  |
+| `measure.sh`    | 基准脚本（冻结）                                                                                                                                                         |
+| `checks.sh`     | 可选正确性门禁（冻结）                                                                                                                                                   |
+| `config.json`   | 可选会话覆盖项：`maxIterations`、`consecutiveFailures`、`workingDir`、`auditBypass`、`autoresearchOff`（`benchmarkHashes`/`pendingChecksFailed` 等服务端管理键也存于此） |
+| `ideas.md`      | 可选假设清单                                                                                                                                                             |
+| `experience.md` | 可选跨 segment 经验（每段至多一条；clear 后保留）                                                                                                                        |
 
-## 已知边界（研究实证，详见报告 §4.1）
+## 已知边界（研究实证，详见报告 `docs/research/autoresearch-survey.md` §4.1）
 
 - **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（recurring + maxRuns，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。

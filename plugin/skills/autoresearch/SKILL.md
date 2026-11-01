@@ -26,7 +26,7 @@ Set a goal, pick a mechanical metric, and let the loop iterate. The plugin's MCP
 - `measure.sh`: the benchmark; prints `METRIC name=value` lines.
 - `checks.sh`: optional correctness gate, run after a passing benchmark.
 - `experience.md`: cross-segment lessons — at most one per segment (`cue` / `lesson` / `evidence` / `confidence`), or `NO_ENTRY`. Survives `clear`; reviewed into the project AGENTS.md at finalize.
-- `config.json`: optional `{ "maxIterations": N }` override.
+- `config.json`: optional overrides (`maxIterations`, `consecutiveFailures`, `workingDir`, `auditBypass`, `autoresearchOff`); server-managed keys (benchmark hashes, pending checks state) also live here.
 - `ideas.md`: optional backlog of hypotheses.
 
 ## The loop
@@ -73,7 +73,7 @@ Drop an executable script into `.auto/hooks/` to run custom logic around every e
 - `.auto/hooks/before.sh` runs before each benchmark; stdin gets a JSON line `{event, cwd, next_run, last_run, session}`, and its stdout is returned as `before_steer`.
 - `.auto/hooks/after.sh` runs after each `log_experiment`; stdin gets `{event, cwd, run_entry, session}`, and its stdout is returned as `after_steer`.
 
-Use hooks for things the agent shouldn't do by itself: checking external docs before a change, anti-repetition guards, sending notifications, keeping a learnings journal. Treat `*_steer` as advisory input. Ready-made examples live in `hooks/examples/` (anti-thrash, idea-rotator, hypothesis-reflection, learnings-journal, macos-notify, auto-tag-winners); copy one into `.auto/hooks/` to use it. To write your own, load the `autoresearch-hooks` skill.
+Use hooks for things the agent shouldn't do by itself: checking external docs before a change, anti-repetition guards, sending notifications, keeping a learnings journal. Treat `*_steer` as advisory input. Ready-made examples live in `hooks/examples/before/` and `hooks/examples/after/` (anti-thrash, idea-rotator, hypothesis-reflection, learnings-journal, macos-notify, auto-tag-winners); copy one into `.auto/hooks/` renamed to `before.sh` (from `before/`) or `after.sh` (from `after/`) — those exact filenames are what the server executes. To write your own, load the `autoresearch-hooks` skill.
 
 ## Unattended runs (optional, user-authorized only)
 
