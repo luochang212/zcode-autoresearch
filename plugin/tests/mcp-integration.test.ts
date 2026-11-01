@@ -23,6 +23,7 @@ const SERVER = join(ROOT, "mcp", "server.ts");
 interface JsonRpcResponse {
   id?: number;
   result?: { content?: Array<{ type?: string; text?: string }> };
+  error?: { code: number; message: string };
 }
 
 interface McpClient {
@@ -1182,5 +1183,55 @@ test("first keep cannot regress against the segment baseline", async () => {
     });
     assert.equal(keep.ok, false);
     assert.match(String(keep.error), /keep_without_improvement/);
+  });
+});
+
+test("unknown method with an id gets a -32601 response instead of hanging", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    const m = await s.call("ping");
+    assert.equal(m.error?.code, -32601);
+    assert.match(String(m.error?.message), /method not found/);
+  });
+});
+
+test("huge timeout_seconds is clamped, not treated as an immediate kill", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    // 3_000_000 s * 1000 > 2^31-1: Node's setTimeout would collapse the delay
+    // to 1ms and SIGTERM the benchmark instantly (TimeoutOverflowWarning).
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+      timeout_seconds: 3_000_000,
+    });
+    assert.equal(run.ok, true);
+    assert.equal(run.timed_out, false);
+    assert.equal(run.metric, 42);
+  });
+});
+
+test("corrupt config.json fails init loudly instead of being silently reset", async () => {
+  const cwd = tempRepo();
+  writeFileSync(join(cwd, ".auto", "config.json"), "{not json");
+  await withServer(cwd, async (s) => {
+    // patchSessionConfig throws → the transport layer answers -32000.
+    const m = await s.call("tools/call", {
+      name: "init_experiment",
+      arguments: { name: "t", metric_name: "time_ms" },
+    });
+    assert.equal(m.error?.code, -32000);
+    assert.match(String(m.error?.message), /not valid JSON/);
+    // No half-initialized session: the ledger must not carry a config row.
+    assert.equal(existsSync(join(cwd, ".auto", "log.jsonl")), false);
+  });
+  // A valid config lets init proceed normally.
+  writeFileSync(join(cwd, ".auto", "config.json"), "{}");
+  await withServer(cwd, async (s) => {
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(init.ok, true);
   });
 });

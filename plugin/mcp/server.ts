@@ -135,6 +135,9 @@ const DEFAULT_MAX_ITERATIONS =
   Number.isFinite(envMax) && envMax > 0 ? envMax : 20;
 const BENCHMARK_TIMEOUT_MS =
   Number(process.env.AR_BENCHMARK_TIMEOUT_MS) || 600_000;
+// Node's setTimeout treats delays above 2^31-1 ms as 1ms: an unclamped huge
+// timeout_seconds would SIGTERM the benchmark immediately instead of never.
+const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 const CHECKS_TIMEOUT_MS = Number(process.env.AR_CHECKS_TIMEOUT_MS) || 300_000;
 
 // LLM-facing output budget (mirrors pi-autoresearch): tight truncation.
@@ -459,8 +462,15 @@ function patchSessionConfig(patch: Record<string, unknown>): void {
   let cfg: Record<string, unknown> = {};
   try {
     cfg = JSON.parse(readFileSync(cfgPath, "utf8")) as Record<string, unknown>;
-  } catch {
-    /* start fresh */
+  } catch (err) {
+    // ENOENT → start fresh. A file that exists but is not valid JSON must fail
+    // loudly: silently starting fresh would make the write below wipe
+    // workingDir, harnessHashes and the off flag along with the corruption.
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      throw new Error(
+        `.auto/config.json exists but is not valid JSON (${err instanceof Error ? err.message : String(err)}); fix or remove it — refusing to overwrite the session config.`,
+      );
+    }
   }
   Object.assign(cfg, patch);
   writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
@@ -784,6 +794,14 @@ async function toolInitExperiment(
   }
   const state = sessionState();
   const segment = (state.segment ?? 0) + 1;
+  // Config write precedes the ledger row: a corrupt config.json fails init
+  // before a config row lands in the ledger (no half-initialized session).
+  patchSessionConfig({
+    benchmarkHashes: currentBenchmarkHashes(),
+    harnessHashes: currentHarnessHashes(cwd),
+    pendingChecksFailed: false,
+    autoresearchOff: false,
+  });
   appendLedgerEntry(cwd, {
     type: "config",
     segment,
@@ -792,15 +810,6 @@ async function toolInitExperiment(
     metricUnit,
     direction,
     createdAt: new Date().toISOString(),
-  });
-  // New segment: record frozen-file hashes, clear stale checks state, and
-  // re-enable the loop (init is an explicit resume; off must not mute it).
-  // harnessHashes is the editable-surface baseline for the mandatory trace.
-  patchSessionConfig({
-    benchmarkHashes: currentBenchmarkHashes(),
-    harnessHashes: currentHarnessHashes(cwd),
-    pendingChecksFailed: false,
-    autoresearchOff: false,
   });
   broadcastDashboardUpdate();
   const branch = currentBranch(cwd);
@@ -867,9 +876,10 @@ async function toolRunExperiment(
   }
 
   const repeat = Math.min(Math.max(Number(args.repeat) || 1, 1), 10);
+  const requestedMs = Number(args.timeout_seconds ?? 0) * 1000;
   const timeoutMs =
-    Number(args.timeout_seconds ?? 0) > 0
-      ? Number(args.timeout_seconds) * 1000
+    requestedMs > 0
+      ? Math.min(requestedMs, MAX_TIMEOUT_MS)
       : BENCHMARK_TIMEOUT_MS;
 
   // Iteration hook: .auto/hooks/before.sh runs before the benchmark (fail-open).
@@ -981,6 +991,10 @@ async function toolRunExperiment(
 async function toolLogExperiment(
   args: LogToolArgs,
 ): Promise<Record<string, unknown>> {
+  // The read→append stretch below is fully synchronous (the only await is the
+  // after-hook once the row is written), so pipelined JSON-RPC calls cannot
+  // interleave it. Inserting an await between sessionState() and
+  // appendLedgerEntry would reintroduce a duplicate-run race.
   const state = sessionState();
   if (!state.config) {
     return {
@@ -1311,7 +1325,8 @@ const TOOLS = [
         },
         timeout_seconds: {
           type: "number",
-          description: "override timeout in seconds (default 600)",
+          description:
+            "override timeout in seconds (default 600, capped at 2147483)",
         },
         repeat: {
           type: "number",
@@ -1365,13 +1380,13 @@ const TOOLS = [
   {
     name: "export_dashboard",
     description:
-      "Render .auto/log.jsonl into a self-contained static HTML dashboard at autoresearch-dashboard.html. Call after experiments to get a human-readable progress report.",
+      "Render .auto/log.jsonl into a self-contained static HTML dashboard at autoresearch-dashboard.html, and host a live SSE page (auto-refreshing) on a local port. Call after experiments to get a human-readable progress report.",
     inputSchema: { type: "object", properties: {} },
   },
   {
     name: "clear_experiments",
     description:
-      "Delete .auto/log.jsonl and reset the session state (segment back to 0). Keeps .auto/measure.sh, checks.sh and prompt.md. Use to start a fresh experiment target.",
+      "Delete .auto/log.jsonl and reset the session state (segment back to 0). All other .auto/ files are kept: measure.sh, checks.sh, prompt.md, goal.md, scope.md, ideas.md, experience.md and config.json. Use to start a fresh experiment target.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -1447,5 +1462,10 @@ async function dispatch(msg: JsonRpcRequest) {
   }
   if (msg.method === "exit") {
     process.exit(0);
+  }
+  // Unknown method with an id must not hang the caller: JSON-RPC requires a
+  // -32601 response. Notifications (no id) stay silent.
+  if (msg.id != null) {
+    error(msg.id, -32601, `method not found: ${msg.method}`);
   }
 }
