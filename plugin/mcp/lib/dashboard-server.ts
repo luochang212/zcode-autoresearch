@@ -11,6 +11,25 @@ import { safeShortHash } from "./git.ts";
 const clients = new Set<ServerResponse>();
 let server: Server | null = null;
 let boundPort: number | null = null;
+let boundWorkCwd: string | null = null;
+
+function stopServer(): void {
+  if (!server) return;
+  for (const res of clients) {
+    clients.delete(res);
+    try {
+      res.destroy();
+    } catch {
+      /* already gone */
+    }
+  }
+  // close() waits for idle connections; the ephemeral-port rebind below has
+  // no conflict with it, so the callback is not awaited.
+  server.close();
+  server = null;
+  boundPort = null;
+  boundWorkCwd = null;
+}
 
 function broadcast(): void {
   // The MCP server process hosts this HTTP server: a single dead client must
@@ -30,12 +49,21 @@ function broadcast(): void {
 
 function start(workCwd: string): Promise<{ port: number; url: string }> {
   if (server) {
-    return Promise.resolve({
-      port: boundPort ?? 0,
-      url: `http://127.0.0.1:${boundPort ?? 0}`,
-    });
+    if (boundWorkCwd === workCwd) {
+      return Promise.resolve({
+        port: boundPort ?? 0,
+        url: `http://127.0.0.1:${boundPort ?? 0}`,
+      });
+    }
+    // The research dir moved mid-process (.auto/config.json workingDir edit):
+    // restart so the live page follows instead of serving the old ledger.
+    stopServer();
   }
   const handle = (req: IncomingMessage, res: ServerResponse): void => {
+    // A disconnecting client can turn any write into an async EPIPE 'error'
+    // event; swallow it — a dead connection is eviction (req 'close'), never
+    // a reason for the hosting MCP process to die.
+    res.on("error", () => {});
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     if (url.pathname === "/events") {
       res.writeHead(200, {
@@ -102,6 +130,7 @@ function start(workCwd: string): Promise<{ port: number; url: string }> {
       const addr = srv.address();
       if (addr && typeof addr === "object") {
         boundPort = addr.port;
+        boundWorkCwd = workCwd;
         server = srv;
         resolve({ port: boundPort, url: `http://127.0.0.1:${boundPort}` });
       } else {
@@ -116,6 +145,11 @@ export function ensureDashboardServer(workCwd: string): Promise<{
   url: string;
 }> {
   return start(workCwd);
+}
+
+/** Shut the live server down (research dir teardown, tests). */
+export function stopDashboardServer(): void {
+  stopServer();
 }
 
 export function broadcastDashboardUpdate(): void {
