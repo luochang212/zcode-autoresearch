@@ -177,6 +177,40 @@ for (const mode of ["new", "modified", "deleted"]) {
   }
 }
 
+test("keep excludes a tracked-but-unstaged .auto modification", () => {
+  const cwd = tempRepo();
+  try {
+    // .auto/log.jsonl is tracked from a previous session and modified in the
+    // worktree with the index untouched. The staging is a plain `git add -A`
+    // (no pathspec: git >= 2.55 rejects exclude pathspecs over ignored
+    // paths), and add stages tracked files regardless of .gitignore — so the
+    // post-add reset is what keeps the modification out of the commit.
+    mkdirSync(join(cwd, ".auto"));
+    writeFileSync(join(cwd, ".auto", "log.jsonl"), "old\n");
+    git(cwd, ["add", "-A"]);
+    git(cwd, ["commit", "-qm", "tracked session baseline"]);
+    writeFileSync(join(cwd, ".auto", "log.jsonl"), "session change\n");
+    writeFileSync(join(cwd, "main.js"), "v2\n");
+    const hash = commitExperiment(cwd, {
+      description: "real change",
+      result: {},
+    });
+    assert.ok(hash);
+    assert.equal(
+      git(cwd, ["show", "--name-only", "--format=", "HEAD"]),
+      "main.js",
+    );
+    // content stays on disk, index back to HEAD
+    assert.equal(
+      readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8"),
+      "session change\n",
+    );
+    assert.equal(git(cwd, ["diff", "--cached", "--name-only"]), "");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
+
 test("rollbackWorkingTree discards changes but keeps .auto/", () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto"), { recursive: true });
