@@ -19,7 +19,7 @@ paths: [plugin/mcp/**]
 
 三层护栏的语义定格如下（共同原则是对账不裁判，只校验事实一致性，不做价值判断）：
 
-1. **审计不变量**（`lib/validate.mjs`，纯函数零 I/O）：校验把账本视为可重放状态机，要求 keep 必须真实改进（首条 baseline 允许持平）、discard 真改进必须有 failed guard（仅 checks_failed 可丢真改进）、事件顺序成立（run 号连续/segment 一致）、非 keep 行不得带 commit。**crash 的 metric=0 是占位符，无测量语义**（不参与改进比较）。校验在 git 操作之前，违规拒收并附修正路径提示。
+1. **审计不变量**（`lib/validate.ts`，纯函数零 I/O）：校验把账本视为可重放状态机，要求 keep 必须真实改进（首条 baseline 允许持平）、discard 真改进必须有 failed guard（仅 checks_failed 可丢真改进）、事件顺序成立（run 号连续/segment 一致）、非 keep 行不得带 commit。**crash 行的 metric 记为 null，无测量语义**（不参与改进比较；2026-11-01 勘误：原文「metric=0 是占位符」已废弃，见 ADR-10）。校验在 git 操作之前，违规拒收并附修正路径提示。
 2. **基准漂移检测**：init 时记录 measure.sh/checks.sh 的 sha256 到 `.auto/config.json` 的 `benchmarkHashes`（该文件可写、豁免于回滚；账本 append-only 不可回填，故不放账本）；run 前比对，漂移返回 `benchmark_drift: true` **警告级**（不硬拒）。"首见即基准"：init 时文件不存在则首次 run 记录。
 3. **次级度量约束**：`log_experiment` 的 `constraints: [{name, maxPct}]` 是 **opt-in 设计，无声明零校验**；keep 时校验次级度量 ≤ 首 run 值的 maxPct%；超界拒收。baseline 缺失时该约束 `skipped`（不判定）。
 

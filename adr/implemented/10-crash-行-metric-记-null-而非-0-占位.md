@@ -5,7 +5,7 @@ description: 改 crash 行的 metric 语义、或任何「无测量值如何入�
 raised-by: agent
 decided-by: human
 created: 2026-11-01
-commit: "780e211"
+commit: "7025605"
 paths: [plugin/mcp/**]
 ---
 
@@ -31,4 +31,4 @@ crash 行的 `metric` 记为 JSON `null`（`server.ts` 的 run/log 路径与 `li
 
 - 换来：无测量语义与测量值在类型上可区分，下游零特判，统计不再被假值污染。
 - 代价：消费 metric 的代码必须容忍 null（类型上 `number | null`），崩溃段的 confidence 样本变少（这是如实反映，不是损失）。
-- ADR-5 的正文不再描述 crash metric 的现状；读 ADR-5 时以本条为准。
+- ADR-5 §1 的占位声称已按本条勘误，并加了指回本条的注记；两处表述冲突时以本条为准。
