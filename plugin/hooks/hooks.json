@@ -6,8 +6,9 @@
         "hooks": [
           {
             "type": "process",
-            "command": "node",
+            "command": "sh",
             "args": [
+              "${ZCODE_PLUGIN_ROOT}/scripts/run-node.sh",
               "${ZCODE_PLUGIN_ROOT}/hooks/stop-continue.ts",
               "${ZCODE_PROJECT_DIR}"
             ],
@@ -23,8 +24,9 @@
         "hooks": [
           {
             "type": "process",
-            "command": "node",
+            "command": "sh",
             "args": [
+              "${ZCODE_PLUGIN_ROOT}/scripts/run-node.sh",
               "${ZCODE_PLUGIN_ROOT}/hooks/guard-frozen.ts",
               "${ZCODE_PROJECT_DIR}"
             ],
@@ -39,8 +41,9 @@
         "hooks": [
           {
             "type": "process",
-            "command": "node",
+            "command": "sh",
             "args": [
+              "${ZCODE_PLUGIN_ROOT}/scripts/run-node.sh",
               "${ZCODE_PLUGIN_ROOT}/hooks/memory-inject.ts",
               "${ZCODE_PROJECT_DIR}"
             ],
@@ -56,8 +59,9 @@
         "hooks": [
           {
             "type": "process",
-            "command": "node",
+            "command": "sh",
             "args": [
+              "${ZCODE_PLUGIN_ROOT}/scripts/run-node.sh",
               "${ZCODE_PLUGIN_ROOT}/hooks/session-start.ts",
               "${ZCODE_PROJECT_DIR}"
             ],

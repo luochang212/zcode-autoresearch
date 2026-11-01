@@ -2,8 +2,11 @@
   "mcpServers": {
     "autoresearch": {
       "type": "stdio",
-      "command": "node",
-      "args": ["${ZCODE_PLUGIN_ROOT}/mcp/server.ts"],
+      "command": "sh",
+      "args": [
+        "${ZCODE_PLUGIN_ROOT}/scripts/run-node.sh",
+        "${ZCODE_PLUGIN_ROOT}/mcp/server.ts"
+      ],
       "cwd": "${ZCODE_PROJECT_DIR}",
       "env": {
         "AR_MAX_ITERATIONS": "${user_config.maxIterations}",
