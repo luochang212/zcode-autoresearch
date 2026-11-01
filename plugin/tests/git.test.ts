@@ -211,6 +211,35 @@ test("keep excludes a tracked-but-unstaged .auto modification", () => {
   }
 });
 
+test("keep stages only the research dir when cwd is a workingDir subdir", () => {
+  const root = tempRepo();
+  const work = join(root, "work");
+  mkdirSync(join(work, ".auto"), { recursive: true });
+  mkdirSync(join(root, ".auto"), { recursive: true });
+  // The project-level config is untracked and NOT gitignored here — the same
+  // layout the workingDir integration test uses. A repo-wide add would stage
+  // it, and the post-add reset (cwd-relative) could not reach it.
+  writeFileSync(
+    join(root, ".auto", "config.json"),
+    JSON.stringify({ workingDir: "work" }),
+  );
+  writeFileSync(join(work, "code.js"), "v1\n");
+  writeFileSync(join(work, "code.js"), "v2\n");
+  writeFileSync(join(root, "main.js"), "v2\n");
+  writeFileSync(join(root, "scratch.md"), "draft\n");
+  const hash = commitExperiment(work, { description: "scoped", result: {} });
+  assert.ok(hash);
+  const files = git(work, ["show", "--name-only", "--format=", "HEAD"])
+    .split("\n")
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(files, ["work/code.js"]);
+  // Project-level session state and stray root files stay out and stay on disk.
+  assert.ok(existsSync(join(root, ".auto", "config.json")));
+  assert.ok(existsSync(join(root, "scratch.md")));
+  assert.match(git(work, ["status", "--porcelain"]), /scratch\.md/);
+});
+
 test("rollbackWorkingTree discards changes but keeps .auto/", () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto"), { recursive: true });
