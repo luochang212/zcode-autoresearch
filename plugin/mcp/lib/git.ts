@@ -158,14 +158,15 @@ export function commitExperiment(
   // Excluding paths from add does not remove files already in the index.
   // Reset only session paths to HEAD; preserve their working-tree contents.
   git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
-  git(cwd, [
-    "add",
-    "-A",
-    "--",
-    ".",
-    ":(exclude).auto",
-    `:(exclude)${DASHBOARD_FILE}`,
-  ]);
+  // Plain add -A, then unstage session paths again: git >= 2.55 errors (exit
+  // 1) when a pathspec — even an exclude — covers a gitignored path, so
+  // passing `:(exclude).auto` to add aborted every keep in repos with
+  // gitignored session state (evidence 2026-11-01: ml-auto on git 2.55.0,
+  // reproduced with the exact quoted argv). A pathspec-less add never stages
+  // ignored files, and the post-add reset removes session paths even when
+  // they are tracked or pre-staged.
+  git(cwd, ["add", "-A"]);
+  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {
