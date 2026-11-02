@@ -360,7 +360,14 @@ test("rollbackWorkingTree reports an empty residual when the tree is restored", 
   writeFileSync(join(cwd, "scratch.txt"), "junk\n");
   mkdirSync(join(cwd, ".auto"), { recursive: true });
   writeFileSync(join(cwd, ".auto", "log.jsonl"), '{"type":"run"}\n');
-  assert.deepEqual(rollbackWorkingTree(cwd), []);
+  const r = rollbackWorkingTree(cwd);
+  // clean restore: no residual, and the disposal list names both files with
+  // the HEAD the tree was restored to (spec: 回滚显式回报)
+  assert.deepEqual(r.residual, []);
+  assert.equal(r.rolledBack.length, 2);
+  assert.match(r.rolledBack.join("\n"), /main\.js/);
+  assert.match(r.rolledBack.join("\n"), /scratch\.txt/);
+  assert.ok(/^[0-9a-f]{7}$/.test(r.restoredTo ?? ""));
   assert.equal(readFileSync(join(cwd, "main.js"), "utf8"), "v1\n");
 });
 

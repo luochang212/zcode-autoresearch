@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import type { LedgerConfig, LedgerEntry, LedgerRun } from "../mcp/lib/types.ts";
 
@@ -24,6 +24,15 @@ function runHook(name: string, cwd: string, stdin: string): string {
     encoding: "utf8",
   });
   return out;
+}
+
+/** Same as runHook but returns stderr (the Stop hook's advisory channel). */
+function runHookStderr(name: string, cwd: string, stdin: string): string {
+  const r = spawnSync("node", [join(HOOKS, name), cwd], {
+    input: stdin,
+    encoding: "utf8",
+  });
+  return r.stderr ?? "";
 }
 
 function tempCwd(): string {
@@ -369,7 +378,7 @@ test("memory-inject truncates discard reasons and caps the list at 8", () => {
       status: "discard",
       metric: 60 + i,
       description: `direction number ${i}`,
-      asi: { rollback: i === 5 ? "a".repeat(70) : `reason ${i}` },
+      asi: { rollback: i === 5 ? "a".repeat(130) : `reason ${i}` },
     } as LedgerRun);
   }
   seedLedger(cwd, entries);
@@ -382,9 +391,10 @@ test("memory-inject truncates discard reasons and caps the list at 8", () => {
   );
   const line = discardLine(out.hookSpecificOutput.additionalContext);
   assert.ok(line, "discard-reasons line injected");
-  // a 70-char reason is cut to 60 chars plus an ellipsis
-  assert.match(line, /#5 a{60}…/);
-  assert.doesNotMatch(line, /a{61}/);
+  // a 130-char reason is cut to 120 chars plus an ellipsis (2026-11-02
+  // 校准：60 → 120 换回完整结论；70 字符以内的理由不再被拦腰)
+  assert.match(line, /#5 a{120}…/);
+  assert.doesNotMatch(line, /a{121}/);
   // the window keeps only the last 8 qualifying rows (#3..#10)
   const items = line!
     .replace(/^弃用方向与理由：/, "")
@@ -528,6 +538,34 @@ test("stop-continue allows the stop on plateau convergence (spec: 放行)", () =
     ),
     "",
   );
+});
+
+test("stop-continue plateau advisory follows the calibrated threshold", () => {
+  const cwd = tempCwd();
+  const flat: LedgerEntry[] = [cfgLine];
+  for (let i = 1; i <= 5; i++)
+    flat.push({
+      type: "run",
+      run: i,
+      segment: 1,
+      status: "keep",
+      metric: 42,
+      description: `flat ${i}`,
+    } as LedgerRun);
+  seedLedger(cwd, flat);
+  // 0.02% threshold + deterministic bench: the advisory carries the
+  // calibrated numbers and drops the repeat suggestion (2026-11-02 校准)
+  writeFileSync(
+    join(cwd, ".auto", "config.json"),
+    JSON.stringify({ plateauMinImprovement: 0.0002, deterministic: true }),
+  );
+  const stderr = runHookStderr(
+    "stop-continue.ts",
+    cwd,
+    JSON.stringify({ hook_event_name: "Stop" }),
+  );
+  assert.match(stderr, /最近 5 轮改善 < 0\.02%/);
+  assert.doesNotMatch(stderr, /repeat:3/);
 });
 
 test("session-start announces an existing session", () => {

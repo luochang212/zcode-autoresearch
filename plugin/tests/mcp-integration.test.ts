@@ -797,7 +797,7 @@ test("logging a crash does not block the next run via .auto dirtiness", async ()
   });
 });
 
-test("revisit_nudge: only a rollback-reasoned discard in the current segment triggers it", async () => {
+test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned discard exists in the segment", async () => {
   const cwd = tempRepo();
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -820,7 +820,8 @@ test("revisit_nudge: only a rollback-reasoned discard in the current segment tri
     });
     assert.equal(disc1.ok, true);
     assert.equal(disc1.revisit_nudge, undefined);
-    // a discard with a rollback reason arms the nudge for the next log
+    // the decision moment: a reasoned discard fires the nudge on its own
+    // landing (no waiting for the next log)
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     const disc2 = await s.tool("log_experiment", {
       status: "discard",
@@ -829,6 +830,15 @@ test("revisit_nudge: only a rollback-reasoned discard in the current segment tri
       asi: { hypothesis: "h", rollback: "CPU saturated" },
     });
     assert.equal(disc2.ok, true);
+    assert.equal(typeof disc2.revisit_nudge, "string");
+    assert.match(
+      String(disc2.revisit_nudge),
+      /invalidates a previous discard's rollback reason/,
+    );
+    assert.match(String(disc2.revisit_nudge), /asi\.revisits_run/);
+    // keep landings are not the decision moment — the nudge is omitted even
+    // when a reasoned discard exists (standing visibility is the memory
+    // inject's discard-reasons line)
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     appendFileSync(join(cwd, "code.js"), "// v3\n");
     const keep2 = await s.tool("log_experiment", {
@@ -837,12 +847,7 @@ test("revisit_nudge: only a rollback-reasoned discard in the current segment tri
       description: "improvement",
     });
     assert.equal(keep2.ok, true);
-    assert.equal(typeof keep2.revisit_nudge, "string");
-    assert.match(
-      String(keep2.revisit_nudge),
-      /invalidates a previous discard's rollback reason/,
-    );
-    assert.match(String(keep2.revisit_nudge), /asi\.revisits_run/);
+    assert.equal(keep2.revisit_nudge, undefined);
     // existing contract fields are untouched by the extra field
     assert.equal(keep2.logged, true);
     assert.equal(keep2.status, "keep");
@@ -860,6 +865,165 @@ test("revisit_nudge: only a rollback-reasoned discard in the current segment tri
     });
     assert.equal(keep3.ok, true);
     assert.equal(keep3.revisit_nudge, undefined);
+  });
+});
+
+test("plateau calibration: config threshold and deterministic flag shape detection and hint", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+      plateau_min_improvement: 0.0002,
+      deterministic: true,
+    });
+    assert.equal(init.ok, true);
+    assert.deepEqual(init.calibration, {
+      plateau_min_improvement: 0.0002,
+      deterministic: true,
+    });
+    // five near-flat runs: best improvement vs the window's first run is
+    // ~0.2% — above the calibrated 0.02% (a plateau at the default 1%).
+    // noop rows between discards keep the failure streak below the gate.
+    const metrics = [50.1, 50, 50.05, 50, 50.02];
+    const words = ["alpha", "beta", "gamma", "delta", "epsilon"];
+    let last: Record<string, unknown> = {};
+    for (let i = 0; i < metrics.length; i++) {
+      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      last = await s.tool("log_experiment", {
+        status: i % 2 === 0 ? "discard" : "noop",
+        metric: metrics[i],
+        description: `flat ${words[i]}`,
+      });
+      assert.equal(last.ok, true);
+      assert.equal(last.runs_left, 20 - (i + 1)); // effective default cap 20
+    }
+    assert.equal(last.plateau, false); // 0.2% ≥ 0.02%: not a plateau
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // the window turns flat (best 50 = first 50) → plateau fires, but the
+    // wording carries the calibrated 0.02% and no repeat suggestion
+    const sixth = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 50.03,
+      description: "flat zeta",
+    });
+    assert.equal(sixth.plateau, true);
+    assert.match(
+      String(sixth.next_action_hint),
+      /last 5 runs improved < 0\.02%/,
+    );
+    assert.doesNotMatch(String(sixth.next_action_hint), /repeat:3/);
+    // a re-init without calibration params keeps the stored value
+    const reinit = await s.tool("init_experiment", {
+      name: "t2",
+      metric_name: "time_ms",
+    });
+    assert.equal(reinit.ok, true);
+    const cfg = readFileSync(join(cwd, ".auto", "config.json"), "utf8");
+    assert.match(cfg, /"plateauMinImprovement":\s*0\.0002/);
+  });
+});
+
+test("default plateau wording and the deterministic repeat-suggestion drop", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+      deterministic: true,
+    });
+    // flat window: improvement 0% → plateau under any threshold
+    const metrics = [50, 50, 50, 50, 50];
+    const words = ["alpha", "beta", "gamma", "delta", "epsilon"];
+    let last: Record<string, unknown> = {};
+    for (let i = 0; i < metrics.length; i++) {
+      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      last = await s.tool("log_experiment", {
+        status: i % 2 === 0 ? "discard" : "noop",
+        metric: metrics[i],
+        description: `flat ${words[i]}`,
+      });
+    }
+    assert.equal(last.plateau, true);
+    assert.match(String(last.next_action_hint), /last 5 runs improved < 1%/);
+    assert.doesNotMatch(String(last.next_action_hint), /repeat:3/);
+  });
+});
+
+test("rolled_back: a discard reports the disposal list and the restored HEAD", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v2\n");
+    writeFileSync(join(cwd, "scratch.txt"), "junk\n");
+    const d = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 55,
+      description: "worse",
+    });
+    assert.equal(d.ok, true);
+    const rb = d.rolled_back as {
+      restored_to: string;
+      files: string[];
+      total_files: number;
+    };
+    assert.match(String(rb.restored_to), /^[0-9a-f]{7}$/);
+    assert.equal(rb.total_files, 2);
+    assert.equal(rb.files.length, 2);
+    assert.equal(existsSync(join(cwd, "scratch.txt")), false);
+    assert.equal(readFileSync(join(cwd, "code.js"), "utf8"), "v1\n");
+    // keep and noop do not report it
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    appendFileSync(join(cwd, "code.js"), "// v3\n");
+    const k = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 40,
+      description: "better",
+    });
+    assert.equal(k.rolled_back, undefined);
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const n = await s.tool("log_experiment", {
+      status: "noop",
+      description: "verify",
+    });
+    assert.equal(n.rolled_back, undefined);
+  });
+});
+
+test("runs_left counts down and the near-cap hint fires with one or two runs left", async () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".auto", "config.json"),
+    JSON.stringify({ maxIterations: 5 }),
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    let last: Record<string, unknown> = {};
+    for (let i = 0; i < 4; i++) {
+      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      last = await s.tool("log_experiment", {
+        status: "discard",
+        metric: 50 + i,
+        description: `d${i}`,
+      });
+      assert.equal(last.runs_left, 5 - (i + 1));
+    }
+    // 4th log: one run left → the hint plans the closing experiment
+    assert.match(
+      String(last.next_action_hint),
+      /approaching iteration cap \(4\/5\); 1 run\(s\) left/,
+    );
+    // 5th log hits the cap → the cap message takes over
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const fifth = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 54,
+      description: "d4",
+    });
+    assert.equal(fifth.runs_left, 0);
+    assert.match(String(fifth.next_action_hint), /iteration cap reached/);
   });
 });
 
@@ -953,8 +1117,13 @@ test("confidence snapshot: ledger row matches the returned value, crash row safe
       metric: 41,
       description: "improve",
     });
-    // values 42/43/41: median 42, MAD 1, |best-baseline|/MAD = 1 → yellow
-    assert.deepEqual(k3.confidence, { level: "yellow", value: 1 });
+    // values 42/43/41: median 42, MAD 1, |best-baseline|/MAD = 1 → yellow;
+    // the response carries the unit ("× noise"), the ledger snapshot does not
+    assert.deepEqual(k3.confidence, {
+      level: "yellow",
+      value: 1,
+      unit: "× noise",
+    });
     const runRows = () =>
       readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
         .split("\n")
@@ -962,7 +1131,8 @@ test("confidence snapshot: ledger row matches the returned value, crash row safe
         .map((l) => JSON.parse(l))
         .filter((r) => r.type === "run");
     assert.equal(runRows()[0]?.confidence, undefined); // legacy-style row
-    assert.deepEqual(runRows()[2]?.confidence, k3.confidence);
+    assert.deepEqual(runRows()[2]?.confidence, { level: "yellow", value: 1 });
+    assert.equal(runRows()[2]?.confidence.value, k3.confidence.value);
     // crash row: metric null, snapshot over the existing values, no throw
     const crash = await s.tool("log_experiment", {
       status: "crash",
