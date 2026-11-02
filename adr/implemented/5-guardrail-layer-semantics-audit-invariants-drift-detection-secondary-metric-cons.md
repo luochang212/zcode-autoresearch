@@ -5,7 +5,6 @@ description: 改审计不变量、漂移检测、次级度量约束三层的校�
 raised-by: agent
 decided-by: human
 created: 2026-08-27
-commit: de30744
 paths: [plugin/mcp/**]
 ---
 

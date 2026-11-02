@@ -5,7 +5,6 @@ description: 改 crash 行的 metric 语义、或任何「无测量值如何入�
 raised-by: agent
 decided-by: human
 created: 2026-11-01
-commit: "7025605"
 paths: [plugin/mcp/**]
 ---
 

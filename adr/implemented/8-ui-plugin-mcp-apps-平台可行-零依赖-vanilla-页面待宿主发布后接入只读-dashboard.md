@@ -5,7 +5,6 @@ description: 评估 MCP Apps UI 接入（ui:// 资源、dashboard 页面形态�
 raised-by: agent
 decided-by: human
 created: 2026-10-29
-commit: "7076300"
 paths: [plugin/mcp/**, plugin/.zcode-plugin/**]
 ---
 

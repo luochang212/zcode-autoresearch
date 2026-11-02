@@ -5,7 +5,6 @@ description: 改插件运行时要求（Node ≥24）、tsconfig 约束或 lib/t
 raised-by: agent
 decided-by: human
 created: 2026-08-28
-commit: 9720d48
 paths: [plugin/**, tsconfig.json]
 ---
 

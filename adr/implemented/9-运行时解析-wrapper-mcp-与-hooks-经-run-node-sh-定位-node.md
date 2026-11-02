@@ -5,7 +5,6 @@ description: 改 MCP server/hooks 启动链（run-node.sh、.mcp.json、hooks.js
 raised-by: agent
 decided-by: human
 created: 2026-11-01
-commit: 5c051a1
 ---
 
 # ADR: 9 运行时解析 wrapper：MCP 与 hooks 经 run-node.sh 定位 Node
