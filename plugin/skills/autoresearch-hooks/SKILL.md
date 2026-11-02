@@ -33,8 +33,9 @@ Ask: does this hook **remind** (before, produce steer) or **do work** (after, si
 
 - remind before a run → `before`:
   - repeated failures → anti-thrash guard (see `hooks/examples/before/anti-thrash.sh`)
-  - need to try other directions → idea pool (see `idea-rotator.sh`)
+  - need to try other directions → idea pool, with a shallow-streak nudge when recent tagged hypotheses are all `[tune]`/`[ensemble]` (see `idea-rotator.sh`)
   - force a hypothesis → reflection (see `hypothesis-reflection.sh`)
+  - long session drifting into shallow work → hourly self-check on the wall clock (see `self-check.sh`)
   - external lookup before changing code → read docs/web then print a steer
 - do work after a run → `after`:
   - keep a human diary → journal (see `learnings-journal.sh`)

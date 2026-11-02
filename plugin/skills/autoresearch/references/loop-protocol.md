@@ -4,7 +4,7 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 
 ## One iteration
 
-1. **Review**: read the ledger tail (or the memory-inject hook output) and `git log --oneline -5`. If the last iteration was kept, `git diff HEAD~1` shows what changed; that is your prior art. Check `.auto/prompt.md` "What's Been Tried" to avoid repeats.
+1. **Review**: read the ledger tail (or the memory-inject hook output) and `git log --oneline -5`. If the last iteration was kept, `git diff HEAD~1` shows what changed; that is your prior art. Check `.auto/prompt.md` "What's Been Tried" to avoid repeats. At a fresh segment (`init_experiment` just ran), do the segment cold-start step first (see below) before touching the target code.
 2. **Hypothesis**: state it in one line. Prefer `asi.next_action_hint` from the previous `log_experiment` when present.
 3. **Modify**: exactly one logical change, inside the agreed scope. No unrelated edits: a mixed diff makes keep/discard meaningless.
 4. **Run**: `run_experiment`. Only `.auto/measure.sh` runs when it exists. Timeout default 600s.
@@ -16,6 +16,21 @@ The complete, unambiguous contract for one experiment iteration and its failure 
    - **no actual change made** (e.g. only measured) → `status:"noop"` if you want it recorded, else skip logging.
 6. **Log**: always pass `asi` on non-keep runs: `{ hypothesis, next_action_hint, rollback }`. This survives the revert and drives the next iteration.
 7. **Repeat** until the iteration cap, or until the metric plateaus across several runs.
+
+## Segment cold start (ideation first)
+
+A fresh segment is the moment of maximum freedom — and the easiest to waste on the most familiar path. Before the first `run_experiment` of a segment:
+
+1. **Ideate before reading the code**: skim project docs, related libraries, or the web first, then write a candidate hypothesis list into `.auto/ideas.md` (one per line). Reading the target code first anchors you on the baseline's structure — the documented default failure mode (external evidence: AGENT4SCI found 56% of default agent attempts were hyperparameter tuning under baseline anchoring; see `docs/research/agent4sci-notes.md`).
+2. **Tag each hypothesis with a tier prefix** — the prefix goes at the start of `asi.hypothesis` too, so the ledger carries it:
+   - `[struct]` — structural or paradigm change: different algorithm, model family, or a replaced component
+   - `[tune]` — hyperparameters, schedules, training tricks
+   - `[ensemble]` — ensembling, seed sweeps
+3. **Calibrate the list** (adapted from AGENT4SCI's research skill):
+   - Is any entry a tuning or ensembling move dressed up as a structural change? Demote it and replace it.
+   - Which entries are just safe iterations on the existing code? Is at least one `[struct]` credible?
+
+The prefixes are an advisory convention: the tools never validate them, and untagged hypotheses are legal — but they are invisible to the shallow-streak reminder in the `idea-rotator` example hook.
 
 ## Noise
 
