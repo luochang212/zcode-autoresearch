@@ -38,6 +38,8 @@ node test-correctness.ts
 
 Checks run automatically after a passing benchmark; failure forbids `keep`.
 
+**Calibrate the noise floor first**: before the first real experiment, run `measure.sh` 2-3 times on the unmodified code (or one `run_experiment` with `repeat: 3`) and confirm the numbers sit within a stable band. Record that band in the charter's Metric section — it is the floor every future delta is judged against; a "gain" smaller than the band is noise, not progress.
+
 ## 4. Record the deep goal (`.auto/goal.md`)
 
 Write the user's deep goal **verbatim** — their words, not a paraphrase — into `.auto/goal.md`:

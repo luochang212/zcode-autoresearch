@@ -10,6 +10,8 @@ Only create a scheduled wakeup when the user explicitly asked for unattended ope
 
 Create the CronCreate task immediately after the user authorizes. Do not wait for the Stop-hook window to be nearly exhausted: the hook payload carries no continuation counter, so "the last continuation" is not reliably detectable, and creating early costs nothing (idle wakes are cheap no-ops; see the cost note below).
 
+**Clear the permission path before leaving**: an unattended run that hits a permission confirmation stalls until the user returns — in the worst case the whole night. Before creating the wakeup, confirm the benchmark can actually run hands-off: the user is in an automatic/accepted-edits permission mode, or the session permissions already allow what `.auto/measure.sh` and `checks.sh` execute. If a confirmation would fire, say so and let the user pre-approve it now.
+
 ## CronCreate parameters
 
 - Recurring schedule, not `delayMinutes`: automation turns cannot write Cron, so a one-shot chain cannot re-arm itself; recurring + maxRuns is the only self-driving form.
