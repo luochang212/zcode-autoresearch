@@ -201,8 +201,11 @@ export function commitExperiment(
  * (`.auto/` and the generated dashboard) intact. Uses `checkout HEAD` (not
  * `checkout --`) so staged-but-uncommitted experiment changes are reverted too.
  *
- * Returns the post-rollback residual (dirtyFiles) so the caller can surface
- * it instead of assuming the restore happened. Evidence 2026-10-29 (nano-jev
+ * Returns what the rollback did: `rolledBack` = the working-tree files the
+ * restore disposed of (pre-restore dirtyFiles — tracked reverts and untracked
+ * removes alike), `restoredTo` = the HEAD short hash the tree was restored to,
+ * `residual` = the post-rollback dirtyFiles so the caller can surface them
+ * instead of assuming the restore happened. Evidence 2026-10-29 (nano-jev
  * V1 run 6): a discard once returned ok while the challenger stayed in the
  * working tree — git exited 0 without restoring, intermittently (runs 2–5
  * rolled back fine; Windows file-lock or pathspec race suspected, root cause
@@ -212,7 +215,12 @@ export function commitExperiment(
  * verify. Verification is root-cause-agnostic: any way the restore can
  * silently fail ends up as a loud, named residual.
  */
-export function rollbackWorkingTree(cwd: string): string[] {
+export function rollbackWorkingTree(cwd: string): {
+  rolledBack: string[];
+  restoredTo: string | null;
+  residual: string[];
+} {
+  const rolledBack = dirtyFiles(cwd);
   const restore = () =>
     execFileSync(
       resolveGit(),
@@ -255,7 +263,11 @@ export function rollbackWorkingTree(cwd: string): string[] {
     ],
     { cwd, stdio: "ignore" },
   );
-  return dirtyFiles(cwd);
+  return {
+    rolledBack,
+    restoredTo: safeShortHash(cwd),
+    residual: dirtyFiles(cwd),
+  };
 }
 
 export function currentBranch(cwd: string): string {

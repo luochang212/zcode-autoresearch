@@ -273,6 +273,27 @@ export function readSessionConfig(cwd: string): SessionConfig {
   }
 }
 
+/**
+ * Plateau calibration from `.auto/config.json`, sanitized for rebuildState:
+ * invalid values fall back to the defaults instead of erroring (calibration
+ * is a convenience, not a gate). Shared by the server and the Stop hook so
+ * detection and hint wording stay on one口径.
+ */
+export function plateauCalibration(cwd: string): {
+  minImprovement?: number;
+  window?: number;
+  deterministic: boolean;
+} {
+  const cfg = readSessionConfig(cwd);
+  const minRaw = Number(cfg.plateauMinImprovement);
+  const winRaw = Number(cfg.plateauWindow);
+  return {
+    minImprovement: Number.isFinite(minRaw) && minRaw >= 0 ? minRaw : undefined,
+    window: Number.isInteger(winRaw) && winRaw >= 2 ? winRaw : undefined,
+    deterministic: cfg.deterministic === true,
+  };
+}
+
 export function writeDashboard(cwd: string, html: string): string {
   writeFileSync(join(cwd, DASHBOARD_FILE), html, "utf8");
   return join(cwd, DASHBOARD_FILE);

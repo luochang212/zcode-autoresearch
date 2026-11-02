@@ -35,6 +35,7 @@ import {
 import {
   autoPaths,
   appendLedgerEntry,
+  plateauCalibration,
   readLedger,
   rebuildHistory,
   rebuildState,
@@ -107,6 +108,11 @@ interface InitToolArgs {
   metric_unit?: string;
   metricUnit?: string;
   direction?: string;
+  plateau_min_improvement?: unknown;
+  plateauMinImprovement?: unknown;
+  plateau_window?: unknown;
+  plateauWindow?: unknown;
+  deterministic?: unknown;
 }
 
 interface RunToolArgs {
@@ -180,10 +186,36 @@ function consecutiveFailures() {
   return Number.isFinite(v) && v > 0 ? v : 3;
 }
 
+/** Plateau calibration (sanitized in ledger.plateauCalibration) for rebuildState. */
+function plateauOpts() {
+  const cal = plateauCalibration(projectCwd);
+  return {
+    plateauWindow: cal.window,
+    plateauMinImprovement: cal.minImprovement,
+  };
+}
+
+/**
+ * Plateau hint wording reflecting the configured window/threshold. A
+ * deterministic benchmark (bitwise reproducible) cannot be confirmed by
+ * re-measurement, so the repeat suggestion is dropped for it.
+ */
+function plateauHintText(): string {
+  const cal = plateauCalibration(projectCwd);
+  const window = cal.window ?? 5;
+  const min = cal.minImprovement ?? 0.01;
+  const pct = `${(min * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+  const confirm = cal.deterministic
+    ? ""
+    : "; consider rerunning with repeat:3 to confirm";
+  return `plateau detected (last ${window} runs improved < ${pct})${confirm}, opening a new segment, or stopping`;
+}
+
 function sessionState() {
   return rebuildState(cwd, {
     maxIterations: maxIterations(),
     consecutiveFailures: consecutiveFailures(),
+    ...plateauOpts(),
   });
 }
 
@@ -765,6 +797,36 @@ async function toolInitExperiment(
   if (direction !== "lower" && direction !== "higher") {
     return { ok: false, error: "direction must be lower or higher" };
   }
+  // Loop calibration (optional). Rejected at this boundary; config-side reads
+  // (ledger.plateauCalibration) fall back to defaults instead of erroring.
+  const calibMinRaw =
+    args.plateau_min_improvement ?? args.plateauMinImprovement;
+  let calibMin: number | undefined;
+  if (calibMinRaw != null) {
+    const v = Number(calibMinRaw);
+    if (!Number.isFinite(v) || v < 0) {
+      return {
+        ok: false,
+        error:
+          "plateau_min_improvement must be a number ≥ 0 (min relative improvement over the plateau window; set near the metric's real step size, e.g. 0.0002)",
+      };
+    }
+    calibMin = v;
+  }
+  const calibWinRaw = args.plateau_window ?? args.plateauWindow;
+  let calibWindow: number | undefined;
+  if (calibWinRaw != null) {
+    const v = Number(calibWinRaw);
+    if (!Number.isInteger(v) || v < 2) {
+      return {
+        ok: false,
+        error: "plateau_window must be an integer ≥ 2 (runs)",
+      };
+    }
+    calibWindow = v;
+  }
+  const calibDet =
+    args.deterministic == null ? undefined : args.deterministic === true;
   // The loop's keep/discard semantics (commit + rollback) need git; a non-git
   // research dir would only fail later at log time, in a half-initialized state.
   let repo = false;
@@ -801,6 +863,11 @@ async function toolInitExperiment(
     harnessHashes: currentHarnessHashes(cwd),
     pendingChecksFailed: false,
     autoresearchOff: false,
+    // Calibration keys are stored only when provided: re-init without them
+    // keeps the previous segment's calibration.
+    ...(calibMin !== undefined ? { plateauMinImprovement: calibMin } : {}),
+    ...(calibWindow !== undefined ? { plateauWindow: calibWindow } : {}),
+    ...(calibDet !== undefined ? { deterministic: calibDet } : {}),
   });
   appendLedgerEntry(cwd, {
     type: "config",
@@ -818,12 +885,25 @@ async function toolInitExperiment(
       ? ""
       : `\nnote: on branch "${branch}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`
     : "\nnote: detached HEAD; check out a branch (git checkout -b autoresearch/<tag>) before experimenting";
+  const calibrationEcho =
+    calibMin !== undefined ||
+    calibWindow !== undefined ||
+    calibDet !== undefined
+      ? {
+          ...(calibMin !== undefined
+            ? { plateau_min_improvement: calibMin }
+            : {}),
+          ...(calibWindow !== undefined ? { plateau_window: calibWindow } : {}),
+          ...(calibDet !== undefined ? { deterministic: calibDet } : {}),
+        }
+      : undefined;
   return {
     ok: true,
     segment,
     message:
       `experiment session "${name}" initialized (segment ${segment}). metric=${metricName} direction=${direction}` +
       branchNote,
+    ...(calibrationEcho ? { calibration: calibrationEcho } : {}),
   };
 }
 
@@ -1116,8 +1196,12 @@ async function toolLogExperiment(
   }
 
   let commit = args.commit ?? null;
-  // Files the rollback could not restore, verified post-rollback (git.ts).
-  // Empty for noop — nothing was changed, so there is nothing to roll back.
+  // Rollback bookkeeping for non-keep rows: what the restore disposed of
+  // (rolledBack), where it landed (restoredTo), and what it could not restore
+  // (rollbackResidual). Empty for noop — nothing was changed, so there is
+  // nothing to roll back.
+  let rolledBack: string[] = [];
+  let restoredTo: string | null = null;
   let rollbackResidual: string[] = [];
   if (status === "keep") {
     const hash = commitExperiment(cwd, {
@@ -1137,7 +1221,10 @@ async function toolLogExperiment(
   } else if (status !== "noop") {
     // roll back the experiment's working-tree changes (keep .auto/ intact);
     // noop means nothing was changed, so there is nothing to roll back
-    rollbackResidual = rollbackWorkingTree(cwd);
+    const rb = rollbackWorkingTree(cwd);
+    rolledBack = rb.rolledBack;
+    restoredTo = rb.restoredTo;
+    rollbackResidual = rb.residual;
   }
 
   const entry: LedgerRun = {
@@ -1180,6 +1267,7 @@ async function toolLogExperiment(
   const nextState = rebuildState(cwd, {
     maxIterations: state.maxIterations,
     consecutiveFailures: state.failureThreshold,
+    ...plateauOpts(),
   });
   const baseline = nextState.baseline;
   const best = nextState.best;
@@ -1195,29 +1283,40 @@ async function toolLogExperiment(
         (nextState.config?.direction === "higher" ? 1 : -1)
       : null;
 
-  // Revisit nudge trigger (design D2): a discard/checks_failed row with a
-  // rollback reason in the current segment may have been invalidated by the
-  // latest result. Advisory; the field is omitted when there is nothing to
-  // revisit (no rows, or rows without reasons).
-  const revisitWorthy = state.runs.some((r) => {
-    if (r.status !== "discard" && r.status !== "checks_failed") return false;
-    const reason = r.asi?.rollback;
-    return typeof reason === "string" && reason.trim() !== "";
-  });
+  // Revisit nudge trigger: fires at the decision moment — when THIS run is a
+  // discard/checks_failed and the segment (including this row) holds reasoned
+  // discard/checks_failed rows to re-check. Advisory; omitted on keep/noop/
+  // crash landings and when there is nothing reasoned to revisit (standing
+  // visibility of discard reasons is the memory inject's job, not this nudge).
+  const revisitWorthy =
+    (status === "discard" || status === "checks_failed") &&
+    [...state.runs, entry].some(
+      (r) =>
+        (r.status === "discard" || r.status === "checks_failed") &&
+        typeof r.asi?.rollback === "string" &&
+        r.asi.rollback.trim() !== "",
+    );
 
   // A non-empty rollback residual means later reads would sit on un-rolled-back
   // inputs — that outranks every other hint, because acting on them poisons the
   // segment. Verification itself lives in rollbackWorkingTree (git.ts).
+  const maxIterNow = nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+  const runsLeft =
+    nextState.maxIterations != null
+      ? Math.max(nextState.maxIterations - nextState.runs.length, 0)
+      : null;
   const baseHint =
-    nextState.runs.length >= (nextState.maxIterations ?? DEFAULT_MAX_ITERATIONS)
+    nextState.runs.length >= maxIterNow
       ? "iteration cap reached; run init_experiment for a new segment, or /autoresearch off"
-      : detectDoomLoop(nextState.runs)
-        ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
-        : nextState.consecutiveFailures >= nextState.failureThreshold
-          ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
-          : nextState.plateau
-            ? `plateau detected (last 5 runs improved < 1%); consider rerunning with repeat:3 to confirm, opening a new segment, or stopping`
-            : "pick the next hypothesis and run_experiment again";
+      : runsLeft != null && runsLeft > 0 && runsLeft <= 2
+        ? `approaching iteration cap (${nextState.runs.length}/${nextState.maxIterations}); ${runsLeft} run(s) left — plan the closing experiment(s)`
+        : detectDoomLoop(nextState.runs)
+          ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
+          : nextState.consecutiveFailures >= nextState.failureThreshold
+            ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
+            : nextState.plateau
+              ? plateauHintText()
+              : "pick the next hypothesis and run_experiment again";
 
   return {
     ok: true,
@@ -1231,13 +1330,27 @@ async function toolLogExperiment(
     best,
     delta: delta != null ? Number(delta.toFixed(6)) : null,
     confidence: conf
-      ? { level: conf.level, value: Number(conf.confidence.toFixed(2)) }
+      ? {
+          level: conf.level,
+          value: Number(conf.confidence.toFixed(2)),
+          unit: "× noise",
+        }
       : null,
     plateau: nextState.plateau === true,
     doom_loop: detectDoomLoop(nextState.runs)?.doomLoop ?? false,
+    runs_left: runsLeft,
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
     ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
+    ...(rolledBack.length > 0
+      ? {
+          rolled_back: {
+            restored_to: restoredTo,
+            files: rolledBack.slice(0, 20),
+            total_files: rolledBack.length,
+          },
+        }
+      : {}),
     ...(rollbackResidual.length > 0
       ? { rollback_residual: rollbackResidual }
       : {}),
@@ -1306,6 +1419,20 @@ const TOOLS = [
           type: "string",
           enum: ["lower", "higher"],
           description: "lower is better (default) or higher is better",
+        },
+        plateau_min_improvement: {
+          type: "number",
+          description:
+            "optional plateau threshold: minimum relative improvement over the window (default 0.01 = 1%); set near the metric's real step size (e.g. 0.0002 for an AUC moving in the 4th decimal) to avoid false plateaus",
+        },
+        plateau_window: {
+          type: "number",
+          description: "optional plateau window in runs (default 5, min 2)",
+        },
+        deterministic: {
+          type: "boolean",
+          description:
+            "benchmark is deterministic (bitwise reproducible); plateau hints will not suggest repeat re-measurement",
         },
       },
       required: ["metric_name"],

@@ -137,5 +137,15 @@ export interface SessionConfig {
   harnessHashes?: Record<string, string | null> | null;
   /** Server-managed: checks outcome of the latest run_experiment (keep gate). */
   pendingChecksFailed?: boolean;
+  /**
+   * Loop calibration: plateau window in runs (integer ≥2, default 5) and the
+   * minimum relative improvement over that window (≥0, default 0.01). Set
+   * near the metric's real step size — the default 1% misfires on metrics
+   * that move in the 4th decimal (e.g. AUC).
+   */
+  plateauWindow?: number;
+  plateauMinImprovement?: number;
+  /** Benchmark is deterministic (bitwise reproducible): hints skip repeat re-measurement suggestions. */
+  deterministic?: boolean;
   [key: string]: unknown;
 }

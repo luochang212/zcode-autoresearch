@@ -55,27 +55,28 @@ const triedList = tried.slice(-8);
 if (triedList.length > 0)
   lines.push(`已尝试方向：${triedList.join("、")}（避免重复尝试）。`);
 
-// Best trajectory: baseline → improving keeps (≤6 steps)
+// Best trajectory: baseline → improving keeps (≤6 steps). Labels reuse
+// directionLabel's own 40-char cap — an inner 14-char slice would cut CJK
+// conclusions mid-word ("spw 细扫 1" hiding "…单峰确认在 2.0").
 const kept = state.runs.filter((r) => r.status === "keep" && r.metric != null);
 const steps = kept.filter((r) => r.metric !== state.baseline).slice(-6);
 if (steps.length > 0) {
-  const traj = steps.map(
-    (r) => `${r.metric}(${directionLabel(r).slice(0, 14)})`,
-  );
+  const traj = steps.map((r) => `${r.metric}(${directionLabel(r)})`);
   lines.push(`best 轨迹：${state.baseline ?? "—"} → ${traj.join(" → ")}。`);
 }
 
 // Discard reasons (design D5): why each rejected direction was dropped, so a
 // later result can be checked against them even outside the 3-run recent
 // window. Same window as the tried-directions list, one line, reasons
-// truncated to keep the injection slim.
+// truncated at 120 chars — enough for a full conclusion ("spw 1.5/2.5 细扫
+// 单峰确认在 2.0"), still bounded (8 × 120) to keep the injection slim.
 const discardItems: string[] = [];
 for (const r of state.runs) {
   if (r.status !== "discard" && r.status !== "checks_failed") continue;
   const raw = r.asi?.rollback;
   if (typeof raw !== "string" || raw.trim() === "") continue;
   const reason = raw.trim();
-  const truncated = reason.length > 60 ? reason.slice(0, 60) + "…" : reason;
+  const truncated = reason.length > 120 ? reason.slice(0, 120) + "…" : reason;
   discardItems.push(`#${r.run} ${truncated}`);
 }
 const discardList = discardItems.slice(-8);

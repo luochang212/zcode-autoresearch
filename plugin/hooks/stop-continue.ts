@@ -2,7 +2,11 @@
 // Stop hook: keep the autoresearch loop running while it is not finished.
 // zcode grants at most 3 consecutive Stop continuations per window, so this
 // hook only fires when the ledger shows the loop should continue.
-import { rebuildState, readSessionConfig } from "../mcp/lib/ledger.ts";
+import {
+  rebuildState,
+  readSessionConfig,
+  plateauCalibration,
+} from "../mcp/lib/ledger.ts";
 import { resolveWorkCwd } from "../mcp/lib/paths.ts";
 import { isStopReached, detectDoomLoop } from "../mcp/lib/experiment.ts";
 import type { SessionState } from "../mcp/lib/types.ts";
@@ -15,14 +19,22 @@ function failOpen(): never {
 }
 
 let state: SessionState | undefined;
+let calib: ReturnType<typeof plateauCalibration> = {
+  minImprovement: undefined,
+  window: undefined,
+  deterministic: false,
+};
 try {
   const cfg = readSessionConfig(projectCwd);
   if (cfg.autoresearchOff === true) failOpen();
   const max = Number(cfg.maxIterations);
   const fails = Number(cfg.consecutiveFailures);
+  calib = plateauCalibration(projectCwd);
   state = rebuildState(cwd, {
     maxIterations: Number.isFinite(max) && max > 0 ? max : 20,
     consecutiveFailures: Number.isFinite(fails) && fails > 0 ? fails : 3,
+    plateauWindow: calib.window,
+    plateauMinImprovement: calib.minImprovement,
   });
 } catch {
   failOpen();
@@ -42,13 +54,23 @@ try {
   );
   if (finished) failOpen();
 
-  // Plateau convergence: recent runs improved < 1% → let the model wrap up.
-  // The Stop schema has no allow-with-reason shape, so the advisory goes to
-  // stderr (hook log) while the hook exits 0 to allow the stop.
+  // Plateau convergence: recent runs improved below the calibrated threshold
+  // (default 1% over 5 runs) → let the model wrap up. The Stop schema has no
+  // allow-with-reason shape, so the advisory goes to stderr (hook log) while
+  // the hook exits 0 to allow the stop.
   if (state.plateau) {
+    const window = calib.window ?? 5;
+    const min = calib.minImprovement ?? 0.01;
+    const pct = `${(min * 100).toFixed(2).replace(/\.?0+$/, "")}%`;
+    const suggestions = [
+      // A deterministic benchmark cannot be confirmed by re-measurement.
+      ...(calib.deterministic ? [] : ["用 run_experiment repeat:3 复测确认"]),
+      "init_experiment 开启新 segment",
+      "就此收尾总结",
+    ].join("，或 ");
     process.stderr.write(
-      `[autoresearch] 循环已进入平台期（最近 5 轮改善 < 1%，best=${state.best ?? "—"}）。` +
-        `建议：用 run_experiment repeat:3 复测确认，或 init_experiment 开启新 segment，或就此收尾总结。\n`,
+      `[autoresearch] 循环已进入平台期（最近 ${window} 轮改善 < ${pct}，best=${state.best ?? "—"}）。` +
+        `建议：${suggestions}。\n`,
     );
     process.exit(0);
   } else {
