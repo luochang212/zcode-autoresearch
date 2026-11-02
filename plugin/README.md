@@ -64,7 +64,7 @@ Or let the skill trigger on its own (descriptions containing "autoresearch", "au
 - **Memory injection**: UserPromptSubmit injects an aggregated summary (progress + deduped tried directions + best trajectory + discard reasons with rollback rationale + ASI distillation) so progress survives compaction; SessionStart injects the resume hint. Both stay silent while `autoresearchOff` is set.
 - **Loop continuation**: the Stop hook blocks (`decision:block`) while a loop is unfinished and not paused (zcode platform limit: 3 consecutive windows).
 - **Iteration hooks**: `.auto/hooks/before.sh` (pre-benchmark) and `after.sh` (post-record) run on every experiment (fail-open, 30s timeout, stdout → `*_steer`).
-- **Hook ecosystem**: `skills/autoresearch-hooks` tutorial + 6 ready-to-use examples in `hooks/examples/before/` and `hooks/examples/after/` (anti-thrash, hypothesis reflection, idea rotator, learnings journal, auto-tag winners, macOS notify); copy one into `.auto/hooks/` renamed to `before.sh` (from `before/`) or `after.sh` (from `after/`) — those exact filenames are what the server executes (parsed with Node, no jq dependency).
+- **Hook ecosystem**: `skills/autoresearch-hooks` tutorial + 7 ready-to-use examples in `hooks/examples/before/` and `hooks/examples/after/` (anti-thrash, hypothesis reflection, idea rotator with shallow-streak nudge, hourly self-check, learnings journal, auto-tag winners, macOS notify); copy one into `.auto/hooks/` renamed to `before.sh` (from `before/`) or `after.sh` (from `after/`) — those exact filenames are what the server executes (parsed with Node, no jq dependency).
 - **Stop-loss**: after `consecutiveFailures` in a row (default 3, configurable in `.auto/config.json`) the plugin hints you to stop.
 - **Ledger audit**: `log_experiment` validates invariants before writing (keep must be a real improvement, a discarded real improvement must have failed the guard, event ordering, commit field); violations are rejected; a crashed segment that wasn't rolled back blocks continuation. `auditBypass: true` in `.auto/config.json` explicitly skips both the audit and secondary-metric constraints (not recommended).
 - **Benchmark drift detection**: `init_experiment` records hashes of measure.sh/checks.sh; `run_experiment` compares them, and a mid-run benchmark change returns a `benchmark_drift` warning (surfaces benchmark edits instead of silently accepting incomparable metrics).
@@ -85,7 +85,7 @@ plugin/
 │   ├── guard-frozen.ts        # frozen-file write protection → deny
 │   ├── memory-inject.ts       # ledger tail injection
 │   ├── session-start.ts       # session resume hints
-│   └── examples/               # 6 ready-to-use before/after iteration hooks
+│   └── examples/               # 7 ready-to-use before/after iteration hooks
 ├── skills/
 │   ├── autoresearch/           # SKILL.md thin router + references/
 │   └── autoresearch-hooks/     # iteration-hook tutorial

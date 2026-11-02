@@ -64,7 +64,7 @@
 - **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
 - **循环续跑**：Stop hook 在循环未结束且未暂停时 `decision:block`（zcode 平台限制连续 3 次窗口）。
 - **迭代钩子**：`.auto/hooks/before.sh`（基准前）与 `after.sh`（记录后）每次实验自动执行（fail-open，30s 超时，stdout→`*_steer`）。
-- **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/before/` 与 `hooks/examples/after/` 共 6 个现成示例（防重复失败/换思路/假设反思/学习日志/通知/最优打标），复制到 `.auto/hooks/` 并改名为 `before.sh`（before/ 下的示例）或 `after.sh`（after/ 下的示例）——server 只执行这两个固定文件名（node 解析，无 jq 依赖）。
+- **钩子生态**：`skills/autoresearch-hooks` 教学 + `hooks/examples/before/` 与 `hooks/examples/after/` 共 7 个现成示例（防重复失败/换思路+浅层连击提醒/假设反思/时段自检/学习日志/通知/最优打标），复制到 `.auto/hooks/` 并改名为 `before.sh`（before/ 下的示例）或 `after.sh`（after/ 下的示例）——server 只执行这两个固定文件名（node 解析，无 jq 依赖）。
 - **止损**：连续失败达 `.auto/config.json` 的 `consecutiveFailures`（默认 3，可配）时提示停止。
 - **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、事件顺序、commit 字段），违规拒收；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 会同时跳过审计与次级度量约束（不推荐）。
 - **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对；基准中途变更时返回 `benchmark_drift` 警告（暴露基准改动，不静默接受不可比 metric）。
@@ -85,7 +85,7 @@ plugin/
 │   ├── guard-frozen.ts        # 冻结文件写保护 → deny
 │   ├── memory-inject.ts       # 账本尾行注入
 │   ├── session-start.ts       # 会话恢复提示
-│   └── examples/               # 6 个现成的 before/after 迭代钩子示例
+│   └── examples/               # 7 个现成的 before/after 迭代钩子示例
 ├── skills/
 │   ├── autoresearch/           # SKILL.md 薄路由 + references/
 │   └── autoresearch-hooks/     # 迭代钩子教学
