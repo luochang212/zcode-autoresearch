@@ -37,7 +37,7 @@ The prefixes are an advisory convention: the tools never validate them, and unta
 - **Re-measure with `repeat`**: if the metric is noisy (variance within ~10% of the delta you're chasing), call `run_experiment` with `repeat: 3` and log the returned `median_metric`. Never judge a change on a single sample when the delta is inside the noise band.
 - **Confidence is your calibration**: `log_experiment` returns `confidence` (MAD-based, green/yellow/red). Treat red/yellow improvements as **directional**: you may keep them, but mark them in the description; do not build the next hypothesis on top of a low-confidence gain without re-measuring.
 - **Prefer bigger moves**: a change that moves the metric by more than the noise floor beats many marginal ones.
-- **Plateau means stop searching this segment**: when `plateau: true` (last 5 runs improved < 1%), either confirm with `repeat:3`, start a new segment via `init_experiment`, or stop and summarize. Re-litigating the last 1% of a noisy metric is wasted iterations.
+- **Plateau means stop searching this segment**: when `plateau: true` (the last window improved below the threshold — default 5 runs / 1%; calibrate via `init_experiment` `plateau_window` / `plateau_min_improvement`, and `deterministic: true` drops the repeat suggestion), either confirm with `repeat:3`, start a new segment via `init_experiment`, or stop and summarize. Re-litigating a sub-threshold margin on a noisy metric is wasted iterations.
 
 ## Failure handling
 
