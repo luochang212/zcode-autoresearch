@@ -26,12 +26,12 @@ The agent owns selection; do not make the user choose a theme as a setup step.
 2. When updating an existing atlas, preserve its concrete `data-atlas-theme`
    value by passing that named theme, unless the user requests another theme
    or a fresh random choice.
-3. For a new atlas without a clear preference, prefer `--theme random` (also
-   the CLI default). Do not guess a preference from the project category,
-   the reader's identity, or the operating system; do not ask the user merely
-   to break the tie.
+3. For a new atlas without a clear preference, omit `--theme`: the CLI default
+   renders Signal. Do not guess a preference from the project category,
+   the reader's identity, or the operating system; do not prompt for a theme.
 
-Random selection favors Signal as the flagship theme: Folio 30%, Signal 70%, rolled once at generation.
+Omitting `--theme` renders Signal; `--theme random` rolls a fair 50/50 coin
+between Folio and Signal once at generation.
 The resulting file keeps that theme. Do not add system appearance detection,
 a page switch, or a runtime reroll. Theme selection is unavailable for
 standalone maps and record trees.

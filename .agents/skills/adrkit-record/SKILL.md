@@ -7,15 +7,16 @@ description: Use when a shipped choice has important constraints or reasons that
 
 Recording a shipped choice preserves important context that later tasks could otherwise lose.
 
-## Is this worth recording?
+## When to record
 
-Preserve important context missing from existing sources. Honor explicit user requests to preserve a choice without making similar edits record-worthy.
+Preserve important context missing from existing sources, especially context held only in a user conversation. Honor explicit user requests to preserve a choice without making similar edits record-worthy.
 
-Before creating or shaping a record, ask:
+Before creating or shaping a record, answer these four questions:
 
-1. **What would be lost?** Find a constraint, reason, or genuine trade-off that code, tests, and existing documentation do not reliably explain, especially context held only in a user conversation. An implementation result alone is insufficient.
-2. **What would forgetting cost?** Identify a plausible future mistake and its consequences. Weigh importance and breadth of impact; a local decision with severe consequences can qualify. Do not invent disasters to justify recording.
-3. **What should survive?** Preserve the stable choice, boundary, and reason. Consider longevity and resistance to becoming stale separately; leave volatile facts to code, configuration, tests, or existing docs.
+1. **Can code, tests, or Git explain this choice?** If yes, it is not an ADR.
+2. **Does the record only say "we did X" while X is visible in the code?** If yes, it is not an ADR.
+3. **Is the constraint or reason behind it hidden and durable enough to guide future choices?** If no, it is not an ADR.
+4. **Is this a routine upgrade, naming change, format migration, visual tweak, or process ritual?** If yes, it is not an ADR.
 
 Use judgment, not a score or an all-must-pass checklist. If nothing meaningful would be lost, skip without a justification field, user approval, or deferred note. Notes are candidates, not commitments to ADRs.
 

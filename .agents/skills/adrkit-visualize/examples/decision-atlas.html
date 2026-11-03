@@ -481,9 +481,9 @@ body:not(.interactive) .workspace { display: block; height: auto; overflow: auto
 .reader-nav button,#close-reader { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--fg); font-size: 1rem; }
 .reader-nav button:hover:not(:disabled),#close-reader:hover { border-color: var(--accent); color: var(--accent); }
 .reader-nav button:disabled { opacity: .35; cursor: default; }
-#reader-title { margin: 36px 0 16px; font: 500 clamp(1.75rem,1.25rem + 1vw,2.375rem)/1.35 var(--font-serif); letter-spacing: -.025em; overflow-wrap: anywhere; text-wrap: pretty; }
-#reader-description { margin: 0; color: var(--muted); font: italic 500 .9375rem/1.75 var(--font-sans); overflow-wrap: anywhere; }
-#reader-context { margin-top: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); color: var(--muted); font: .75rem/1.7 var(--font-sans); }
+#reader-title { margin: 36px 0 12px; font: 500 clamp(1.75rem,1.25rem + 1vw,2.375rem)/1.35 var(--font-serif); letter-spacing: -.025em; overflow-wrap: anywhere; text-wrap: pretty; }
+#reader-description { margin: 0; color: var(--muted); font: 400 .9375rem/1.8 var(--font-sans); overflow-wrap: anywhere; }
+#reader-context { margin-top: 36px; padding-bottom: 24px; border-bottom: 1px solid var(--border); color: var(--muted); font: .75rem/1.7 var(--font-sans); }
 #reader-context:not(:has(>.ctx-relations)) { border-bottom: 0; padding-bottom: 0; }
 .ctx-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin: 0; padding: 16px 18px; border-radius: 4px; background: var(--bg); }
 .ctx-facts>div { min-width: 0; }
@@ -562,7 +562,6 @@ body:not(.interactive) .workspace { display: block; height: auto; overflow: auto
   #reader { inset: 0; margin: 0; width: 100%; height: 100dvh; max-height: 100dvh; padding: calc(16px + env(safe-area-inset-top)) 24px calc(48px + env(safe-area-inset-bottom)); border: 0; }
   #reader-title { margin-top: 28px; font-size: 1.875rem; }
   .reader-head { gap: 8px; }
-  #reader-context { margin-top: 24px; }
   #reader-body { font-size: .9375rem; }
   #reader-body h3 { font-size: 1.5rem; }
 }
@@ -755,9 +754,9 @@ html{scroll-padding-top:68px}.archive-masthead{padding:0 24px}.masthead-inner{ma
 .reader-nav button,#close-reader { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border: 1px solid var(--border); border-radius: 50%; background: var(--panel); color: var(--fg); font-size: 1rem; }
 .reader-nav button:hover:not(:disabled),#close-reader:hover { border-color: var(--accent); color: var(--accent); }
 .reader-nav button:disabled { opacity: .35; cursor: default; }
-#reader-title { margin: 36px 0 16px; font: 500 clamp(1.75rem,1.25rem + 1vw,2.375rem)/1.35 var(--font-serif); letter-spacing: -.025em; overflow-wrap: anywhere; text-wrap: pretty; }
-#reader-description { margin: 0; color: var(--muted); font: italic 500 .9375rem/1.75 var(--font-sans); overflow-wrap: anywhere; }
-#reader-context { margin-top: 28px; padding-bottom: 24px; border-bottom: 1px solid var(--border); color: var(--muted); font: .75rem/1.7 var(--font-sans); }
+#reader-title { margin: 36px 0 12px; font: 500 clamp(1.75rem,1.25rem + 1vw,2.375rem)/1.35 var(--font-serif); letter-spacing: -.025em; overflow-wrap: anywhere; text-wrap: pretty; }
+#reader-description { margin: 0; color: var(--muted); font: 400 .9375rem/1.8 var(--font-sans); overflow-wrap: anywhere; }
+#reader-context { margin-top: 36px; padding-bottom: 24px; border-bottom: 1px solid var(--border); color: var(--muted); font: .75rem/1.7 var(--font-sans); }
 #reader-context:not(:has(>.ctx-relations)) { border-bottom: 0; padding-bottom: 0; }
 .ctx-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin: 0; padding: 16px 18px; border-radius: 4px; background: var(--bg); }
 .ctx-facts>div { min-width: 0; }
@@ -817,7 +816,6 @@ html{scroll-padding-top:68px}.archive-masthead{padding:0 24px}.masthead-inner{ma
  #reader { inset: 0; margin: 0; width: 100%; height: 100dvh; max-height: 100dvh; padding: calc(16px + env(safe-area-inset-top)) 24px calc(48px + env(safe-area-inset-bottom)); border: 0; }
  #reader-title { margin-top: 28px; }
  .reader-head { gap: 8px; }
- #reader-context { margin-top: 24px; }
 }
 @media(prefers-reduced-motion:reduce) { #reader[open], #reader.closing, #reader-body.swap { animation: none; } .decision-card { transition: none; } }
 </style><style>
