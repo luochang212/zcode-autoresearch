@@ -44,7 +44,7 @@
 ## 插件架构速览（改动前先读）
 
 - **`plugin/mcp/server.ts`**：JSON-RPC stdio server，工具 init/run/log/export/clear；账本 `.auto/log.jsonl` 为 append-only 事实源。
-- **`plugin/mcp/lib/`**：领域逻辑与 IO 辅助，包括 `experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir）、`bash`（跨平台 bash 定位/进程树终止/shell 引用）、`frozen`（写保护文件集合与路径键归一化）。
+- **`plugin/mcp/lib/`**：领域逻辑与 IO 辅助，包括 `experiment`（度量/方向/confidence/plateau/doom-loop）、`ledger`（账本/segment/追加自愈）、`git`（commit/rollback）、`validate`（审计不变量）、`dashboard`（渲染）、`dashboard-server`（SSE）、`paths`（workingDir，配置失效时显式失败）、`bash`（跨平台 bash 定位/进程树终止/shell 引用）、`frozen`（写保护文件集合与路径键归一化）、`harness`（可编辑面留痕）。
 - **护栏四层**：checks（输出正确）→ 审计不变量（账本自洽）→ 漂移检测（基准 hash）→ 次级度量约束（代价维度）。
 - **冻结语义**：写保护覆盖 `.auto/measure.sh`、`.auto/checks.sh`、`.auto/goal.md`、`.auto/scope.md`；冻结指「记录后不可改」，setup 首次创建放行、已存在则拒改（`frozen.ts` 是唯一事实源）。
 - **规程层**：`skills/autoresearch/SKILL.md` 与 `references/loop-protocol.md` 定义循环规程与 harness 编辑步（二阶循环：有账本证据才改 surface，`goal.md`/`scope.md` 是根与围栏；segment 末至多写一条 `experience.md`，finalize 前人工并入项目 `AGENTS.md`）。
