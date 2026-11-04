@@ -453,6 +453,10 @@ describe("marketplace 契约（本仓库）", () => {
       "description_i18n 漂移：上游 validate.py 要求与 plugin.json 完全相等",
     );
     assert.ok(
+      jsonEqual(entry!["keywords"], manifest["keywords"]),
+      "keywords 漂移：marketplace 条目必须与 plugin.json 完全相等",
+    );
+    assert.ok(
       CATEGORIES.has(entry!["category"] as string),
       "category 不在允许集合内",
     );

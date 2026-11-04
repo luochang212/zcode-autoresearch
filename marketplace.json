@@ -22,7 +22,14 @@
         "name": "luochang212"
       },
       "category": "developer-tools",
-      "keywords": ["autoresearch", "experiment", "optimization", "loop"]
+      "keywords": [
+        "autoresearch",
+        "experiment",
+        "optimization",
+        "loop",
+        "benchmark",
+        "mcp"
+      ]
     }
   ]
 }
