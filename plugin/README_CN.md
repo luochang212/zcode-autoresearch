@@ -4,7 +4,7 @@
 
 让 ZCode 的 coding agent 在**固定度量**上自主迭代优化：改代码 → 跑基准 → 保留改进、回滚退化 → 循环。
 
-基于 [karpathy/autoresearch](https://github.com/karpathy/autoresearch) 与 [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) 的调研（见仓库根 `docs/research/autoresearch-survey.md`）。架构决策见 `adr/implemented/1-*.md`、`2-*.md`。
+基于 [karpathy/autoresearch](https://github.com/karpathy/autoresearch) 与 [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) 的调研（见仓库根 `docs/research/autoresearch-survey.md`）。架构决策见仓库根 `adr/implemented/`。
 
 ## 安装
 
@@ -12,7 +12,7 @@
 
 1. 添加市场：本地目录 / 本仓库地址。
 2. 在 **Settings → Plugin Management** 安装并启用 `autoresearch`。
-3. 插件提供：MCP 服务（5 个工具）、skill `autoresearch`、5 个命令、4 个 hook。启用插件即授予代码执行信任（官方约定）。
+3. 插件提供：MCP 服务（5 个工具）、2 个 skill（`autoresearch` + `autoresearch-hooks`）、5 个命令、4 个 hook。启用插件即授予代码执行信任（官方约定）。
 
 > 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库 TypeScript 脚本（Node ≥24，类型由 Node 原生剥离，无构建步骤）。
 >
@@ -32,7 +32,7 @@
 
 ```
 /autoresearch:autoresearch <目标>   # 进入/恢复 autoresearch 模式（无会话则走 setup）
-/autoresearch:export                # 导出静态 dashboard（autoresearch-dashboard.html）
+/autoresearch:export                # 导出 dashboard（live SSE 地址 + 静态 autoresearch-dashboard.html）
 /autoresearch:off                   # 暂停循环与其提示（autoresearchOff: true）
 /autoresearch:clear                 # 重置会话账本
 /autoresearch:finalize              # 把 kept 实验整理为干净分支（scripts/finalize.sh）
@@ -40,7 +40,7 @@
 
 或让 skill 自动触发（描述含 "autoresearch"、"自主优化" 等）。一次完整循环：
 
-1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 逐字记录用户深层目标到 `.auto/goal.md`（冻结，hook 拒写）→ 写 `.auto/prompt.md` 章程（目标段逐字引用 goal.md）→ 建实验分支 `git checkout -b autoresearch/<tag>`。
+1. **Setup**：定机械度量 → 写 `.auto/measure.sh`（输出 `METRIC name=value` 行）→ 可选 `.auto/checks.sh`（正确性门禁）→ 逐字记录用户深层目标到 `.auto/goal.md` 与用户同意的范围边界到 `.auto/scope.md`（均冻结，hook 拒写）→ 写 `.auto/prompt.md` 章程（目标/范围段逐字引用两文件）→ 建实验分支 `git checkout -b autoresearch/<tag>`。
 2. `init_experiment`（metric_name、direction）→ 跑一次 baseline。
 3. **循环**：一次聚焦改动 → `run_experiment` → `log_experiment`（keep 自动 commit / 非 keep 自动回滚；`.auto/` 与 dashboard 均不计入）。
 
@@ -56,9 +56,9 @@
 
 ## 护栏
 
-- **benchmark 锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装后校验）。
+- **基准锁定**：`.auto/measure.sh` 存在时，`run_experiment` 只执行该脚本（剥 env/time/nice 包装与前导赋值后校验；赋值前缀的值同走字符白名单，夹带 `$(`、反引号等元字符即拒绝）。
 - **正确性背压**：`.auto/checks.sh` 存在时 benchmark 通过后自动执行；失败禁 keep 并自动回滚。
-- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的改写（setup 首次创建是预期例外，冻结指「记录后不可改写」；goal.md 是深层目标原文，循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界，循环在栏内工作，扩围/收围由用户手改或新 segment）。被 deny 的改写企图以 `frozen_attempt` 行记入账本。
+- **写保护**：PreToolUse hook deny 对 `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` / `.auto/scope.md` 的 Write/Edit/ApplyPatch 改写（ApplyPatch 的目标从 patch_text 解析）（setup 首次创建是预期例外，冻结指「记录后不可改写」；goal.md 是深层目标原文，循环所服务的根不可变，harness 编辑步只修订其表层表示；scope.md 是用户同意的范围边界，循环在栏内工作，扩围/收围由用户手改或新 segment）。被 deny 的改写企图以 `frozen_attempt` 行记入账本。
 - **harness 留痕**：可编辑面（`prompt.md`、`ideas.md`、`experience.md`、`.auto/hooks/before.sh` / `after.sh`）在记账时点（`run_experiment` / `log_experiment` / `export_dashboard`）做哈希对账，相对基线有变化的文件各记一条 `harness_edit` 行，连手改也逃不掉。编辑步的 verdict 纪律仍是 advisory，但「动过」这件事是机械保证。
 - **暂停开关**：`/autoresearch:off` 写入 `autoresearchOff: true`，同时静音 Stop 续跑、记忆注入与 SessionStart 提示；`init_experiment`/`clear_experiments` 与 resume 命令会清除标记。
 - **记忆注入**：UserPromptSubmit 注入聚合摘要（进度 + 已尝试方向去重 + best 轨迹 + 弃用方向与理由 + ASI 提炼），compaction 后不丢进度；SessionStart 注入续跑提示；`autoresearchOff` 时两者都静默。
@@ -78,7 +78,7 @@ plugin/
 ├── .mcp.json                   # MCP stdio server 声明
 ├── mcp/
 │   ├── server.ts              # JSON-RPC 换行协议 + 5 个工具
-│   └── lib/                    # 纯逻辑：experiment / ledger / git / validate / dashboard / dashboard-server / html / paths
+│   └── lib/                    # 纯逻辑：experiment / ledger / git / validate / dashboard / dashboard-server / html / paths / bash / frozen / harness / types
 ├── hooks/
 │   ├── hooks.json              # Stop / PreToolUse / UserPromptSubmit / SessionStart
 │   ├── stop-continue.ts       # 循环未结束 → block
@@ -90,7 +90,7 @@ plugin/
 │   ├── autoresearch/           # SKILL.md 薄路由 + references/
 │   └── autoresearch-hooks/     # 迭代钩子教学
 ├── commands/                   # autoresearch / export / off / clear / finalize
-├── scripts/finalize.sh         # /autoresearch:finalize 实现
+├── scripts/                    # run-node.sh（server 与 hooks 的 Node 解析入口）/ finalize.sh（/autoresearch:finalize 实现）
 └── tests/                      # node --test 单元测试
 ```
 

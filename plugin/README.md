@@ -4,7 +4,7 @@
 
 Let the ZCode coding agent iterate autonomously on a fixed, mechanical metric: modify code → run the benchmark → keep improvements, revert regressions → repeat.
 
-Based on research into [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) (see `docs/research/autoresearch-survey.md`). Architecture decisions live in `adr/implemented/`.
+Based on research into [karpathy/autoresearch](https://github.com/karpathy/autoresearch) and [pi-autoresearch](https://github.com/davebcn87/pi-autoresearch) (see `docs/research/autoresearch-survey.md` at the repository root). Architecture decisions live in `adr/implemented/`.
 
 ## Security and side effects
 
@@ -26,13 +26,13 @@ This repository is itself a plugin marketplace (`marketplace.json` points to `./
 
 1. Add the marketplace: this repository's URL (or a local directory).
 2. In **Settings → Plugin Management**, install and enable `autoresearch`.
-3. The plugin provides: an MCP server (5 tools), the `autoresearch` skill, 5 slash commands, and 4 hooks.
+3. The plugin provides: an MCP server (5 tools), 2 skills (`autoresearch` + `autoresearch-hooks`), 5 slash commands, and 4 hooks.
 
 ## Usage
 
 ```
 /autoresearch:autoresearch <goal>   # enter/resume autoresearch mode (runs setup if there is no session)
-/autoresearch:export                # export a static dashboard (autoresearch-dashboard.html)
+/autoresearch:export                # export the dashboard (live SSE URL + static autoresearch-dashboard.html)
 /autoresearch:off                   # pause the loop and its hints (sets autoresearchOff: true)
 /autoresearch:clear                 # reset the session ledger
 /autoresearch:finalize              # organize kept experiments into a clean branch (scripts/finalize.sh)
@@ -40,7 +40,7 @@ This repository is itself a plugin marketplace (`marketplace.json` points to `./
 
 Or let the skill trigger on its own (descriptions containing "autoresearch", "autonomous optimization", etc.). A full loop:
 
-1. **Setup**: pick a mechanical metric → write `.auto/measure.sh` (emits `METRIC name=value` lines) → optionally `.auto/checks.sh` (correctness gate) → record the user's deep goal verbatim in `.auto/goal.md` (frozen; hook denies rewrites) → write the `.auto/prompt.md` charter (its Goal section quotes goal.md verbatim) → create an experiment branch `git checkout -b autoresearch/<tag>`.
+1. **Setup**: pick a mechanical metric → write `.auto/measure.sh` (emits `METRIC name=value` lines) → optionally `.auto/checks.sh` (correctness gate) → record the user's deep goal verbatim in `.auto/goal.md` and the agreed scope boundary in `.auto/scope.md` (both frozen; the hook denies rewrites) → write the `.auto/prompt.md` charter (its Goal/Scope sections quote the two files verbatim) → create an experiment branch `git checkout -b autoresearch/<tag>`.
 2. `init_experiment` (metric_name, direction) → run a baseline.
 3. **Loop**: one focused change → `run_experiment` → `log_experiment` (keep auto-commits, non-keep auto-rolls-back; `.auto/` and the dashboard are exempt from both).
 
@@ -56,9 +56,9 @@ Or let the skill trigger on its own (descriptions containing "autoresearch", "au
 
 ## Guardrails
 
-- **Benchmark locking**: when `.auto/measure.sh` exists, `run_experiment` only executes that script (validated after stripping env/time/nice wrappers).
+- **Benchmark locking**: when `.auto/measure.sh` exists, `run_experiment` only executes that script (validated after stripping env/time/nice wrappers and leading assignments; assignment values pass the same character whitelist, so `$(`/backtick smuggling is rejected).
 - **Correctness backpressure**: when `.auto/checks.sh` exists, it runs automatically after a passing benchmark; a failing gate forbids keep and rolls back.
-- **Write protection**: a PreToolUse hook denies rewrites of `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` (the deep-goal record: the root the loop serves stays immutable while the harness-edit step revises its surface representations) / `.auto/scope.md` (the user-agreed scope boundary: the loop works inside the fence, it never redraws it — widening or narrowing is the user's edit or a new segment). First creation during setup is the intended exception — frozen means immutable once recorded. A denied rewrite attempt is recorded to the ledger as a `frozen_attempt` row.
+- **Write protection**: a PreToolUse hook denies Write/Edit/ApplyPatch rewrites of `.auto/measure.sh` / `.auto/checks.sh` / `.auto/goal.md` (the deep-goal record: the root the loop serves stays immutable while the harness-edit step revises its surface representations) / `.auto/scope.md` (the user-agreed scope boundary: the loop works inside the fence, it never redraws it — widening or narrowing is the user's edit or a new segment). First creation during setup is the intended exception — frozen means immutable once recorded. A denied rewrite attempt is recorded to the ledger as a `frozen_attempt` row.
 - **Harness trace**: the editable surfaces (`prompt.md`, `ideas.md`, `experience.md`, `.auto/hooks/before.sh` / `after.sh`) are hashed at the accounting checkpoints (`run_experiment` / `log_experiment` / `export_dashboard`); anything that moved since the baseline gets a `harness_edit` row in the ledger — including hand edits, which no tool hook could see. The edit step's verdict discipline stays advisory; the fact of a change is mechanical.
 - **Pause switch**: `/autoresearch:off` sets `autoresearchOff: true`, which silences Stop continuation, memory injection and the SessionStart hint; `init_experiment`/`clear_experiments` and the resume command clear it.
 - **Memory injection**: UserPromptSubmit injects an aggregated summary (progress + deduped tried directions + best trajectory + discard reasons with rollback rationale + ASI distillation) so progress survives compaction; SessionStart injects the resume hint. Both stay silent while `autoresearchOff` is set.
@@ -78,7 +78,7 @@ plugin/
 ├── .mcp.json                   # MCP stdio server declaration
 ├── mcp/
 │   ├── server.ts              # JSON-RPC line protocol + tools
-│   └── lib/                    # pure logic: experiment / ledger / git / validate / dashboard / dashboard-server / html / paths
+│   └── lib/                    # pure logic: experiment / ledger / git / validate / dashboard / dashboard-server / html / paths / bash / frozen / harness / types
 ├── hooks/
 │   ├── hooks.json              # Stop / PreToolUse / UserPromptSubmit / SessionStart
 │   ├── stop-continue.ts       # loop unfinished → block
@@ -90,7 +90,7 @@ plugin/
 │   ├── autoresearch/           # SKILL.md thin router + references/
 │   └── autoresearch-hooks/     # iteration-hook tutorial
 ├── commands/                   # autoresearch / export / off / clear / finalize
-├── scripts/finalize.sh         # /autoresearch:finalize implementation
+├── scripts/                    # run-node.sh (Node resolver for server + hooks) / finalize.sh (/autoresearch:finalize)
 └── tests/                      # node --test unit tests
 ```
 
@@ -112,7 +112,7 @@ Setting `"workingDir": "work/"` in `.auto/config.json` separates the research di
 | `ideas.md`      | optional hypothesis list                                                                                                                                                                             |
 | `experience.md` | optional cross-segment lessons (at most one per segment; survives clear)                                                                                                                             |
 
-## Known limits (research-backed, see `docs/research/autoresearch-survey.md` §4.1)
+## Known limits (research-backed, see `docs/research/autoresearch-survey.md` §4.1 at the repository root)
 
 - **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (recurring + maxRuns, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
 - **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.

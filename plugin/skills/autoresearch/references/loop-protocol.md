@@ -21,7 +21,7 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 
 A fresh segment is the moment of maximum freedom — and the easiest to waste on the most familiar path. Before the first `run_experiment` of a segment:
 
-1. **Ideate before reading the code**: skim project docs, related libraries, or the web first, then write a candidate hypothesis list into `.auto/ideas.md` (one per line). Reading the target code first anchors you on the baseline's structure — the documented default failure mode (external evidence: AGENT4SCI found 56% of default agent attempts were hyperparameter tuning under baseline anchoring; see `docs/research/agent4sci-notes.md`).
+1. **Ideate before reading the code**: skim project docs, related libraries, or the web first, then write a candidate hypothesis list into `.auto/ideas.md` (one per line). Reading the target code first anchors you on the baseline's structure — the documented default failure mode (external evidence: AGENT4SCI found 56% of default agent attempts were hyperparameter tuning under baseline anchoring; see `docs/research/agent4sci-notes.md` in the plugin's source repository — not shipped with the installed plugin).
 2. **Tag each hypothesis with a tier prefix** — the prefix goes at the start of `asi.hypothesis` too, so the ledger carries it:
    - `[struct]` — structural or paradigm change: different algorithm, model family, or a replaced component
    - `[tune]` — hyperparameters, schedules, training tricks

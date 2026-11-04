@@ -1,6 +1,6 @@
 ---
 name: autoresearch
-description: Run an autonomous experiment loop in ZCode. Set a goal and a mechanical metric, then iterate: modify code, run the benchmark, keep improvements, revert regressions, repeat. Use when the user wants the agent to autonomously optimize something measurable (runtime, bundle size, test speed, loss, any number) over many iterations, or says "autoresearch". Tools: init_experiment / run_experiment / log_experiment / export_dashboard (MCP, from this plugin).
+description: Run an autonomous experiment loop in ZCode. Set a goal and a mechanical metric, then iterate: modify code, run the benchmark, keep improvements, revert regressions, repeat. Use when the user wants the agent to autonomously optimize something measurable (runtime, bundle size, test speed, loss, any number) over many iterations, or says "autoresearch". Tools: init_experiment / run_experiment / log_experiment / export_dashboard / clear_experiments (MCP, from this plugin).
 ---
 
 # Autoresearch
@@ -73,7 +73,7 @@ Drop an executable script into `.auto/hooks/` to run custom logic around every e
 - `.auto/hooks/before.sh` runs before each benchmark; stdin gets a JSON line `{event, cwd, next_run, last_run, session}`, and its stdout is returned as `before_steer`.
 - `.auto/hooks/after.sh` runs after each `log_experiment`; stdin gets `{event, cwd, run_entry, session}`, and its stdout is returned as `after_steer`.
 
-Use hooks for things the agent shouldn't do by itself: checking external docs before a change, anti-repetition guards, sending notifications, keeping a learnings journal. Treat `*_steer` as advisory input. Ready-made examples live in `hooks/examples/before/` and `hooks/examples/after/` (anti-thrash, idea-rotator, hypothesis-reflection, learnings-journal, macos-notify, auto-tag-winners); copy one into `.auto/hooks/` renamed to `before.sh` (from `before/`) or `after.sh` (from `after/`) — those exact filenames are what the server executes. To write your own, load the `autoresearch-hooks` skill.
+Use hooks for things the agent shouldn't do by itself: checking external docs before a change, anti-repetition guards, sending notifications, keeping a learnings journal. Treat `*_steer` as advisory input. Ready-made examples live in `hooks/examples/before/` and `hooks/examples/after/` (anti-thrash, idea-rotator, hypothesis-reflection, self-check, learnings-journal, macos-notify, auto-tag-winners); copy one into `.auto/hooks/` renamed to `before.sh` (from `before/`) or `after.sh` (from `after/`) — those exact filenames are what the server executes. To write your own, load the `autoresearch-hooks` skill.
 
 ## Unattended runs (optional, user-authorized only)
 
