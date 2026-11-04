@@ -133,8 +133,10 @@ test("learnings-journal: appends one markdown line per run", () => {
 test("auto-tag-winners: tags a new best, silent otherwise", () => {
   const cwd = tempCwd();
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
-  // CI runners have no global git identity — commits need a local one
+  // CI runners have no global git identity — commits need a local one — and
+  // Windows runners default core.autocrlf=true, which checkout would apply
   for (const a of [
+    ["config", "core.autocrlf", "false"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
   ]) {

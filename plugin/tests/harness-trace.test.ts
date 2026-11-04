@@ -66,6 +66,10 @@ function tempRepo(): string {
   );
   writeFileSync(join(root, "code.js"), "v1\n");
   execFileSync("git", ["init", "-q"], { cwd: root, stdio: "ignore" });
+  execFileSync("git", ["config", "core.autocrlf", "false"], {
+    cwd: root,
+    stdio: "ignore",
+  });
   execFileSync("git", ["config", "user.email", "t@t"], {
     cwd: root,
     stdio: "ignore",

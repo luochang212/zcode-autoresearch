@@ -51,6 +51,12 @@ function tempRepo(
   const cwd = opts.name ? join(root, opts.name) : root;
   mkdirSync(cwd, { recursive: true });
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
+  // Developers on Windows often have core.autocrlf=true globally; checkout
+  // during rollback would then rewrite LF fixtures to CRLF and break asserts.
+  execFileSync("git", ["config", "core.autocrlf", "false"], {
+    cwd,
+    stdio: "ignore",
+  });
   execFileSync("git", ["config", "user.email", "t@t"], {
     cwd,
     stdio: "ignore",

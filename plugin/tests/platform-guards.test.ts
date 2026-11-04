@@ -122,6 +122,28 @@ test("every .sh in the plugin tree is LF-only (no CR bytes)", () => {
   );
 });
 
+test("every test that git-inits a temp repo pins core.autocrlf=false", () => {
+  // The root .gitattributes only governs THIS repo's worktree. Temp fixture
+  // repos are git-init'ed at runtime outside it, so they inherit the runner's
+  // global core.autocrlf=true on Windows: rollback's `git checkout` then
+  // rewrites LF fixtures to CRLF (CI 2026-11-02: rolled_back asserted
+  // 'v1\r\n' !== 'v1\n' only on windows-latest). git.test.ts patched itself
+  // locally; this guard keeps the other files from repeating the miss.
+  const offenders: string[] = [];
+  for (const name of readdirSync(join(ROOT, "tests"))) {
+    if (!name.endsWith(".test.ts")) continue;
+    const src = readFileSync(join(ROOT, "tests", name), "utf8");
+    if (/"init",\s*"-q"/.test(src) && !src.includes('"core.autocrlf"')) {
+      offenders.push(name);
+    }
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `test files with a git-init temp repo but no core.autocrlf=false:\n${offenders.join("\n")}`,
+  );
+});
+
 test("the frozen write guard reads its file set from lib/frozen.ts", () => {
   const guard = codeLines(join(ROOT, "hooks", "guard-frozen.ts"))
     .map((entry) => entry.text)

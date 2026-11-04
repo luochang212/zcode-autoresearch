@@ -83,6 +83,10 @@ interface McpClient {
 function tempRepo() {
   const cwd = mkdtempSync(join(tmpdir(), "ar-dash-"));
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
+  execFileSync("git", ["config", "core.autocrlf", "false"], {
+    cwd,
+    stdio: "ignore",
+  });
   execFileSync("git", ["config", "user.email", "t@t"], {
     cwd,
     stdio: "ignore",

@@ -146,6 +146,10 @@ test("killTreeOrWrapper falls back to the wrapper when the walk fails", () => {
 test("run_experiment timeout kills the benchmark tree promptly", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "ar-kill-"));
   execFileSync("git", ["init", "-q"], { cwd, stdio: "ignore" });
+  execFileSync("git", ["config", "core.autocrlf", "false"], {
+    cwd,
+    stdio: "ignore",
+  });
   execFileSync("git", ["config", "user.email", "t@t"], {
     cwd,
     stdio: "ignore",

@@ -22,6 +22,7 @@ function setup() {
   // default `git init` to master, so pin it instead of relying on the default
   for (const a of [
     ["init", "-q", "-b", "main"],
+    ["config", "core.autocrlf", "false"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
   ]) {
@@ -145,6 +146,7 @@ test("finalize handles a group containing a deleted file", () => {
   const cwd = mkdtempSync(join(tmpdir(), "ar-fin-del-"));
   for (const a of [
     ["init", "-q", "-b", "main"],
+    ["config", "core.autocrlf", "false"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
   ]) {
@@ -242,6 +244,7 @@ test("finalize handles file names containing spaces", () => {
   const cwd = mkdtempSync(join(tmpdir(), "ar-fin-space-"));
   for (const a of [
     ["init", "-q", "-b", "main"],
+    ["config", "core.autocrlf", "false"],
     ["config", "user.email", "t@t"],
     ["config", "user.name", "t"],
   ]) {
