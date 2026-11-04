@@ -192,7 +192,28 @@ export function commitExperiment(
   })();
   if (!hasStaged) return null;
   const body = `experiment: ${description}\n\nResult: ${JSON.stringify(result)}`;
-  execFileSync(resolveGit(), ["commit", "-m", body], { cwd, stdio: "ignore" });
+  // --no-verify isolates the experiment commit from the target repo's own git
+  // hooks: a husky/lint-staged style pre-commit would rewrite staged content
+  // (breaking "the commit describes exactly this experiment") or fail the
+  // commit for reasons unrelated to the research. stderr is captured so a
+  // failing commit surfaces git's actual diagnostics instead of a bare
+  // "Command failed" (evidence 2026-11-04: hook-modified content committed,
+  // and hook-failure error with zero diagnostics, both reproduced).
+  try {
+    execFileSync(resolveGit(), ["commit", "--no-verify", "-m", body], {
+      cwd,
+      stdio: ["ignore", "ignore", "pipe"],
+      encoding: "utf8",
+    });
+  } catch (err) {
+    const stderr =
+      err && typeof err === "object" && "stderr" in err
+        ? String((err as { stderr?: unknown }).stderr).trim()
+        : "";
+    throw new Error(
+      `git commit failed: ${stderr || (err instanceof Error ? err.message : String(err))}`,
+    );
+  }
   return shortHash(cwd);
 }
 

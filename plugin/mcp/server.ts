@@ -132,9 +132,28 @@ interface LogToolArgs {
 }
 
 const projectCwd = process.cwd();
-// Effective research directory: `.auto/config.json` may set workingDir.
+// Effective research directory: `.auto/config.json` may set workingDir. An
+// invalid workingDir throws here on purpose — the server must fail loudly at
+// startup rather than point destructive git operations at the project root.
 const cwd = resolveWorkCwd(projectCwd);
 const paths = autoPaths(cwd);
+
+// Single source of truth for the reported version: read the plugin manifest
+// instead of hardcoding a third copy (plugin.json and marketplace.json are
+// the other two, guarded by tests/marketplace-contract.test.ts).
+const PLUGIN_VERSION = (() => {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(
+        new URL("../.zcode-plugin/plugin.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { version?: string };
+    return manifest.version ?? "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+})();
 
 const envMax = Number(process.env.AR_MAX_ITERATIONS);
 const DEFAULT_MAX_ITERATIONS =
@@ -312,7 +331,7 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
         if (totalBytes > SPILL_THRESHOLD_BYTES) {
           logFile = join(
             tmpdir(),
-            `pi-experiment-${process.pid}-${Date.now()}.log`,
+            `autoresearch-experiment-${process.pid}-${Date.now()}.log`,
           );
           writeFileSync(logFile, Buffer.concat(chunks));
           chunks.length = 0;
@@ -618,7 +637,11 @@ function runHookRaw(
     let proc: ChildProcessWithoutNullStreams;
     try {
       const bashPath = resolveBash();
-      proc = spawn(bashPath, [scriptPath], { cwd, env: spawnEnv(bashPath) });
+      proc = spawn(bashPath, [scriptPath], {
+        cwd,
+        env: spawnEnv(bashPath),
+        detached: true, // own process group: the timeout kill must reach the hook's children too
+      });
     } catch (err) {
       resolve({
         exitCode: null,
@@ -651,10 +674,18 @@ function runHookRaw(
         killTreeOrWrapper(proc.pid, () => proc.kill("SIGKILL"));
         return;
       }
+      // Kill the whole process group (same discipline as the benchmark
+      // timeout): a hook that forks background children must not leave them
+      // alive to skew the next run's timing.
       try {
-        proc.kill("SIGKILL");
+        if (proc.pid != null) process.kill(-proc.pid, "SIGKILL");
+        else proc.kill("SIGKILL");
       } catch {
-        /* gone */
+        try {
+          proc.kill("SIGKILL");
+        } catch {
+          /* gone */
+        }
       }
     }, HOOK_TIMEOUT_MS);
     const finalize = (code: number | null) => {
@@ -926,7 +957,9 @@ async function toolRunExperiment(
     };
   }
   // Audit: a crash with unrolled-back working tree must not start a new run.
-  const lastRun = state.lastRun;
+  // lastRunEver (not lastRun): a dirty tree is physical state, and a config
+  // row from init_experiment must not launder it into a fresh segment.
+  const lastRun = state.lastRunEver;
   if (lastRun && lastRun.status === "crash" && isDirty(cwd)) {
     return {
       ok: false,
@@ -955,7 +988,10 @@ async function toolRunExperiment(
     }
   }
 
-  const repeat = Math.min(Math.max(Number(args.repeat) || 1, 1), 10);
+  const repeat = Math.min(
+    Math.max(Math.trunc(Number(args.repeat)) || 1, 1),
+    10,
+  );
   const requestedMs = Number(args.timeout_seconds ?? 0) * 1000;
   const timeoutMs =
     requestedMs > 0
@@ -1013,6 +1049,22 @@ async function toolRunExperiment(
   // setPendingChecksFailed). No checks.sh / benchmark crashed → not failed.
   setPendingChecksFailed(checks?.failed === true);
 
+  // Benchmark failure must never be silent: when any repetition exited
+  // non-zero or timed out, the metrics' reliability is in question — and when
+  // the failure skipped checks.sh, no correctness verdict backs them at all.
+  // Advisory only (the keep-gate policy is unchanged): the agent decides what
+  // a failed run is worth, but it decides with the fact on the table.
+  const failedReps = runs.filter(
+    (r) => r.timed_out || r.exit_code !== 0,
+  ).length;
+  let benchmarkWarning: string | null = null;
+  if (failedReps > 0) {
+    benchmarkWarning = `${failedReps} of ${runs.length} benchmark run(s) exited non-zero or timed out; metrics may be unreliable.`;
+    if (!checks && existsSync(paths.checks))
+      benchmarkWarning +=
+        " checks.sh was NOT executed (it only runs after a passing benchmark), so no correctness verdict backs these numbers.";
+  }
+
   const values = runs
     .map((r) => r.metric)
     .filter((v): v is number => v != null && Number.isFinite(v));
@@ -1057,6 +1109,7 @@ async function toolRunExperiment(
       : { ran: false },
     output_tail: truncateTail(last.outputTail),
     log_file: last.logFile ?? null,
+    ...(benchmarkWarning ? { benchmark_warning: benchmarkWarning } : {}),
     ...(before ? { before_steer: before.steer } : {}),
     ...(driftWarn ? { benchmark_drift: true, warning: driftWarn } : {}),
     ...(medianMetric != null && state.config
@@ -1560,7 +1613,7 @@ async function dispatch(msg: JsonRpcRequest) {
       result: {
         protocolVersion: "2024-11-05",
         capabilities: { tools: {} },
-        serverInfo: { name: "autoresearch", version: "0.1.0" },
+        serverInfo: { name: "autoresearch", version: PLUGIN_VERSION },
       },
     });
     return;

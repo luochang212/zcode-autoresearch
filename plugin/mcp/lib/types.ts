@@ -116,7 +116,14 @@ export interface SessionState {
   baseline: number | null;
   best: number | null;
   lastRunChecksFailed: boolean;
+  /** Segment-scoped: reset by config rows (before-hook payload, checks marker). */
   lastRun: LedgerRun | null;
+  /**
+   * Ledger-wide last run row, NOT reset at segment boundaries: the
+   * crash+dirty-tree audit gate reads this, because an unrolled-back working
+   * tree is physical state that init_experiment must not launder.
+   */
+  lastRunEver: LedgerRun | null;
   totalExperiments: number;
   consecutiveFailures: number;
   confidence: Confidence | null;

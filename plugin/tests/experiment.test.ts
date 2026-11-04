@@ -99,6 +99,35 @@ test("unwrapMeasureCommand allows the benchmark script with wrappers", () => {
   );
 });
 
+// Regression (evidence 2026-11-04): the assignment-prefix strip used an
+// unchecked `\S*` value, so `X=$(id) bash .auto/measure.sh` passed the lock
+// while bash executed the substitution in the prefix. The value now goes
+// through the same character whitelist as script args.
+test("unwrapMeasureCommand rejects command substitution in assignment prefixes", () => {
+  assert.equal(
+    unwrapMeasureCommand("X=$(id) bash .auto/measure.sh", "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand("X=`id` bash .auto/measure.sh", "measure.sh"),
+    null,
+  );
+  assert.equal(
+    unwrapMeasureCommand("env X=$(id) bash .auto/measure.sh", "measure.sh"),
+    null,
+  );
+  assert.equal(unwrapMeasureCommand("X=$(id); evil", "measure.sh"), null);
+  assert.equal(
+    unwrapMeasureCommand('X="quoted" bash .auto/measure.sh', "measure.sh"),
+    null,
+  );
+  // benign prefixes still pass (whitelist chars: word . / : = + -)
+  assert.equal(
+    unwrapMeasureCommand("FOO=a+b/c:d=e bash .auto/measure.sh", "measure.sh"),
+    "bash .auto/measure.sh",
+  );
+});
+
 test("unwrapMeasureCommand rejects non-benchmark or chained commands", () => {
   assert.equal(unwrapMeasureCommand("ls", "measure.sh"), null);
   assert.equal(unwrapMeasureCommand("measure.sh; evil", "measure.sh"), null);

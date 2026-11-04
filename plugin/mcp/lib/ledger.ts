@@ -5,6 +5,10 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
+  openSync,
+  readSync,
+  closeSync,
+  statSync,
 } from "node:fs";
 import { join } from "node:path";
 import { computeConfidence, isBetter, detectPlateau } from "./experiment.ts";
@@ -52,25 +56,54 @@ function ensureAutoDir(cwd: string): void {
   mkdirSync(join(cwd, AUTO_DIR), { recursive: true });
 }
 
+/** Whether the file's last byte is a newline (empty file counts as yes). */
+function endsWithNewline(path: string): boolean {
+  const size = statSync(path).size;
+  if (size === 0) return true;
+  const fd = openSync(path, "r");
+  try {
+    const b = Buffer.alloc(1);
+    readSync(fd, b, 0, 1, size - 1);
+    return b[0] === 0x0a;
+  } finally {
+    closeSync(fd);
+  }
+}
+
 export function appendLedgerEntry(cwd: string, entry: LedgerEntry): void {
   ensureAutoDir(cwd);
-  appendFileSync(join(cwd, LOG_FILE), JSON.stringify(entry) + "\n", "utf8");
+  const log = join(cwd, LOG_FILE);
+  // Line-boundary self-heal: a previous write killed mid-line (SIGKILL,
+  // ENOSPC) leaves a truncated record without a trailing newline, and a blind
+  // append would splice the new entry onto it — corrupting BOTH records. The
+  // repair only adds the missing newline; the truncated line stays as-is
+  // (append-only ledger, no in-place rewrite) and surfaces via readLedger's
+  // corrupt-line diagnostic.
+  if (existsSync(log) && !endsWithNewline(log))
+    appendFileSync(log, "\n", "utf8");
+  appendFileSync(log, JSON.stringify(entry) + "\n", "utf8");
 }
 
 export function readLedger(cwd: string): LedgerEntry[] {
   const log = join(cwd, LOG_FILE);
   if (!existsSync(log)) return [];
-  return readFileSync(log, "utf8")
-    .split("\n")
-    .filter((l) => l.trim())
-    .map((l) => {
-      try {
-        return JSON.parse(l) as LedgerEntry;
-      } catch {
-        return null;
-      }
-    })
-    .filter((e): e is LedgerEntry => e != null);
+  const out: LedgerEntry[] = [];
+  const lines = readFileSync(log, "utf8").split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i];
+    if (!l.trim()) continue;
+    try {
+      out.push(JSON.parse(l) as LedgerEntry);
+    } catch {
+      // Never silent: a dropped run row shifts every later run number and the
+      // audit rejects all writes with an error that cannot point here. stderr
+      // is the diagnostic channel (stdout belongs to JSON-RPC / hook output).
+      process.stderr.write(
+        `[autoresearch] ${LOG_FILE} line ${i + 1} is corrupt and was skipped: ${l.slice(0, 120)}\n`,
+      );
+    }
+  }
+  return out;
 }
 
 /**
@@ -98,6 +131,7 @@ export function rebuildState(
     best: null,
     lastRunChecksFailed: false,
     lastRun: null,
+    lastRunEver: null,
     totalExperiments: 0,
     consecutiveFailures: 0,
     confidence: null,
@@ -143,6 +177,9 @@ export function rebuildState(
       state.lastRunChecksFailed =
         run.checksFailed === true || run.status === "checks_failed";
       state.lastRun = run;
+      // Not reset at segment boundaries: the crash+dirty-tree audit gate reads
+      // this, and a dirty tree is physical state init_experiment can't clear.
+      state.lastRunEver = run;
     }
   }
   // Confidence over the current segment's values.

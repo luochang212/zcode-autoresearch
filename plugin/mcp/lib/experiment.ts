@@ -78,13 +78,21 @@ export function computeConfidence({
 /**
  * Enforce that a run_experiment command is (a wrapper around) the benchmark
  * script. Strips leading `FOO=bar` assignments and `env/time/nice/nohup`
- * wrappers, then requires the core command to start with the measure script
- * path. Returns the unwrapped command string, or null when the command is
- * not the benchmark script. Prevents `evil; ./measure.sh` chained injection.
+ * wrappers (assignment values pass the same character whitelist as script
+ * args — a prefix is not a smuggling channel for `$(…)`/backticks), then
+ * requires the core command to start with the measure script path. Returns
+ * the unwrapped command string, or null when the command is not the
+ * benchmark script. Prevents `evil; ./measure.sh` chained injection.
  */
 const WRAP_RE = /^(env|time|nice|nohup)\s+/;
-// leading env assignment including its value: `FOO=1 ` or `FOO="a b" `
-const ASSIGN_RE = /^[A-Za-z_][A-Za-z0-9_]*=\S*\s*/;
+// leading env assignment including its value: `FOO=1 ` or `FOO=a=b `
+const ASSIGN_RE = /^([A-Za-z_][A-Za-z0-9_]*=)(\S*)\s*/;
+// The assignment VALUE goes through the same whitelist idea as the args below:
+// bash executes a prefix assignment before the script runs, so `X=$(id)` or
+// backticks would smuggle arbitrary commands past the lock. Values are
+// restricted to the arg character class minus separators (`\S*` already
+// excludes whitespace).
+const ASSIGN_VALUE_RE = /^[\w./:+=-]*$/;
 
 export function unwrapMeasureCommand(
   command: unknown,
@@ -97,7 +105,11 @@ export function unwrapMeasureCommand(
   let prev: string;
   do {
     prev = cmd;
-    cmd = cmd.replace(ASSIGN_RE, "").trim();
+    const assign = ASSIGN_RE.exec(cmd);
+    if (assign) {
+      if (!ASSIGN_VALUE_RE.test(assign[2])) return null;
+      cmd = cmd.slice(assign[0].length).trim();
+    }
     cmd = cmd.replace(WRAP_RE, "").trim();
   } while (cmd !== prev);
   if (!cmd) return null;

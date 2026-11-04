@@ -803,6 +803,106 @@ test("logging a crash does not block the next run via .auto dirtiness", async ()
   });
 });
 
+// Regression (evidence 2026-11-04): the crash+dirty-tree gate read the
+// segment-scoped lastRun, which a config row resets — so init_experiment
+// laundered the gate and the next segment's first keep would `git add -A`
+// the crash residue into the "experiment" commit. The gate now reads the
+// ledger-wide last run (lastRunEver): a dirty tree is physical state.
+test("re-init does not launder the crash+dirty-tree audit gate", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await s.tool("log_experiment", { status: "crash", description: "boom" });
+    appendFileSync(join(cwd, "code.js"), "// dirty\n");
+    const blocked = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(blocked.ok, false);
+    // opening a new segment must NOT clear the gate
+    const reinit = await s.tool("init_experiment", {
+      name: "t2",
+      metric_name: "time_ms",
+    });
+    assert.equal(reinit.ok, true);
+    const stillBlocked = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(stillBlocked.ok, false);
+    assert.match(String(stillBlocked.error), /unrolled-back/);
+    // rolling the tree back clears it (discard semantics unchanged)
+    execFileSync("git", ["checkout", "--", "."], { cwd, stdio: "ignore" });
+    const clear = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(clear.ok, true);
+  });
+});
+
+// Regression (evidence 2026-11-04): a benchmark that exited non-zero skipped
+// checks.sh and left pendingChecksFailed=false with zero signal in the
+// response — the keep gate stood open for a failed run, silently. The failure
+// is now surfaced (advisory: the keep-gate policy itself is unchanged).
+test("benchmark failure surfaces benchmark_warning, checks skip is not silent", async () => {
+  const cwd = tempRepo();
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    '#!/usr/bin/env bash\necho "METRIC time_ms=42"\nexit 1\n',
+  );
+  writeFileSync(
+    join(cwd, ".auto", "checks.sh"),
+    "#!/usr/bin/env bash\nexit 0\n",
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const r = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r.ok, true);
+    assert.match(String(r.benchmark_warning), /non-zero or timed out/);
+    assert.match(String(r.benchmark_warning), /checks\.sh was NOT executed/);
+    assert.deepEqual(r.checks, { ran: false });
+  });
+});
+
+test("repeat is coerced to an integer; passing runs carry no benchmark_warning", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const r = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+      repeat: 2.7,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.repeat, 2, "fractional repeat ran 3 times but reported 2.7");
+    assert.equal((r.runs as unknown[]).length, 2);
+    assert.equal(r.benchmark_warning, undefined);
+  });
+});
+
+test("initialize reports the plugin.json version (no hardcoded third copy)", async () => {
+  const cwd = tempRepo();
+  const s = connect(cwd);
+  try {
+    const resp = await s.call("initialize", {
+      protocolVersion: "2024-11-05",
+      capabilities: {},
+    });
+    const manifest = JSON.parse(
+      readFileSync(join(ROOT, ".zcode-plugin", "plugin.json"), "utf8"),
+    ) as { version: string };
+    const serverInfo = (
+      resp.result as unknown as {
+        serverInfo?: { name?: string; version?: string };
+      }
+    )?.serverInfo;
+    assert.equal(serverInfo?.name, "autoresearch");
+    assert.equal(serverInfo?.version, manifest.version);
+  } finally {
+    await s.close();
+  }
+});
+
 test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned discard exists in the segment", async () => {
   const cwd = tempRepo();
   await withServer(cwd, async (s) => {

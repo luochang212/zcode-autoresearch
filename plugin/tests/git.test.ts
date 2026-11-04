@@ -413,3 +413,61 @@ test("resolveGit throws loudly when nothing resolves", () => {
     /no usable git/,
   );
 });
+
+// Regression (evidence 2026-11-04, reproduced): a husky/lint-staged style
+// pre-commit hook in the target repo rewrote staged content and the rewritten
+// bytes rode into the experiment commit — breaking "the commit describes
+// exactly this experiment". --no-verify isolates the commit from repo hooks.
+test("commitExperiment isolates the experiment commit from repo git hooks", () => {
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".git", "hooks"), { recursive: true });
+  const hook = join(cwd, ".git", "hooks", "pre-commit");
+  writeFileSync(
+    hook,
+    '#!/bin/sh\necho "# rewritten by hook" >> main.js\ngit add main.js\nexit 0\n',
+  );
+  chmodSync(hook, 0o755);
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  const hash = commitExperiment(cwd, { description: "d", result: {} });
+  assert.ok(hash);
+  // the committed blob is exactly the experiment content — hook never ran
+  assert.equal(git(cwd, ["show", "HEAD:main.js"]), "v2");
+  // working tree also untouched by the hook
+  assert.equal(readFileSync(join(cwd, "main.js"), "utf8"), "v2\n");
+});
+
+// Regression (evidence 2026-11-04, reproduced): commit failure threw a bare
+// "Command failed: git commit -m ..." because stdio:"ignore" swallowed git's
+// stderr — zero diagnostics for the user.
+test("commitExperiment surfaces git stderr when the commit fails", () => {
+  const cwd = tempRepo();
+  // strip the local identity and hide global/system config so `git commit`
+  // fails with "Author identity unknown" (LC_ALL=C pins the message language)
+  git(cwd, ["config", "--unset", "user.email"]);
+  git(cwd, ["config", "--unset", "user.name"]);
+  git(cwd, ["config", "user.useConfigOnly", "true"]);
+  const saved = {
+    global: process.env.GIT_CONFIG_GLOBAL,
+    system: process.env.GIT_CONFIG_SYSTEM,
+    lcAll: process.env.LC_ALL,
+  };
+  process.env.GIT_CONFIG_GLOBAL = join(cwd, "nonexistent-global-gitconfig");
+  process.env.GIT_CONFIG_SYSTEM = join(cwd, "nonexistent-system-gitconfig");
+  process.env.LC_ALL = "C";
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  try {
+    assert.throws(
+      () => commitExperiment(cwd, { description: "d", result: {} }),
+      /git commit failed: .*identity|git commit failed: .*user\.email/s,
+    );
+  } finally {
+    for (const [k, v] of [
+      ["GIT_CONFIG_GLOBAL", saved.global],
+      ["GIT_CONFIG_SYSTEM", saved.system],
+      ["LC_ALL", saved.lcAll],
+    ] as const) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});

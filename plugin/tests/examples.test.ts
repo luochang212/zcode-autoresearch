@@ -53,7 +53,7 @@ const afterPayload = (
   session: Record<string, unknown> = {},
 ) => JSON.stringify({ event: "after", cwd, run_entry: run, session });
 
-test("anti-thrash: suggests a rethink after 3 consecutive non-keeps, silent otherwise", () => {
+test("anti-thrash: suggests a rethink after 3 consecutive failures, silent otherwise", () => {
   const cwd = tempCwd();
   seedLedger(
     cwd,
@@ -65,12 +65,27 @@ test("anti-thrash: suggests a rethink after 3 consecutive non-keeps, silent othe
     })),
   );
   const out = runExample("before/anti-thrash.sh", cwd, beforePayload(cwd));
-  assert.match(out, /consecutive non-keep/);
+  assert.match(out, /consecutive failed results/);
   // single failure → silent
   seedLedger(cwd, [{ type: "run", run: 1, status: "discard", metric: 1 }]);
   assert.equal(
     runExample("before/anti-thrash.sh", cwd, beforePayload(cwd)),
     "",
+  );
+  // noop breaks the failure chain (guardrails spec: noop is not a failure)
+  seedLedger(
+    cwd,
+    ["discard", "crash", "noop", "discard", "crash"].map((s) => ({
+      type: "run",
+      run: 1,
+      status: s,
+      metric: 1,
+    })),
+  );
+  assert.equal(
+    runExample("before/anti-thrash.sh", cwd, beforePayload(cwd)),
+    "",
+    "noop must break the streak: tail is only 2 consecutive failures",
   );
 });
 

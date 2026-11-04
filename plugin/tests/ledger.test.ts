@@ -1,10 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  readFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   appendLedgerEntry,
+  readLedger,
   rebuildState,
   readSessionConfig,
   LOG_FILE,
@@ -14,6 +21,53 @@ import { validateLedger } from "../mcp/lib/validate.ts";
 function tempCwd() {
   return mkdtempSync(join(tmpdir(), "ar-ledger-"));
 }
+
+// Regression (evidence 2026-11-04): a write killed mid-line left the ledger
+// without a trailing newline; the next append spliced two records into one
+// line, corrupting BOTH, and readLedger dropped the result silently — later
+// run numbers shifted and the audit rejected every write with an error that
+// could not point at the real cause.
+test("append heals a missing trailing newline; corrupt lines are diagnosed on read", () => {
+  const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  const truncated = '{"type":"run","ts":"2026-01-01T00:00:00.000Z","run":1';
+  writeFileSync(join(cwd, LOG_FILE), truncated); // no trailing \n
+
+  appendLedgerEntry(cwd, {
+    type: "run",
+    ts: "2026-01-01T00:00:01.000Z",
+    run: 2,
+    status: "keep",
+    metric: 1,
+    description: "d",
+  } as never);
+
+  // the new entry is its own line, not spliced onto the truncated one
+  const raw = readFileSync(join(cwd, LOG_FILE), "utf8");
+  assert.equal(
+    raw.split("\n").filter((l) => l.trim()).length,
+    2,
+    "appended entry must not be concatenated onto the truncated line",
+  );
+
+  // reading diagnoses the corrupt line (line number + content snippet) and
+  // returns every parseable entry
+  const origWrite = process.stderr.write;
+  let diag = "";
+  process.stderr.write = ((chunk: string) => {
+    diag += chunk;
+    return true;
+  }) as typeof process.stderr.write;
+  let entries;
+  try {
+    entries = readLedger(cwd);
+  } finally {
+    process.stderr.write = origWrite;
+  }
+  assert.equal(entries.length, 1);
+  assert.equal((entries[0] as { run?: number }).run, 2);
+  assert.match(diag, /line 1 is corrupt/);
+});
 
 test("ledger appends and rebuilds segment state", () => {
   const cwd = tempCwd();

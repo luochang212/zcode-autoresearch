@@ -133,10 +133,13 @@ while [[ $i -lt $GROUP_COUNT ]]; do
     fi
   done <<< "${GROUPS_FILES[$i]}"
   if ! git diff --cached --quiet; then
+    # --no-verify: finalize replays kept experiments as curated commits; the
+    # target repo's own hooks (husky/lint-staged class) must not rewrite or
+    # reject the replayed content (same isolation as commitExperiment).
     if [[ -n "${GROUPS_BODIES[$i]}" ]]; then
-      git commit -q -m "${GROUPS_TITLES[$i]}" -m "${GROUPS_BODIES[$i]}"
+      git commit -q --no-verify -m "${GROUPS_TITLES[$i]}" -m "${GROUPS_BODIES[$i]}"
     else
-      git commit -q -m "${GROUPS_TITLES[$i]}"
+      git commit -q --no-verify -m "${GROUPS_TITLES[$i]}"
     fi
   fi
   i=$((i+1))

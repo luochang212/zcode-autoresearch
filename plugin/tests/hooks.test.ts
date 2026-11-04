@@ -84,6 +84,88 @@ test("guard-frozen denies rewrites of existing frozen scripts, allows others", (
   assert.equal(allow, "");
 });
 
+// Regression (evidence 2026-11-04): ApplyPatch payloads carry only patch_text
+// (no file_path/path), so the guard found no target and exited 0 — the whole
+// patch tool bypassed freeze protection despite being in the matcher. Targets
+// are now parsed from the `*** <op> File:` / `*** Move to:` header lines.
+test("guard-frozen denies ApplyPatch rewrites of frozen files via patch_text", () => {
+  const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(join(cwd, ".auto", "goal.md"), "original goal\n");
+  writeFileSync(join(cwd, "code.py"), "x = 1\n");
+
+  const patch = [
+    "*** Begin Patch",
+    "*** Update File: code.py",
+    "@@",
+    "-x = 1",
+    "+x = 2",
+    "*** Update File: .auto/goal.md",
+    "@@",
+    "-original goal",
+    "+moved goalpost",
+    "*** End Patch",
+  ].join("\n");
+  const deny = runHook(
+    "guard-frozen.ts",
+    cwd,
+    JSON.stringify({
+      hook_event_name: "PreToolUse",
+      tool_name: "ApplyPatch",
+      tool_input: { patch_text: patch },
+    }),
+  );
+  const d = JSON.parse(deny);
+  assert.equal(d.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(d.hookSpecificOutput.permissionDecisionReason, /goal\.md/);
+  // the denied attempt is a fact: frozen_attempt lands in the ledger
+  const ledger = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8");
+  assert.match(ledger, /frozen_attempt/);
+  assert.match(ledger, /goal\.md/);
+
+  // a patch touching only non-frozen files passes, with no ledger row
+  const benign = [
+    "*** Begin Patch",
+    "*** Update File: code.py",
+    "@@",
+    "-x = 1",
+    "+x = 2",
+    "*** End Patch",
+  ].join("\n");
+  assert.equal(
+    runHook(
+      "guard-frozen.ts",
+      cwd,
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "ApplyPatch",
+        tool_input: { patch_text: benign },
+      }),
+    ),
+    "",
+  );
+
+  // first creation through a patch is allowed (setup semantics unchanged)
+  const add = [
+    "*** Begin Patch",
+    "*** Add File: .auto/scope.md",
+    "+scope boundary",
+    "*** End Patch",
+  ].join("\n");
+  assert.equal(
+    runHook(
+      "guard-frozen.ts",
+      cwd,
+      JSON.stringify({
+        hook_event_name: "PreToolUse",
+        tool_name: "ApplyPatch",
+        tool_input: { patch_text: add },
+      }),
+    ),
+    "",
+  );
+});
+
 // Frozen means "immutable once recorded", not "never written": setup creates
 // the goal/scope/script files before any segment exists. The regression this
 // pins: the guard used to deny even that first creation (deny-on-absent),
