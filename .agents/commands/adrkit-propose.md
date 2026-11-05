@@ -17,7 +17,7 @@ Before creating or shaping a record, answer these four questions:
 3. **Is the constraint or reason behind it hidden and durable enough to guide future choices?** If no, it is not an ADR.
 4. **Is this a routine upgrade, naming change, format migration, visual tweak, or process ritual?** If yes, it is not an ADR.
 
-Use judgment, not a score or an all-must-pass checklist. If nothing meaningful would be lost, skip without a justification field, user approval, or deferred note. Notes are candidates, not commitments to ADRs.
+Use judgment, not a score or an all-must-pass checklist. If nothing meaningful would be lost, or forgetting it would cost nothing, skip without a justification field, user approval, or deferred note. Notes are candidates, not commitments to ADRs.
 
 | Usually leave to existing sources                                              | Potentially worth preserving                                                                                            |
 | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |

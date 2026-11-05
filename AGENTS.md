@@ -39,7 +39,7 @@
 
 ## 架构决策记录
 
-本仓库用 `adr-kit` 这个 npm 包管理架构级决策，记录保存在 `adr/` 目录。可以用 `adrkit list` 列出全部记录，`adrkit show <编号>` 读取某一条，`adrkit relevant <路径>` 查找与某文件相关的记录。记录是有代价的：每记一件事，就要在代码之外多维护一份真相源。但记录又是必要的——代码只是根因衍生的现象，知道根因却不记录，未来的 agent 只能从代码反猜。例行修改留给 Git 和测试；没有值得记的就跳过。何时记录的四问与写法见 `adrkit-propose`、`adrkit-record` 技能。
+本仓库用 `adr-kit` 这个 npm 包管理架构级决策，记录保存在 `adr/` 目录。可以用 `adrkit list` 列出全部记录，`adrkit show <编号>` 读取某一条，`adrkit relevant <路径>` 查找与某文件相关的记录。记录是有代价的：每记一件事，就要在代码之外多维护一份真相源。但记录又是必要的——代码只是根因衍生的现象，知道根因却不记录，未来的 agent 只能从代码反猜。例行修改留给 Git 和测试；没有值得记的就跳过。何时记录的四问与写法见 `adrkit-propose`、`adrkit-record` 技能。任务中临时值得留痕但不值得开记录的想法，用 `adrkit note "<一行>"` 存入 `adr/notes.md`（生命周期之外，validate 不查，待后续塑形或删除）；误建的记录用 `adrkit delete` 移除（有引用时拒绝、不动 archived、编号记入 `adr/.decision-sequence` 永不复用）；adrkit 集成（`.agents/` 技能与命令）升级后用 `adrkit update` 刷新。
 
 ## 插件架构速览（改动前先读）
 
