@@ -974,8 +974,20 @@ async function toolRunExperiment(
   // Harness trace: record editable-surface changes before they can influence
   // this run (the trace precedes the run it may have shaped).
   recordHarnessEdits(state.segment);
-  const rawCommand = String(args.command ?? "");
-  if (!rawCommand.trim()) return { ok: false, error: "command is required" };
+  // command omitted defaults to the benchmark script when it exists — after
+  // the freeze it is the only legal value anyway, so demanding it again is
+  // pure friction (agents routinely hit the required-field error on first
+  // call). Free-form mode (no measure.sh) still requires an explicit command.
+  let rawCommand = String(args.command ?? "");
+  if (!rawCommand.trim()) {
+    if (!existsSync(paths.measure)) {
+      return {
+        ok: false,
+        error: "command is required (no .auto/measure.sh to default to)",
+      };
+    }
+    rawCommand = "bash .auto/measure.sh";
+  }
 
   // Benchmark script lock: when .auto/measure.sh exists, only it may run.
   if (existsSync(paths.measure)) {
@@ -1501,7 +1513,7 @@ const TOOLS = [
         command: {
           type: "string",
           description:
-            "shell command to run (or .auto/measure.sh when it exists)",
+            "shell command to run; optional when .auto/measure.sh exists (defaults to it), required in free-form mode",
         },
         timeout_seconds: {
           type: "number",
@@ -1514,7 +1526,6 @@ const TOOLS = [
             "run the benchmark N times and return the median metric (1-10, default 1)",
         },
       },
-      required: ["command"],
     },
   },
   {

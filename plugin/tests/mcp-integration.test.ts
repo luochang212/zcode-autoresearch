@@ -161,6 +161,29 @@ async function withServer(
   }
 }
 
+test("run_experiment: command omitted defaults to the frozen benchmark", async () => {
+  // 2026-11-05: after the freeze .auto/measure.sh is the only legal value, so
+  // demanding the command again is pure friction — agents hit the required-
+  // field error on first call (observed in the ml-auto dota2-wave1 session).
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const run = await s.tool("run_experiment", {});
+    assert.equal(run.ok, true);
+    assert.equal(run.metric, 42);
+  });
+});
+
+test("run_experiment: command still required in free-form mode (no measure.sh)", async () => {
+  const cwd = tempRepo({ withMeasure: false });
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const run = await s.tool("run_experiment", {});
+    assert.equal(run.ok, false);
+    assert.match(String(run.error), /command is required/);
+  });
+});
+
 test("iteration hooks: before runs before benchmark, after after logging, steer returned", async () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
