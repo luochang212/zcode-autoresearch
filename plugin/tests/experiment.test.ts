@@ -323,6 +323,34 @@ test("directionLabel takes hypothesis, else description clause", () => {
   assert.equal(directionLabel({ status: "keep" }), "keep");
 });
 
+test("directionLabel keeps decimals intact (dot is not a clause boundary)", () => {
+  // 2026-11-05, ml-auto dota2-wave1: the old split treated the half-width
+  // period as a clause boundary, so the memory injection presented
+  // "bagging_fraction 0" / "lambda_l2 1" / "lr 0" as tried directions.
+  assert.equal(
+    directionLabel({
+      asi: {
+        hypothesis:
+          "bagging_fraction 0.8 + bagging_freq 1：行采样方差缩减在 dota2 灵敏",
+      },
+    }),
+    "bagging_fraction 0.8 + bagging_freq 1：行采…", // 40-cap still applies, dot intact
+  );
+  assert.equal(
+    directionLabel({ asi: { hypothesis: "lambda_l2 1.0：正则" } }),
+    "lambda_l2 1.0：正则",
+  );
+  assert.equal(
+    directionLabel({ asi: { hypothesis: "lr 0.05 x n_estimators 600" } }),
+    "lr 0.05 x n_estimators 600",
+  );
+  // real clause boundaries still split
+  assert.equal(
+    directionLabel({ asi: { hypothesis: "lr 0.05；然后看 600" } }),
+    "lr 0.05",
+  );
+});
+
 test("detectDoomLoop flags repeats and oscillation, not normal progress", () => {
   const run = (d: string) => ({ description: d });
   // oscillation A→B→A→B

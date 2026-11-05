@@ -206,13 +206,17 @@ export function hypothesesSimilar(
 
 /**
  * Direction label for a run: prefer asi.hypothesis, else description; take the
- * leading clause (up to first comma/period/semicolon), capped at 40 chars.
+ * leading clause (up to first comma/semicolon), capped at 40 chars. The half
+ * width period is deliberately NOT a clause boundary: decimals ("lambda_l2
+ * 1.0", "bagging_fraction 0.8") would otherwise be cut at the dot and the
+ * memory injection would present "lambda_l2 1" / "bagging_fraction 0" as the
+ * tried direction (evidence 2026-11-05, ml-auto dota2-wave1).
  */
 export function directionLabel(run: RunLike): string {
   const raw = run?.asi?.hypothesis || run?.description || "";
   const clause =
     String(raw)
-      .split(/[,.;，。；]/)[0]
+      .split(/[,;，。；]/)[0]
       ?.trim() || "";
   return clause.length > 40
     ? clause.slice(0, 40) + "…"
