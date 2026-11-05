@@ -175,9 +175,13 @@ export function commitExperiment(
   //   cannot reach it) and unrelated files elsewhere in the repo.
   // The post-add reset removes session paths even when they are tracked or
   // pre-staged; with the index cleared above, the cached diff below answers
-  // exactly "did this experiment change anything".
+  // exactly "did this experiment change anything". `.zcode` is the host's
+  // session-state dir (plans, session files) and often NOT gitignored — left
+  // in, `add -A -- .` sweeps it into the keep commit (evidence 2026-11-05,
+  // ml-auto: .zcode/plans/plan-sess_*.md landed in an experiment commit).
+  // Non-existent pathspecs here are a silent no-op (git reset exit 0).
   git(cwd, ["add", "-A", "--", "."]);
-  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", DASHBOARD_FILE]);
+  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", ".zcode", DASHBOARD_FILE]);
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {

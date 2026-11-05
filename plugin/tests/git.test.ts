@@ -97,6 +97,29 @@ test("commitExperiment excludes the .auto session dir from staging", () => {
   assert.ok(existsSync(join(cwd, ".auto", "log.jsonl")));
 });
 
+test("commitExperiment excludes the .zcode host session dir from staging", () => {
+  // 2026-11-05, ml-auto: .zcode/plans/plan-sess_*.md (untracked, not
+  // gitignored) landed in an experiment keep commit — the host session dir
+  // must be unstaged just like .auto.
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".zcode", "plans"), { recursive: true });
+  writeFileSync(join(cwd, ".zcode", "plans", "plan-sess_x.md"), "# plan\n");
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  const hash = commitExperiment(cwd, {
+    description: "real change",
+    result: { metric: 1 },
+  });
+  assert.ok(hash);
+  const files = git(cwd, ["show", "--name-only", "--format=", "HEAD"]);
+  assert.ok(files.includes("main.js"));
+  assert.ok(
+    !files.split("\n").some((f) => f.startsWith(".zcode/")),
+    `commit must not contain .zcode files, got: ${files}`,
+  );
+  // session state stays on disk untouched
+  assert.ok(existsSync(join(cwd, ".zcode", "plans", "plan-sess_x.md")));
+});
+
 test("session dashboard is neither committed nor counted as dirty", () => {
   const cwd = tempRepo();
   writeFileSync(
