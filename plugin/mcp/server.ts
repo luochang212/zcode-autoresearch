@@ -1302,11 +1302,38 @@ async function toolLogExperiment(
   const metrics =
     args.metrics && typeof args.metrics === "object" ? args.metrics : undefined;
   const asi = args.asi && typeof args.asi === "object" ? args.asi : undefined;
-  const constraints = Array.isArray(args.constraints)
-    ? args.constraints.filter(
-        (c) => c && typeof c.name === "string" && Number(c.maxPct) > 0,
-      )
-    : [];
+  // Constraints are the secondary-metric hard gate: a malformed entry must be
+  // rejected loudly, not silently dropped — a dropped constraint fakes
+  // protection while the agent believes it is in place (never-silent rule).
+  // Runtime shape is untrusted (JSON args), so each entry is validated here
+  // instead of trusting the declared type.
+  const constraints: Array<{ name: string; maxPct: number }> = [];
+  if (args.constraints !== undefined) {
+    if (!Array.isArray(args.constraints)) {
+      return {
+        ok: false,
+        error: "constraints must be an array of {name, maxPct} entries",
+      };
+    }
+    for (const c of args.constraints) {
+      const entry = c as { name?: unknown; maxPct?: unknown } | null;
+      const name = entry?.name;
+      const maxPct = entry?.maxPct;
+      if (
+        typeof name !== "string" ||
+        name === "" ||
+        typeof maxPct !== "number" ||
+        !Number.isFinite(maxPct) ||
+        maxPct <= 0
+      ) {
+        return {
+          ok: false,
+          error: `malformed constraint entry ${JSON.stringify(c) ?? String(c)}: each constraint needs a non-empty string name and a positive finite number maxPct`,
+        };
+      }
+      constraints.push({ name, maxPct });
+    }
+  }
   const cfgAudit = readSessionConfig(projectCwd);
 
   // keep gate: the just-run benchmark's checks failed → refuse keep. The
@@ -1362,6 +1389,32 @@ async function toolLogExperiment(
       error: `metric ${metric} does not match the value run_experiment observed (${obs.metric}); log what was measured, or run the benchmark again for a new observation`,
     };
   }
+  // Secondary transcription: an explicitly provided metrics dict must be a
+  // full transcription of the observed aggregation (same key set, same
+  // values) — the row records the observation either way, so a diverging dict
+  // would be a false claim about what was measured. Omitting the parameter is
+  // always legal. Same fact-gate layer as the primary binding above.
+  if (metrics !== undefined) {
+    const observed: Record<string, number> = obs.metrics ?? {};
+    const given = metrics as Record<string, unknown>;
+    const givenKeys = Object.keys(given);
+    const observedKeys = Object.keys(observed);
+    const unknown = givenKeys.filter((k) => !(k in observed));
+    const diverged = givenKeys.filter((k) => {
+      const v = given[k];
+      return typeof v !== "number" || !Number.isFinite(v) || v !== observed[k];
+    });
+    if (
+      unknown.length > 0 ||
+      diverged.length > 0 ||
+      givenKeys.length !== observedKeys.length
+    ) {
+      return {
+        ok: false,
+        error: `metrics ${JSON.stringify(given)} do not match the aggregation run_experiment observed (${JSON.stringify(observed)}); omit the parameter to record the observation as-is, or transcribe it exactly (available: ${observedKeys.join(", ") || "none"})`,
+      };
+    }
+  }
   // Secondary-metric constraints: keep only if secondary metrics stay within
   // maxPct% of the segment's first run (opt-in; auditBypass unlocks both this
   // and the ledger audit, per ADR-5's single escape hatch).
@@ -1373,7 +1426,10 @@ async function toolLogExperiment(
   ) {
     const baselineRuns = state.runs[0]?.metrics ?? {};
     for (const c of constraints) {
-      const value = metrics?.[c.name];
+      // The gate reads the observed aggregation, not the agent's transcription
+      // (which may be absent): omitting metrics cannot skip a constraint, and
+      // a fabricated value cannot pass one.
+      const value = obs.metrics?.[c.name];
       const base = baselineRuns[c.name];
       const limit =
         base != null && Number.isFinite(base)
@@ -1464,7 +1520,7 @@ async function toolLogExperiment(
   if (status === "keep") {
     const hash = commitExperiment(cwd, {
       description: description || "(no description)",
-      result: { metric, metrics: metrics ?? null, asi: asi ?? null },
+      result: { metric, metrics: obs.metrics, asi: asi ?? null },
     });
     if (hash) {
       commit = hash;
@@ -1491,7 +1547,10 @@ async function toolLogExperiment(
     segment: state.segment,
     status: status as RunStatus,
     metric: status === "crash" ? null : metric,
-    metrics,
+    // The row records the observation itself, not the agent's transcription:
+    // every quantitative claim in the ledger is a measured fact (the
+    // transcription gate above only verifies an explicitly provided dict).
+    metrics: obs.metrics,
     asi,
     description,
     commit,

@@ -485,7 +485,7 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       status: "keep",
       metric: 42,
       description: "baseline",
-      metrics: { memory_mb: 100 },
+      metrics: { time_ms: 42, memory_mb: 100 },
     });
     // constraint within band → keep passes (vs baseline memory_mb=100)
     setMetricValue(cwd, 41);
@@ -496,7 +496,7 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       status: "keep",
       metric: 41,
       description: "within band",
-      metrics: { memory_mb: 100 },
+      metrics: { time_ms: 41, memory_mb: 100 },
       constraints: [{ name: "memory_mb", maxPct: 105 }],
     });
     assert.equal(ok.ok, true);
@@ -513,7 +513,7 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       status: "keep",
       metric: 40,
       description: "faster but heavier",
-      metrics: { memory_mb: 110 },
+      metrics: { time_ms: 40, memory_mb: 110 },
       constraints: [{ name: "memory_mb", maxPct: 105 }],
     });
     assert.equal(bad.ok, false);
@@ -530,10 +530,96 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       status: "keep",
       metric: 39,
       description: "no constraints declared",
-      metrics: { memory_mb: 999 },
+      metrics: { time_ms: 39, memory_mb: 999 },
     });
     assert.equal(free.ok, true);
     assert.equal(free.constraints, undefined);
+  });
+});
+
+test("secondary transcription: metrics dict must match the observed aggregation", async () => {
+  const cwd = tempRepo();
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    '#!/usr/bin/env bash\necho "METRIC time_ms=$(cat .auto/metric.txt 2>/dev/null || echo 42)"\necho "METRIC memory_mb=$(cat .auto/memory.txt 2>/dev/null || echo 100)"\n',
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// base\n");
+    // diverging value → rejected with the observed value named
+    const diverged = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "diverging dict",
+      metrics: { time_ms: 42, memory_mb: 88 },
+    });
+    assert.equal(diverged.ok, false);
+    assert.match(String(diverged.error), /do not match the aggregation/);
+    assert.match(String(diverged.error), /100/);
+    // unknown key → rejected, available names listed
+    const unknown = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "unknown key",
+      metrics: { gpu_ms: 5 },
+    });
+    assert.equal(unknown.ok, false);
+    assert.match(String(unknown.error), /available: time_ms, memory_mb/);
+    // full transcription → passes
+    const ok = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "baseline",
+      metrics: { time_ms: 42, memory_mb: 100 },
+    });
+    assert.equal(ok.ok, true);
+    // omitting metrics is legal, and the row still records the observation
+    setMetricValue(cwd, 41);
+    setMemoryValue(cwd, 99);
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// c2\n");
+    const omitted = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 41,
+      description: "no metrics param",
+    });
+    assert.equal(omitted.ok, true);
+    const lines = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .trim()
+      .split("\n");
+    const row = JSON.parse(lines[lines.length - 1]) as {
+      metrics: Record<string, number>;
+    };
+    assert.deepEqual(row.metrics, { time_ms: 41, memory_mb: 99 });
+
+    // omitting metrics cannot dodge a violated constraint: the gate reads
+    // the observed aggregation
+    setMetricValue(cwd, 40);
+    setMemoryValue(cwd, 999);
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// c3\n");
+    const bypass = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 40,
+      description: "omit metrics to dodge the constraint",
+      constraints: [{ name: "memory_mb", maxPct: 105 }],
+    });
+    assert.equal(bypass.ok, false);
+    assert.match(
+      String(bypass.error),
+      /constraint violation: secondary metric memory_mb=999/,
+    );
+
+    // malformed constraint entries are rejected loudly, not silently dropped
+    const malformed = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 40,
+      description: "malformed constraints",
+      constraints: [{ name: "memory_mb" }, { maxPct: 10 }],
+    });
+    assert.equal(malformed.ok, false);
+    assert.match(String(malformed.error), /malformed constraint entry/);
   });
 });
 
@@ -1691,7 +1777,7 @@ test("auditBypass skips secondary metric constraints", async () => {
       status: "keep",
       metric: 42,
       description: "baseline",
-      metrics: { memory_mb: 100 },
+      metrics: { time_ms: 42, memory_mb: 100 },
     });
     assert.equal(base.ok, true);
 
@@ -1703,7 +1789,7 @@ test("auditBypass skips secondary metric constraints", async () => {
       status: "keep",
       metric: 41,
       description: "over budget but bypassed",
-      metrics: { memory_mb: 200 },
+      metrics: { time_ms: 41, memory_mb: 200 },
       constraints: [{ name: "memory_mb", maxPct: 105 }],
     });
     assert.equal(keep.ok, true);
