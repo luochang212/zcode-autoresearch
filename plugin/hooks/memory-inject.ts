@@ -51,7 +51,8 @@ lines.push(
     `已跑 ${state.runs.length}/${state.maxIterations ?? 20} 次，baseline=${state.baseline ?? "—"}，best=${state.best ?? "—"}。`,
 );
 
-// Deduplicated tried directions (similarity-based, most recent label kept)
+// Deduplicated tried directions (similarity-based; for each direction the
+// first-seen label is kept — later paraphrases collapse into it)
 const tried: string[] = [];
 const triedNorm: string[] = [];
 for (const r of state.runs) {
