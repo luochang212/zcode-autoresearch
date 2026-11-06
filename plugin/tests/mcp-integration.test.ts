@@ -417,6 +417,9 @@ test("consecutive failure threshold is honored in next_action_hint", async () =>
       description: "worse",
     });
     assert.match(String(log.next_action_hint), /consecutive failures reached/);
+    // Spec (guardrails): the returned streak count shares the rebuildState
+    // semantics — same source as the hint text, not a second computation.
+    assert.equal(log.consecutive_failures, 1);
   });
 });
 
@@ -785,6 +788,54 @@ node -e 'process.stdout.write("x".repeat(3000000)+"\n")'
     });
     assert.equal(r.metric, 42);
     assert.ok(r.log_file, "spill log file returned");
+  });
+});
+
+test("overflowed output: indented METRIC lines parse like the non-spill path", async () => {
+  // parseMetricLines trims each line, so "  METRIC x=1" parses in a small
+  // output; the spill-path collector must trim too, or a >2MB output would
+  // silently lose a primary metric the small output kept.
+  const cwd = tempRepo({ withMeasure: false });
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    String.raw`#!/usr/bin/env bash
+node -e 'process.stdout.write("x".repeat(3000000)+"\n")'
+echo "  METRIC time_ms=42"
+`,
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const r = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r.metric, 42, "indented METRIC line lost on the spill path");
+    assert.ok(r.log_file, "spill log file returned");
+  });
+});
+
+test("crash gate fails closed when git status is unreadable", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    // a crash that measured nothing: benchmark exits non-zero, no METRIC
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      "#!/usr/bin/env bash\nexit 3\n",
+    );
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const log = await s.tool("log_experiment", {
+      status: "crash",
+      description: "broken",
+    });
+    assert.equal(log.ok, true);
+    // break git: the crash+dirty audit gate must refuse to run on an
+    // unknown tree instead of swallowing the status error into "clean"
+    rmSync(join(cwd, ".git"), { recursive: true });
+    const r = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r.ok, false);
+    assert.match(String(r.error), /cannot verify working-tree state/);
   });
 });
 

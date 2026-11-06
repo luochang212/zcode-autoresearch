@@ -45,6 +45,7 @@ import {
 import {
   commitExperiment,
   rollbackWorkingTree,
+  dirtyFiles,
   isGitRepo,
   hasCommit,
   ensureSessionStateIgnored,
@@ -375,8 +376,15 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
       carry = lines.pop() ?? "";
       if (carry.length > TAIL_CAP_BYTES) carry = carry.slice(-TAIL_CAP_BYTES);
       for (const line of lines) {
-        if (metricLines.length < MAX_METRIC_LINES && line.startsWith("METRIC "))
-          metricLines.push(line);
+        // Trim before matching: the non-spill path (parseMetricLines) accepts
+        // indented "  METRIC x=1" lines, and the two paths must agree or a
+        // >2MB output silently loses a primary metric a small output kept.
+        const trimmed = line.trim();
+        if (
+          metricLines.length < MAX_METRIC_LINES &&
+          trimmed.startsWith("METRIC ")
+        )
+          metricLines.push(trimmed);
       }
     };
     proc.stdout.on("data", onData);
@@ -1028,11 +1036,25 @@ async function toolRunExperiment(
   // lastRunEver (not lastRun): a dirty tree is physical state, and a config
   // row from init_experiment must not launder it into a fresh segment.
   const lastRun = state.lastRunEver;
-  if (lastRun && lastRun.status === "crash" && isDirty(cwd)) {
-    return {
-      ok: false,
-      error: `audit: last run was ${lastRun.status} with unrolled-back working-tree changes; revert first (or /autoresearch:clear) before starting a new experiment`,
-    };
+  if (lastRun && lastRun.status === "crash") {
+    // Fail closed: an unreadable status is an unknown tree, and this gate
+    // exists to keep physical state honest — isDirty's swallow-to-false
+    // would open it exactly when git is broken (e.g. index.lock contention).
+    let treeDirty: boolean;
+    try {
+      treeDirty = dirtyFiles(cwd).length > 0;
+    } catch (err) {
+      return {
+        ok: false,
+        error: `audit: cannot verify working-tree state (git status failed: ${err instanceof Error ? err.message : String(err)}); resolve git before starting a new experiment`,
+      };
+    }
+    if (treeDirty) {
+      return {
+        ok: false,
+        error: `audit: last run was ${lastRun.status} with unrolled-back working-tree changes; revert first (or /autoresearch:clear) before starting a new experiment`,
+      };
+    }
   }
   // Benchmark drift: frozen files changed since the session baseline.
   const drift = checkBenchmarkDrift();
@@ -1406,8 +1428,18 @@ async function toolLogExperiment(
   let commit = args.commit ?? null;
   // Mechanical tree-state fact at accounting time (session state excluded):
   // recorded on the row regardless of status — post-hoc analysis should see
-  // the physical state the claim was made against, not re-derive it.
-  const treeDirtyAtLog = isDirty(cwd);
+  // the physical state the claim was made against, not re-derive it. Fail
+  // closed before any git step: a row claiming "clean" on an unreadable
+  // status would launder exactly the state this fact exists to record.
+  let treeDirtyAtLog: boolean;
+  try {
+    treeDirtyAtLog = dirtyFiles(cwd).length > 0;
+  } catch (err) {
+    return {
+      ok: false,
+      error: `cannot verify working-tree state (git status failed: ${err instanceof Error ? err.message : String(err)}); no row written`,
+    };
+  }
   // Rollback bookkeeping for non-keep rows: what the restore disposed of
   // (rolledBack), where it landed (restoredTo), and what it could not restore
   // (rollbackResidual). Empty for noop — nothing was changed, so there is
@@ -1554,6 +1586,7 @@ async function toolLogExperiment(
       : null,
     plateau: nextState.plateau === true,
     doom_loop: detectDoomLoop(nextState.runs)?.doomLoop ?? false,
+    consecutive_failures: nextState.consecutiveFailures,
     runs_left: runsLeft,
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
