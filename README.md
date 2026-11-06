@@ -18,9 +18,9 @@ A ZCode plugin that lets a coding agent iterate autonomously against a **fixed m
 ## ✨ Features
 
 - **Autonomous experiment loop**: one focused change per round → run the benchmark → improvements are auto-kept and committed, regressions auto-discarded and rolled back, until convergence or the iteration limit
-- **Proven in practice**: on real projects, the agent independently optimized js-yaml parsing from 134ms to 32ms (4.2x), and prime-number computation from 695ms to 3ms (230x)
+- **Proven in practice**: in a documented field test, the agent independently optimized a prime-number computation from 2852ms to 4ms (~713x) with correctness checks passing throughout ([field test](docs/research/autoresearch-field-test.md))
 - **Anti-cheating guardrails**: frozen-benchmark write protection, correctness-gate checks, ledger auditing, benchmark drift detection, secondary metric constraints (see below)
-- **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically before and after every experiment, with 6 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
+- **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically before and after every experiment, with 7 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
 - **Live dashboard**: a local dashboard auto-refreshes via SSE, so you can watch experiments as they run
 - **One-command wrap-up**: `/autoresearch:finalize` turns kept experiments into a clean, PR-ready branch
 
