@@ -286,20 +286,6 @@ export function rebuildHistory(entries: LedgerEntry[]): SessionHistory {
   };
 }
 
-/**
- * Delta of a run's metric against the segment baseline, direction-aware:
- * positive = improvement (lower metric + baseline was higher, or higher metric).
- */
-export function deltaFor(
-  state: SessionState,
-  metric: number | null | undefined,
-): number | null {
-  if (metric == null || state.baseline == null) return null;
-  const dir = state.config?.direction ?? "lower";
-  const raw = metric - state.baseline;
-  return dir === "higher" ? raw : -raw;
-}
-
 export function readSessionConfig(cwd: string): SessionConfig {
   const cfg = join(cwd, CONFIG_FILE);
   if (!existsSync(cfg)) return {};

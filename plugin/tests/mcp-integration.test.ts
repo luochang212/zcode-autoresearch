@@ -1549,3 +1549,73 @@ test("corrupt config.json fails init loudly instead of being silently reset", as
     assert.equal(init.ok, true);
   });
 });
+
+test("attestation gate: checks_failed requires a recorded failed-checks verdict", async () => {
+  // The discarded_improvement audit only exempts status=checks_failed, so an
+  // agent that wants to drop a real improvement could claim a gate failure
+  // nothing recorded. checks_failed must attest: the latest run_experiment
+  // must have left a failed-checks verdict (pendingChecksFailed).
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    // First keep establishes the retained value.
+    appendFileSync(join(cwd, "code.js"), "// c2\n");
+    const k = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 50,
+      description: "first keep",
+    });
+    assert.equal(k.ok, true);
+    // An improving candidate → honest discard is rejected by the audit…
+    appendFileSync(join(cwd, "code.js"), "// c3\n");
+    const d = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 30,
+      description: "beats retained, discard",
+    });
+    assert.equal(d.ok, false);
+    assert.match(String(d.error), /discarded_improvement/);
+    // …so claiming checks_failed with NO failed checks on record is the only
+    // escape — the attestation gate must reject it.
+    const cf = await s.tool("log_experiment", {
+      status: "checks_failed",
+      metric: 30,
+      description: "gate failure nobody recorded",
+    });
+    assert.equal(cf.ok, false);
+    assert.match(String(cf.error), /no failed-checks verdict/);
+    // Nothing landed: the ledger still holds only config + the keep row.
+    const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    assert.equal(rows.filter((r) => r.type === "run").length, 1);
+  });
+});
+
+test("noop: dirty working tree is surfaced as an explicit warning", async () => {
+  // noop rolls nothing back (by design), so a dirty tree at noop time would
+  // otherwise enter the next measurement silently. Advisory, not a gate: the
+  // dirt may be legitimate (user scratch files), but it must be said.
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    appendFileSync(join(cwd, "code.js"), "// scratch\n");
+    const dirty = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 42,
+      description: "verification rerun, nothing changed",
+    });
+    assert.equal(dirty.ok, true);
+    assert.match(String(dirty.warning), /working tree/i);
+    // Clean tree → silent noop (no noise on the honest path).
+    writeFileSync(join(cwd, "code.js"), "v1\n");
+    const clean = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 42,
+      description: "clean noop",
+    });
+    assert.equal(clean.ok, true);
+    assert.equal(clean.warning, undefined);
+  });
+});

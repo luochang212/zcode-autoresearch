@@ -43,6 +43,16 @@ test("parseMetricLines returns primary undefined when metric not seen", () => {
   assert.equal(primary, undefined);
 });
 
+test("parseMetricLines accepts hyphenated metric names", () => {
+  // p95-style names are common; the name charset must not silently drop them.
+  const { metrics, primary } = parseMetricLines(
+    "METRIC tokens-per-sec=128\nMETRIC time_ms=42",
+    "tokens-per-sec",
+  );
+  assert.deepEqual(metrics, { "tokens-per-sec": 128, time_ms: 42 });
+  assert.equal(primary, 128);
+});
+
 test("isBetter is direction-aware", () => {
   assert.equal(isBetter(41, 42, "lower"), true);
   assert.equal(isBetter(42, 42, "lower"), false);

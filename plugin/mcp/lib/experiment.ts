@@ -2,7 +2,10 @@
 // No I/O here so they are unit-testable without a workspace.
 import type { Confidence, Direction, RunLike } from "./types.ts";
 
-const METRIC_RE = /^METRIC\s+([\w.µ]+)=(\S+)$/;
+// Metric name charset includes `-` (p95-style names) — an over-tight class
+// would silently drop the primary metric and keep would then fail with a
+// confusing "metric must be a finite number" (worth-fix 2026-11-06).
+const METRIC_RE = /^METRIC\s+([\w.µ-]+)=(\S+)$/;
 
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 

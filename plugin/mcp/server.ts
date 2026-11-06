@@ -64,6 +64,7 @@ import {
   ensureDashboardServer,
   broadcastDashboardUpdate,
 } from "./lib/dashboard-server.ts";
+import { sweepStaleSpillFiles } from "./lib/spill.ts";
 import type {
   Confidence,
   Direction,
@@ -268,6 +269,12 @@ function confidenceForSegment(
 const REVISIT_NUDGE =
   "revisit check: before choosing the next experiment, check whether the latest result invalidates a previous discard's rollback reason (see the asi.rollback field on the discard/checks_failed rows in the ledger); if yes: name what changed and weigh a targeted retry of that discard (annotate it with asi.revisits_run: <run number>); if no: move on; verification reruns for measurement noise are separate and do not carry the annotation.";
 
+// noop rolls nothing back by design, so a dirty tree would silently ride into
+// the next measurement. Advisory (the dirt may be legitimate user files):
+// surface it, let the agent decide.
+const NOOP_DIRTY_WARNING =
+  "working tree has uncommitted changes outside session state; noop rolls nothing back, so these changes will be part of the next measurement. Restore them (or log them as an experiment) if they are not meant to be measured.";
+
 function truncateTail(
   text: unknown,
   maxLines = LLM_MAX_LINES,
@@ -288,6 +295,9 @@ function truncateTail(
 // bounded tail survive in memory.
 const SPILL_THRESHOLD_BYTES = 2 * 1024 * 1024;
 const TAIL_CAP_BYTES = 64 * 1024;
+// Spilled logs are read at most until the tool call returns its tail; past
+// this age they are only temp-dir litter (and whatever the benchmark printed).
+const SPILL_MAX_AGE_MS = 7 * 24 * 3600 * 1000;
 const MAX_METRIC_LINES = 1000;
 const KILL_GRACE_MS = 5_000;
 
@@ -334,6 +344,7 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
             tmpdir(),
             `autoresearch-experiment-${process.pid}-${Date.now()}.log`,
           );
+          sweepStaleSpillFiles(tmpdir(), SPILL_MAX_AGE_MS, Date.now());
           writeFileSync(logFile, Buffer.concat(chunks));
           chunks.length = 0;
           log("output overflowed, spilling to", logFile);
@@ -1162,7 +1173,8 @@ async function toolLogExperiment(
   if (!Number.isFinite(metric) && status !== "crash") {
     return {
       ok: false,
-      error: "metric must be a finite number (or use status=crash)",
+      error:
+        "metric must be a finite number (omit it only for status=crash; noop still logs the verification rerun's metric)",
     };
   }
   const metrics =
@@ -1188,6 +1200,19 @@ async function toolLogExperiment(
   // keep gate: metric must be present.
   if (status === "keep" && metric == null) {
     return { ok: false, error: "keep requires a metric value" };
+  }
+  // Attestation gate: checks_failed claims the correctness gate failed on the
+  // latest run, and that claim must be backed by the persisted verdict state —
+  // otherwise it is the only escape from the discarded_improvement audit, and
+  // a self-serving declaration would pass (red test 2026-11-06: checks_failed
+  // with no verdict on record landed and stamped checksFailed: true). Same
+  // layer as the keep gate: before the audit, not subject to auditBypass.
+  if (status === "checks_failed" && !pendingChecksFailed()) {
+    return {
+      ok: false,
+      error:
+        "no failed-checks verdict on record for the latest run_experiment; status=checks_failed must be attested by a failing .auto/checks.sh run. Use status=discard (metric does not beat the retained value) or status=crash (the benchmark itself failed).",
+    };
   }
   // Secondary-metric constraints: keep only if secondary metrics stay within
   // maxPct% of the segment's first run (opt-in; auditBypass unlocks both this
@@ -1413,6 +1438,9 @@ async function toolLogExperiment(
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
     ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
+    ...(status === "noop" && isDirty(cwd)
+      ? { warning: NOOP_DIRTY_WARNING }
+      : {}),
     ...(rolledBack.length > 0
       ? {
           rolled_back: {
@@ -1453,7 +1481,18 @@ async function toolExportDashboard() {
   const history = rebuildHistory(readLedger(cwd));
   const html = renderDashboard(history, { pin: safeShortHash(cwd) });
   writeDashboard(cwd, html);
-  const info = await ensureDashboardServer(cwd);
+  let info: Awaited<ReturnType<typeof ensureDashboardServer>> | null = null;
+  try {
+    info = await ensureDashboardServer(cwd);
+  } catch (err) {
+    // The static export already succeeded; a sandboxed host may refuse to
+    // bind a socket — degrade to static-only instead of masking the written
+    // file behind a tool error.
+    log(
+      "live dashboard unavailable:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
   return {
     ok: true,
     file: paths.dashboard,
@@ -1512,7 +1551,7 @@ const TOOLS = [
   {
     name: "run_experiment",
     description:
-      "Run the benchmark command (repeat times when repeat>1, returns the median metric), time it, and parse `METRIC name=value` lines from its output. If .auto/measure.sh exists, ONLY that script may be run. If .auto/checks.sh exists it runs once after the last run (correctness backpressure). Returns a compact output tail (10 lines / 4KB) plus a log file path when output overflows. For noisy metrics use repeat:3 and log the returned median_metric.",
+      "Run the benchmark command (repeat times when repeat>1, returns the median metric), time it, and parse `METRIC name=value` lines from its output. If .auto/measure.sh exists, ONLY that script may be run. If .auto/checks.sh exists it runs once after the last run (correctness backpressure). Returns a compact output tail (10 lines / 4KB) plus a log file path when output overflows. The per-repetition `runs` array (repeat>1) is numbered 1..repeat — a repetition index, not the ledger run number. For noisy metrics use repeat:3 and log the returned median_metric.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1568,7 +1607,7 @@ const TOOLS = [
         commit: {
           type: "string",
           description:
-            "optional 7-char short hash; ignored on keep (real hash is filled in)",
+            "optional 7-char short hash; ignored on keep (the real hash is filled in); rejected on non-keep statuses (audit: commit_field)",
         },
       },
       required: ["status", "description"],

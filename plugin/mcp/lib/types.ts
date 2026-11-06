@@ -36,7 +36,6 @@ export interface LedgerRun {
   description?: string;
   commit?: string | null;
   checksFailed?: boolean;
-  failedGuard?: boolean;
   /** confidence snapshot at record time (log_experiment); absent on legacy
    *  rows and whenever the computation had too little data to judge. */
   confidence?: ConfidenceSnapshot | null;
