@@ -135,7 +135,7 @@ test("best tracks direction and only kept runs", () => {
   assert.equal(state.best, 8); // 5 was discarded, not counted
 });
 
-test("lastRunChecksFailed is set by a failed check", () => {
+test("checks_failed counts toward the consecutive-failure streak", () => {
   const cwd = tempCwd();
   appendLedgerEntry(cwd, {
     type: "config",
@@ -152,11 +152,10 @@ test("lastRunChecksFailed is set by a failed check", () => {
     checksFailed: true,
   });
   const state = rebuildState(cwd);
-  assert.equal(state.lastRunChecksFailed, true);
   assert.equal(state.consecutiveFailures, 1);
 });
 
-test("lastRunChecksFailed follows the latest run (no one-way latch)", () => {
+test("keep resets the consecutive-failure streak (no one-way latch)", () => {
   const cwd = tempCwd();
   appendLedgerEntry(cwd, {
     type: "config",
@@ -172,8 +171,8 @@ test("lastRunChecksFailed follows the latest run (no one-way latch)", () => {
     status: "checks_failed",
     metric: 42,
   });
-  assert.equal(rebuildState(cwd).lastRunChecksFailed, true);
-  // a subsequent checks-passing run resets the flag (overwrite, not latch)
+  assert.equal(rebuildState(cwd).consecutiveFailures, 1);
+  // a subsequent keep breaks the streak (overwrite, not latch)
   appendLedgerEntry(cwd, {
     type: "run",
     run: 2,
@@ -181,7 +180,7 @@ test("lastRunChecksFailed follows the latest run (no one-way latch)", () => {
     metric: 40,
     commit: "abc1234",
   });
-  assert.equal(rebuildState(cwd).lastRunChecksFailed, false);
+  assert.equal(rebuildState(cwd).consecutiveFailures, 0);
 });
 
 test("session config file is read", () => {
@@ -315,5 +314,4 @@ test("config boundary resets the failure streak and last run", () => {
   assert.equal(state.consecutiveFailures, 1); // not 3 from segment 1
   assert.equal(state.lastRun?.run, 1);
   assert.equal(state.lastRun?.status, "discard");
-  assert.equal(state.lastRunChecksFailed, false);
 });

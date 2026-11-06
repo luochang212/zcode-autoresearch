@@ -133,7 +133,6 @@ export interface SessionState {
   runs: LedgerRun[];
   baseline: number | null;
   best: number | null;
-  lastRunChecksFailed: boolean;
   /** Segment-scoped: reset by config rows (before-hook payload, checks marker). */
   lastRun: LedgerRun | null;
   /**
@@ -142,7 +141,6 @@ export interface SessionState {
    * tree is physical state that init_experiment must not launder.
    */
   lastRunEver: LedgerRun | null;
-  totalExperiments: number;
   consecutiveFailures: number;
   confidence: Confidence | null;
   plateau: boolean;

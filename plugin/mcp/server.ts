@@ -389,13 +389,17 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     };
     proc.stdout.on("data", onData);
     proc.stderr.on("data", onData);
-    // Windows + MSYS child processes: taskkill kills the bash wrapper but a
-    // forked MSYS binary (e.g. sleep) can survive the /T walk and hold the
-    // stdio pipes open, so "close" never fires. After a timeout kill, fall
-    // back to "exit" — the buffer already holds everything needed to judge
-    // the run. resolve is idempotent, so a late close is a no-op.
+    // "close" waits for stdio to drain; a detached descendant holding the
+    // pipes delays it indefinitely — an MSYS binary that survived the Windows
+    // tree walk (taskkill kills the bash wrapper but not every forked child),
+    // or a daemonized grandchild outside the process group the POSIX kill
+    // addresses. The buffer already holds everything needed to judge the
+    // run, so exit arms a bounded fallback in ALL cases (timeout-kill and
+    // normal exit alike); close pre-empts when it fires and resolve is
+    // idempotent, so a late close is a no-op.
     let didTimeout = false;
     let killTimer: NodeJS.Timeout | null = null;
+    let fallbackTimer: NodeJS.Timeout | null = null;
     const kill = () => {
       didTimeout = true;
       if (process.platform === "win32") {
@@ -426,6 +430,7 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     proc.on("error", (err) => {
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       resolve({
         exitCode: null,
         signal: null,
@@ -440,6 +445,7 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     const finalize = (code: number | null, signal: NodeJS.Signals | null) => {
       clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
+      if (fallbackTimer) clearTimeout(fallbackTimer);
       const elapsed = Date.now() - started;
       const full = Buffer.concat(chunks).toString("utf8");
       resolve({
@@ -454,9 +460,13 @@ function runCommand(command: string, timeoutMs: number): Promise<RunOutcome> {
     };
     proc.on("close", (code, signal) => finalize(code, signal));
     proc.on("exit", (code, signal) => {
-      if (!didTimeout) return; // normal path: wait for close (stdio drained)
-      // Timeout-kill path: give close a short grace, then fall back to exit.
-      setTimeout(() => finalize(code, signal), KILL_GRACE_MS);
+      // Bounded settle: give close a short grace to deliver the drained
+      // output, then finalize from the exit facts. Without this, an
+      // exit-then-no-close process (pipes held by a detached descendant)
+      // hangs the tool call forever — the kill timer fires into nothing and
+      // no further event ever re-arms finalize.
+      if (fallbackTimer) return;
+      fallbackTimer = setTimeout(() => finalize(code, signal), KILL_GRACE_MS);
     });
   });
 }
@@ -1135,6 +1145,10 @@ async function toolRunExperiment(
         timed_out: false,
         at: new Date().toISOString(),
       });
+      // Sibling write, same pairing as the normal path below: no checks ran,
+      // so no verdict exists — a stale failed verdict from the previous run
+      // must not attest this run's ledger entry.
+      setPendingChecksFailed(false);
       return {
         ok: false,
         error: `run_experiment could not start the benchmark: ${last.spawnError}`,

@@ -11,6 +11,7 @@ import {
   existsSync,
   readFileSync,
   rmSync,
+  symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -104,8 +105,11 @@ function runBenchmark(s: McpClient) {
   return s.tool("run_experiment", { command: "bash .auto/measure.sh" });
 }
 
-function connect(cwd: string): McpClient {
-  const proc = spawn(process.execPath, [SERVER], { cwd });
+function connect(cwd: string, env?: NodeJS.ProcessEnv): McpClient {
+  // env: optional override for tests that need a curated server environment
+  // (e.g. a PATH without bash to reach the spawnError branch). undefined
+  // inherits the test process env.
+  const proc = spawn(process.execPath, [SERVER], { cwd, env });
   let id = 0;
   let buf = "";
   const pending = new Map<number, (msg: JsonRpcResponse) => void>();
@@ -132,10 +136,25 @@ function connect(cwd: string): McpClient {
   const call = (
     method: string,
     params?: Record<string, unknown>,
+    timeoutMs = 30_000,
   ): Promise<JsonRpcResponse> =>
-    new Promise((res) => {
+    new Promise((res, rej) => {
       const i = id++;
-      pending.set(i, res);
+      // Deadline: a hung server (the bug class the kill paths guard against)
+      // must fail this test with a diagnostic, not stall the suite until the
+      // CI job timeout. Slow-but-legit calls pass a larger timeoutMs.
+      const timer = setTimeout(() => {
+        pending.delete(i);
+        rej(
+          new Error(
+            `${method} call hung >${timeoutMs}ms — server unresponsive or tool never settles`,
+          ),
+        );
+      }, timeoutMs);
+      pending.set(i, (m) => {
+        clearTimeout(timer);
+        res(m);
+      });
       proc.stdin.write(
         JSON.stringify({ jsonrpc: "2.0", id: i, method, params }) + "\n",
       );
@@ -167,8 +186,9 @@ function connect(cwd: string): McpClient {
 async function withServer(
   cwd: string,
   fn: (s: McpClient) => Promise<unknown>,
+  env?: NodeJS.ProcessEnv,
 ): Promise<unknown> {
-  const s = connect(cwd);
+  const s = connect(cwd, env);
   await s.call("initialize", {
     protocolVersion: "2024-11-05",
     capabilities: {},
@@ -748,6 +768,112 @@ test("timeout escalates to SIGKILL when the benchmark ignores SIGTERM", async ()
   }
   assert.equal(stray, "", "no stray benchmark process survives");
 });
+
+test(
+  "run settles when the exited benchmark leaves a detached pipe holder",
+  {
+    skip:
+      process.platform === "win32"
+        ? "POSIX pipe semantics; win32 holder/kill covered in win32-kill.test.ts"
+        : false,
+  },
+  async () => {
+    // "close" waits for stdio to drain; a detached descendant (own process
+    // group, invisible to the group kill) holding the pipes used to hang the
+    // tool call forever after the benchmark itself had exited.
+    const cwd = tempRepo({ withMeasure: false });
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      String.raw`#!/usr/bin/env bash
+node -e 'require("child_process").spawn("sleep",["321"],{detached:true,stdio:"inherit"}).unref()'
+echo "METRIC time_ms=42"
+`,
+    );
+    try {
+      await withServer(cwd, async (s) => {
+        await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+        const t0 = Date.now();
+        const r = await s.tool("run_experiment", {
+          command: "bash .auto/measure.sh",
+        });
+        const waited = Date.now() - t0;
+        assert.equal(r.exit_code, 0);
+        assert.equal(r.timed_out, false);
+        assert.equal(r.metric, 42);
+        // KILL_GRACE_MS fallback after exit — must not wait out sleep 321 (5+ min)
+        assert.ok(waited < 20_000, `tool call took ${waited}ms`);
+      });
+    } finally {
+      // the holder is expected to outlive the run (nothing killed it) — clean up
+      try {
+        execFileSync("pkill", ["-f", "sleep 321"], { stdio: "ignore" });
+      } catch {
+        /* pkill exits 1 when nothing matches — fine */
+      }
+    }
+  },
+);
+
+test(
+  "spawn failure resets pendingChecksFailed alongside the observation",
+  {
+    skip:
+      process.platform === "win32"
+        ? 'POSIX spawn("bash") PATH lookup and symlink shim'
+        : false,
+  },
+  async () => {
+    const cwd = tempRepo();
+    // A PATH with git but no bash: the server itself runs on process.execPath,
+    // init works, and run_experiment's spawn("bash") fails with ENOENT — the
+    // exact "bash missing" case the spawnError branch exists for.
+    const shims = mkdtempSync(join(tmpdir(), "ar-shims-"));
+    symlinkSync(
+      execFileSync("which", ["git"], { encoding: "utf8" }).trim(),
+      join(shims, "git"),
+    );
+    try {
+      await withServer(
+        cwd,
+        async (s) => {
+          await s.tool("init_experiment", {
+            name: "t",
+            metric_name: "time_ms",
+          });
+          // Stale verdict seeded as if a previous run had failed checks.
+          const cfgPath = join(cwd, ".auto", "config.json");
+          const cfg = JSON.parse(readFileSync(cfgPath, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          cfg.pendingChecksFailed = true;
+          writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+
+          const r = await s.tool("run_experiment", {
+            command: "bash .auto/measure.sh",
+          });
+          assert.equal(r.ok, false);
+          assert.match(String(r.error), /could not start the benchmark/);
+          const after = JSON.parse(readFileSync(cfgPath, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          assert.equal(after.pendingChecksFailed, false);
+          const obs = after.pendingObservation as Record<string, unknown>;
+          assert.ok(obs, "observation snapshot persisted");
+          assert.equal(obs.metric, null);
+          // A checks_failed entry is unreachable after a spawn-failed run
+          // (metric binding requires the finite observed value first); the
+          // reset above is defense-in-depth — the stale verdict must not
+          // survive into a state where it could ever attest this run.
+        },
+        { ...process.env, PATH: shims },
+      );
+    } finally {
+      rmSync(shims, { recursive: true, force: true });
+    }
+  },
+);
 
 test("overflowed output still yields the metric (spill: METRIC at end)", async () => {
   const cwd = tempRepo({ withMeasure: false });

@@ -129,10 +129,8 @@ export function rebuildState(
     runs: [],
     baseline: null,
     best: null,
-    lastRunChecksFailed: false,
     lastRun: null,
     lastRunEver: null,
-    totalExperiments: 0,
     consecutiveFailures: 0,
     confidence: null,
     plateau: false,
@@ -145,12 +143,12 @@ export function rebuildState(
       state.runs = [];
       state.baseline = null;
       state.best = null;
-      // A config row is a segment boundary: failure streaks, the previous
-      // run's hook payload and the checks marker must not leak into the new
-      // segment.
+      // A config row is a segment boundary: failure streaks and the previous
+      // run's hook payload must not leak into the new segment. The checks
+      // verdict lives in config's pendingChecksFailed (cleared wholesale at
+      // segment boundaries), not as a derived field here.
       state.consecutiveFailures = 0;
       state.lastRun = null;
-      state.lastRunChecksFailed = false;
     } else if (e.type === "run") {
       const run: LedgerRun = {
         ...e,
@@ -158,7 +156,6 @@ export function rebuildState(
         config: state.config,
       };
       state.runs.push(run);
-      state.totalExperiments += 1;
       if (state.baseline == null && run.metric != null)
         state.baseline = run.metric;
       if (run.status === "keep" && run.metric != null) {
@@ -171,11 +168,6 @@ export function rebuildState(
       if (run.status === "keep" || run.status === "noop")
         state.consecutiveFailures = 0;
       else state.consecutiveFailures += 1;
-      // Per-run overwrite (no one-way latch): the flag always describes the
-      // latest ledger run. Status alone marks checks failure; the explicit
-      // field covers hand-written/legacy rows.
-      state.lastRunChecksFailed =
-        run.checksFailed === true || run.status === "checks_failed";
       state.lastRun = run;
       // Not reset at segment boundaries: the crash+dirty-tree audit gate reads
       // this, and a dirty tree is physical state init_experiment can't clear.
