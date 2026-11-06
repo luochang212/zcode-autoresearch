@@ -124,7 +124,7 @@
 
 ### Requirement: log_experiment 记录结果并执行 git 语义
 
-`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除 `.auto/` 会话目录**）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免 `.auto/` 目录，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。工具 SHALL 在记录后执行 `.auto/hooks/after.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"after", cwd, run_entry, session}`，其中 `run_entry` SHALL 透传本条 run 的 `{run, status, metric, description, commit, asi}`（无 asi 时为 null）；`session` SHALL 含与 before 钩子一致的同一组字段（`{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`），`started_at_epoch` 为同一 segment 起始时刻的 epoch 秒（账本无 config 行时为 null）；`goal` 同前，为同一会话名；钩子失败 SHALL 不阻断记录，但 SHALL 以 `after_steer` 返回错误提示；每次触发 SHALL 向 `.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 观测条目。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
+`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除会话状态**：`.auto/` 与 `.zcode/` 会话目录、生成的 dashboard）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免会话状态，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。工具 SHALL 在记录后执行 `.auto/hooks/after.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"after", cwd, run_entry, session}`，其中 `run_entry` SHALL 透传本条 run 的 `{run, status, metric, description, commit, asi}`（无 asi 时为 null）；`session` SHALL 含与 before 钩子一致的同一组字段（`{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`），`started_at_epoch` 为同一 segment 起始时刻的 epoch 秒（账本无 config 行时为 null）；`goal` 同前，为同一会话名；钩子失败 SHALL 不阻断记录，但 SHALL 以 `after_steer` 返回错误提示；每次触发 SHALL 向 `.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 观测条目。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
 
 - **次级度量约束**：当调用含 `constraints: [{ name, maxPct }]` 且 status=keep 时，工具 SHALL 校验该次级度量（来自本次 run 的 metrics 字典）不超过"当前 segment 首条 run 该度量值"的 maxPct%；超界 SHALL 拒收 keep（返回错误提示放宽约束或改判）；无 constraints 或非 keep 时不校验。
 
@@ -135,12 +135,12 @@
 
 #### Scenario: keep 提交不含会话文件
 
-- **WHEN** agent 以 status=keep 调用且目标项目未 gitignore `.auto/`
-- **THEN** 产生的 commit 不包含 `.auto/` 下任何文件（账本、配置、度量脚本等）
+- **WHEN** agent 以 status=keep 调用且目标项目未 gitignore `.auto/` 与 `.zcode/`
+- **THEN** 产生的 commit 不包含 `.auto/` 与 `.zcode/` 下任何文件，也不包含生成的 dashboard
 
 #### Scenario: 仅会话文件改动时 keep 被拒
 
-- **WHEN** agent 以 status=keep 调用但除 `.auto/` 外没有任何工作区改动
+- **WHEN** agent 以 status=keep 调用但除会话状态外没有任何工作区改动（例如宿主只写了 `.zcode/plans/` 下的会话文件）
 - **THEN** 工具拒绝并返回 "keep with no changes to commit" 审计错误
 
 #### Scenario: keep 未改进被拒
@@ -170,8 +170,8 @@
 
 #### Scenario: discard 自动回滚且豁免会话目录
 
-- **WHEN** agent 以 status=discard 调用且校验通过
-- **THEN** 工作区改动被丢弃（checkout+clean），`.auto/` 内容完整保留，账本追加 discard 行
+- **WHEN** agent 以 status=discard 调用且校验通过，工作区存在宿主写入的未跟踪 `.zcode/` 会话文件
+- **THEN** 工作区实验改动被丢弃（checkout+clean），`.auto/` 与 `.zcode/` 内容完整保留，账本追加 discard 行
 
 #### Scenario: noop 不回滚
 
@@ -212,6 +212,35 @@
 
 - **WHEN** 上一次 run 的 checks 失败而 agent 试图以 keep 记录
 - **THEN** 工具拒绝 keep 并返回错误提示
+
+### Requirement: 会话状态豁免的统一集合与全覆盖
+
+会话状态 SHALL 定义为固定集合：`.auto/` 会话目录、宿主会话目录 `.zcode/`、生成的 dashboard 文件。该集合 SHALL 是全部 git 消费点的单一事实源：keep 的暂存排除、「工作树脏」判定（crash 门禁与回滚回报同源）、回滚的 restore 与 clean。回滚 SHALL 不删除、不回退会话状态，无论其 tracked 与否；仅存在会话文件改动时，工作树 SHALL 视为干净（crash 门禁不得因宿主写入会话文件而永久拒绝续跑）。`init_experiment` SHALL 向研究仓库的本地排除文件（`.git/info/exclude`）幂等声明 `.zcode`（已忽略则跳过；声明失败 SHALL NOT 阻断初始化——枚举层是正确性兜底，声明层是防复发优化）。
+
+#### Scenario: 回滚不删除未跟踪会话文件
+
+- **WHEN** discard/crash/checks_failed 触发回滚，研究仓库存在未跟踪且未 gitignore 的 `.zcode/plans/*.md`
+- **THEN** 回滚后 `.zcode/` 内容完整保留，实验改动被恢复，`rolled_back.files` 不含 `.zcode/` 路径
+
+#### Scenario: 回滚不回退 tracked 会话文件
+
+- **WHEN** `.zcode/` 下有文件已被 git 跟踪，会话期间宿主修改了它，随后实验改动被 discard
+- **THEN** 该 tracked `.zcode/` 文件的修改保留在工作区，不被 checkout 回退
+
+#### Scenario: 会话文件不触发 crash 门禁死锁
+
+- **WHEN** 上一条 run 为 crash，宿主已写入 `.zcode/` 会话文件（未跟踪、未忽略），实验改动已被回滚
+- **THEN** `run_experiment` 不因会话文件拒绝执行（脏判定排除会话状态）
+
+#### Scenario: init 幂等声明本地排除
+
+- **WHEN** `init_experiment` 在未忽略 `.zcode/` 的研究仓库上执行两次
+- **THEN** 首次后 `.git/info/exclude` 含 `.zcode` 声明，第二次不产生重复行；项目 `.gitignore` 已忽略 `.zcode/`（目录已在场，check-ignore 可匹配）时 init 不写本地排除
+
+#### Scenario: 排除声明失败不阻断 init
+
+- **WHEN** `.git/info/exclude` 不可写（如权限受限）
+- **THEN** `init_experiment` 正常完成（枚举层兜底仍在），不因声明失败返回错误
 
 ### Requirement: 实验循环受迭代上限约束
 
