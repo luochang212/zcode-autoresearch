@@ -35,7 +35,7 @@
 
 ### Requirement: run_experiment 运行基准并解析度量
 
-`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB），同时提供完整输出的日志文件路径。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行，解析方式为增量扫描全部输出，与 METRIC 行在输出中的位置（开头/结尾）无关，`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"before", cwd, next_run, last_run, session}`，其中 `last_run` SHALL 透传上一条 run 的 `{run, status, metric, description, asi}`（无上轮或无 asi 时为 null）；`session` SHALL 含 `{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`，其中 `started_at_epoch` 为 segment 起始时刻的 epoch 秒（账本无 config 行时为 null），使墙钟预算类钩子无需解析 `.auto/log.jsonl` 即可判定预算；`goal` 为 `init_experiment` 设定的会话名（账本无 config 行或未设名时为 null），与 pi-autoresearch 的 session 契约对齐；钩子失败（非零退出/超时/启动失败）SHALL 不阻断基准执行，但 SHALL 以 `before_steer` 返回错误提示（形如 `[before hook exited N] <stderr 摘要>` 或 `[before hook timed out after 30s]`）；每次触发 SHALL 向 `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", exit_code, duration_ms, stdout_bytes, timed_out}` 观测条目。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"。文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
+`run_experiment` 工具 SHALL 接受任意 shell 命令，记录 wall-clock 时长，解析输出中形如 `METRIC name=value` 的行，并把给 LLM 的回传截断为紧凑摘要（约 10 行/4KB）；输出溢出到日志文件时同时提供完整输出的日志文件路径（未溢出时 `log_file` 为 null）。工具 SHALL 支持 `repeat` 参数（正整数，默认 1）；repeat>1 时返回的 `metrics` 字典 SHALL 为各次运行按度量名的**中位数聚合**，与 `median_metric` 同源一致（主度量不特殊化）。输出超过阈值（约 2MB）溢出到日志文件时，工具 SHALL 仍解析 METRIC 行，解析方式为增量扫描全部输出，与 METRIC 行在输出中的位置（开头/结尾）无关，`metric`/`metrics` 正常返回；`output_tail` SHALL 取真实输出的尾部；溢出后的内存占用 SHALL 有界（不得随输出总量线性增长）。工具 SHALL 在基准执行前执行 `.auto/hooks/before.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"before", cwd, next_run, last_run, session}`，其中 `last_run` SHALL 透传上一条 run 的 `{run, status, metric, description, asi}`（无上轮或无 asi 时为 null）；`session` SHALL 含 `{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`，其中 `started_at_epoch` 为 segment 起始时刻的 epoch 秒（账本无 config 行时为 null），使墙钟预算类钩子无需解析 `.auto/log.jsonl` 即可判定预算；`goal` 为 `init_experiment` 设定的会话名（账本无 config 行或未设名时为 null），与 pi-autoresearch 的 session 契约对齐；钩子失败（非零退出/超时/启动失败）SHALL 不阻断基准执行，但 SHALL 以 `before_steer` 返回错误提示（形如 `[before hook exited N] <stderr 摘要>` 或 `[before hook timed out after 30s]`）；每次触发 SHALL 向 `.auto/log.jsonl` 追加一条 `{type:"hook", stage:"before", exit_code, duration_ms, stdout_bytes, timed_out}` 观测条目。工具 SHALL 在开始时检查上一轮状态（crash 未回滚禁续跑），并**比对冻结文件哈希**：当前 `measure.sh`/`checks.sh` 的 sha256 与会话记录值不一致时，返回 `benchmark_drift: true` 警告（不阻断执行）："基准自会话开始后已变更（modified/deleted），前后 metric 不可比，建议 init_experiment 开新 segment 或确认变更"。文案 SHALL 区分文件被修改与被删除；首见（记录为 null 但文件已存在）时 SHALL 把当前哈希合并写回会话配置作为基准，不产生警告；冻结文件被删除（记录非 null、当前文件不存在）时 SHALL 同样返回 `benchmark_drift: true` 警告。超时终止 SHALL 先向基准进程组发送 SIGTERM，宽限期（约 5s）内未退出时 SHALL 升级为 SIGKILL（进程组），保证工具调用必然返回、不泄漏进程。
 
 #### Scenario: 漂移警告
 
@@ -687,7 +687,7 @@ keep 的自动提交与 finalize 的整理提交 SHALL 以 `--no-verify` 隔离�
 #### Scenario: workingDir 目录缺失
 
 - **WHEN** config 设置了 `workingDir: "work/"` 但该目录不存在，agent 调用任一实验工具
-- **THEN** 工具返回明确错误（含失效路径与修复提示），不执行任何 git/基准操作
+- **THEN** 实验工具层显式失败、不执行任何 git/基准操作（实现为 MCP server 启动时即抛错终止，错误含失效路径与修复提示、输出到 stderr；hook 层按上方 requirement fail-open）
 
 #### Scenario: hook 对失效 workingDir fail-open 且出诊断
 
@@ -785,10 +785,10 @@ keep 的自动提交与 finalize 的整理提交 SHALL 以 `--no-verify` 隔离�
 - **WHEN** config.json 带有残留 `pending*` 键但 `log.jsonl` 不存在，agent 调用 `clear_experiments`
 - **THEN** 工具照常返回「no active session to clear」，且 config.json 中 `pending*` 键已全部清除
 
-#### Scenario: 非 pending 键不受清除影响
+#### Scenario: 非 pending 键不受边界重置影响
 
-- **WHEN** `init_experiment` 或 `clear_experiments` 执行边界重置
-- **THEN** `maxIterations`、`benchmarkHashes`、`harnessHashes`、`autoresearchOff` 等非 `pending` 前缀键原样保留
+- **WHEN** `init_experiment` 或 `clear_experiments` 执行边界重置（`resetPendingState` 这一步）
+- **THEN** 清除仅限 `pending` 前缀键；`maxIterations`、`plateauWindow`/`plateauMinImprovement`/`deterministic`、`workingDir`、`auditBypass` 等非 `pending` 键在该步保持原样（`benchmarkHashes`/`harnessHashes` 重立基线与 `autoresearchOff` 重置是 init/clear 各自 requirement 的工具语义，不属于本重置步的清除范围）
 
 #### Scenario: 正常 run→log 流不受影响
 

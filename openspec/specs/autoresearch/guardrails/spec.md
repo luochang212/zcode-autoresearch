@@ -123,7 +123,7 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 
 ### Requirement: Stop hook 驱动循环续跑
 
-当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）。该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**，noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutiveFailures` 计数 SHALL 采用同一语义。
+当实验循环进行中且账本显示未达停止条件（迭代上限未到、最近结果非全失败）时，Stop hook SHALL 返回 `decision:block` 与进度摘要 reason，让主模型继续；连续续跑由 zcode 平台限制（3 次窗口）。block 的 reason SHALL 附加一句无人值守提示（用户已要求无人值守运行时，agent 可按 unattended 规程创建定时唤醒）。该提示为 advisory 且无条件追加（hook 不维护窗口计数状态），实际创建时机由 unattended 规程约束。连续失败判定 SHALL 使用 `.auto/config.json` 的 `consecutiveFailures`（默认 3）作为阈值；"连续失败"指**尾部连续的 discard/crash/checks_failed**，noop 既不计入失败也中断连续链（keep 同样中断），且 noop 之后尾部的连续失败数从零重新起算。`log_experiment` 返回的 `consecutive_failures` 计数（`next_action_hint` 文案中的连败计数与之同源）SHALL 采用同一语义。
 
 #### Scenario: 循环未结束
 
@@ -138,7 +138,7 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 #### Scenario: 平台期收敛
 
 - **WHEN** 当前 segment 最近 `window` 轮无净改善（plateau 检测为 true）
-- **THEN** Stop hook 放行，reason 中说明循环已进入平台期，建议收尾或开启新 segment
+- **THEN** Stop hook 放行（exit 0），平台期说明以 stderr 诊断输出（放行路径无 reason 通道——宿主 Stop schema 限制），建议收尾或开启新 segment
 
 #### Scenario: 连续失败达到阈值
 
