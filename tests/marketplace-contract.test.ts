@@ -467,6 +467,24 @@ describe("marketplace 契约（本仓库）", () => {
     );
   });
 
+  it("author 字段一致：plugin.json author ↔ 条目 author ↔ 顶层 owner", () => {
+    assert.ok(entry, "marketplace.json 缺少 autoresearch 条目");
+    const author = (manifest["author"] as Json | undefined)?.["name"];
+    const entryAuthor = (entry!["author"] as Json | undefined)?.["name"];
+    const owner = (marketplace["owner"] as Json | undefined)?.["name"];
+    assert.ok(author, "plugin.json 缺少 author.name");
+    assert.strictEqual(
+      entryAuthor,
+      author,
+      "条目 author 与 plugin.json 不一致",
+    );
+    assert.strictEqual(
+      owner,
+      author,
+      "marketplace 顶层 owner 与 plugin.json author 不一致",
+    );
+  });
+
   it("plugin/ 树安全：无 symlink、无字节码、零依赖、无个人路径泄漏", () => {
     assert.deepStrictEqual(treeProblems(PLUGIN_DIR, "plugin"), []);
     assert.deepStrictEqual(forbiddenArtifacts(PLUGIN_DIR), []);
