@@ -160,6 +160,13 @@ export interface SessionConfig {
   benchmarkHashes?: { measure: string | null; checks: string | null } | null;
   /** Server-managed: editable-surface digests baseline for the harness trace. */
   harnessHashes?: Record<string, string | null> | null;
+  /**
+   * `pending` prefix convention: keys named `pending…` are server cross-call
+   * mechanism state, cleared wholesale at segment boundaries (init_experiment
+   * / clear_experiments — resetPendingState). Never store user intent or a
+   * session baseline under this prefix; future keys are covered by the
+   * boundary reset automatically.
+   */
   /** Server-managed: checks outcome of the latest run_experiment (keep gate). */
   pendingChecksFailed?: boolean;
   /** Server-managed: observation snapshot consumed by log_experiment's binding gates. */

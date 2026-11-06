@@ -548,6 +548,37 @@ function writeBenchmarkHashes(hashes: {
 }
 
 /**
+ * Clear every `pending*` key from `.auto/config.json` (the server cross-call
+ * state family: pendingChecksFailed, pendingObservation). Segment boundaries
+ * (init_experiment / clear_experiments) reset the whole prefix instead of a
+ * per-field list: pendingObservation was added later and both hand-maintained
+ * lists missed it, letting a previous session's unconsumed observation attest
+ * run #1 of the new segment (red test 2026-11-07). The `pending` prefix is
+ * the contract (SessionConfig in types.ts); future keys are covered
+ * automatically. A missing or unparsable config clears nothing and is not
+ * created: unparsable JSON cannot carry a consumable snapshot anyway
+ * (readSessionConfig treats it as empty), and clear must not gain a new
+ * failure mode.
+ */
+function resetPendingState(): void {
+  const cfgPath = join(projectCwd, ".auto", "config.json");
+  let cfg: Record<string, unknown>;
+  try {
+    cfg = JSON.parse(readFileSync(cfgPath, "utf8")) as Record<string, unknown>;
+  } catch {
+    return;
+  }
+  let touched = false;
+  for (const key of Object.keys(cfg)) {
+    if (key.startsWith("pending")) {
+      delete cfg[key];
+      touched = true;
+    }
+  }
+  if (touched) writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+}
+
+/**
  * Persist the checks outcome of the latest run_experiment so log_experiment's
  * keep gate works even across an MCP server restart (pi `runtime.lastRunChecks`
  * equivalent, but on disk). `failed` is true only when checks produced a verdict and it was negative; a checks script that never produced a verdict (not executed / killed) is infra and must not veto keeps.
@@ -923,10 +954,13 @@ async function toolInitExperiment(
   const segment = (state.segment ?? 0) + 1;
   // Config write precedes the ledger row: a corrupt config.json fails init
   // before a config row lands in the ledger (no half-initialized session).
+  // The new segment must not inherit the previous one's cross-call state:
+  // stale pending* keys are cleared wholesale (resetPendingState), then the
+  // config patch re-baselines what init owns.
+  resetPendingState();
   patchSessionConfig({
     benchmarkHashes: currentBenchmarkHashes(),
     harnessHashes: currentHarnessHashes(cwd),
-    pendingChecksFailed: false,
     autoresearchOff: false,
     // Calibration keys are stored only when provided: re-init without them
     // keeps the previous segment's calibration.
@@ -1547,11 +1581,17 @@ async function toolLogExperiment(
 }
 
 async function toolClearExperiments() {
+  // Pending state is mechanism state, not user intent: reset it
+  // unconditionally — including on the early-exit path below — so a stale
+  // observation cannot attest the next session's first log (red test
+  // 2026-11-07). autoresearchOff stays reset only on the active path: it is
+  // user intent (/autoresearch:off), outside the pending* contract.
+  resetPendingState();
   if (!existsSync(paths.log))
     return { ok: true, message: "no active session to clear" };
-  // Clearing is a fresh start: stale checks state and a paused loop must not
-  // survive into the next session.
-  patchSessionConfig({ pendingChecksFailed: false, autoresearchOff: false });
+  // Clearing is a fresh start: a paused loop must not survive into the next
+  // session.
+  patchSessionConfig({ autoresearchOff: false });
   const { rmSync } = await import("node:fs");
   rmSync(paths.log, { force: true });
   return {

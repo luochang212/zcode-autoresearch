@@ -1805,6 +1805,76 @@ test("observation binding: no-run logs, metric mismatch and fake crash are rejec
   });
 });
 
+test("observation binding: stale pending state does not survive init/clear boundaries", async () => {
+  // Root cause (worth-fix 2026-11-07): pendingObservation was missing from
+  // both reset lists (clear and init only reset pendingChecksFailed /
+  // autoresearchOff by hand), so an unconsumed observation from a PREVIOUS
+  // session survived the boundary and attested run #1 of the new segment —
+  // the red repro logged metric 123 into a session that never ran anything.
+  // Boundary rule: every `pending*` key is server cross-call state, cleared
+  // wholesale at init/clear (see SessionConfig in types.ts).
+  const seed = (cwd: string) =>
+    writeFileSync(
+      join(cwd, ".auto", "config.json"),
+      JSON.stringify({
+        benchmarkHashes: { measure: null, checks: null },
+        pendingChecksFailed: true,
+        pendingObservation: {
+          metric: 123,
+          metrics: {},
+          exit_code: 0,
+          timed_out: false,
+          at: new Date().toISOString(),
+        },
+      }),
+    );
+  // clear's early-exit path (no log.jsonl) must still reset pending* state
+  const cleared = tempRepo();
+  seed(cleared);
+  await withServer(cleared, async (s) => {
+    const r = await s.tool("clear_experiments", {});
+    assert.equal(r.ok, true);
+    assert.match(String(r.message), /no active session/);
+    const cfg = JSON.parse(
+      readFileSync(join(cleared, ".auto", "config.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.equal("pendingObservation" in cfg, false);
+    assert.equal("pendingChecksFailed" in cfg, false);
+    assert.ok("benchmarkHashes" in cfg); // non-pending keys survive
+  });
+  // init path: the new segment must not inherit the stale attestation
+  const cwd = tempRepo();
+  seed(cwd);
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "fresh", metric_name: "time_ms" });
+    const stale = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 123,
+      description: "attested by the previous session's stale observation",
+    });
+    assert.equal(stale.ok, false);
+    assert.match(String(stale.error), /run_experiment/);
+    const cfg = JSON.parse(
+      readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
+    ) as Record<string, unknown>;
+    assert.ok("benchmarkHashes" in cfg); // session baseline preserved
+    assert.equal("pendingChecksFailed" in cfg, false);
+    assert.equal("pendingObservation" in cfg, false);
+    // a fresh observation inside THIS segment still logs normally
+    const run = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(run.ok, true);
+    assert.equal(run.metric, 42);
+    const honest = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 42,
+      description: "fresh observation in this segment",
+    });
+    assert.equal(honest.ok, true);
+  });
+});
+
 test("observation binding: a failing benchmark attests an honest crash", async () => {
   const cwd = tempRepo();
   writeFileSync(
