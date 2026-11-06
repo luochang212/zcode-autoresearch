@@ -157,12 +157,12 @@ PreToolUse hook SHALL 拦截对 `.auto/` 下受保护文件（measure.sh、check
 
 ### Requirement: 无人值守定时唤醒（有界）
 
-用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建 recurring 的 `CronCreate` 定时唤醒任务（interval + maxRuns 双参数均须有界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）。automation turn 无法写 Cron（宿主强制，实测工具面亦不含 Cron 写工具），清理只发生在用户交互轮。
+用户明确要求无人值守/过夜运行时，agent SHALL 按 unattended 规程创建有限日程（`recurring: false`）的 `CronCreate` 定时唤醒任务（`interval` + `maxRuns` 均须有界；宿主契约拒绝 `recurring: true` 与 `maxRuns` 的组合——recurring 语义为无限，上限会被清除，有界过夜运行将变成无界），唤醒提示 SHALL 自包含：只依赖 `.auto/` 事实源（log.jsonl/config.json）与 skill 指针，不依赖对话记忆。每个唤醒 turn（automation turn）SHALL 先检查循环状态：实验循环活跃（`.auto/log.jsonl` 存在、config 未设 `autoresearchOff: true`、未达迭代上限、连续失败未达阈值）时按循环规程继续实验；不活跃时 SHALL 空转（不创建实验、不做无关工作），等待任务自然耗尽或用户清理。用户未明确要求无人值守时，agent SHALL NOT 创建唤醒任务。`/autoresearch:off`、`/autoresearch:clear` 与 finalize 命令 SHALL 包含清理步骤：CronList 检查本会话创建的唤醒任务并删除（或在 automation turn 不可删除时提示用户删除）。automation turn 无法写 Cron（宿主强制，实测工具面亦不含 Cron 写工具），清理只发生在用户交互轮。
 
 #### Scenario: 授权后创建有界唤醒
 
 - **WHEN** 用户要求「无人值守跑一晚」，agent 按 unattended 规程调用 CronCreate
-- **THEN** 创建的任务为 recurring 且 maxRuns 有界（非无限循环），唤醒提示包含自包含的状态检查与续跑指引
+- **THEN** 创建的任务为有限日程（`recurring: false`）且 `maxRuns` 有界（非无限循环），唤醒提示包含自包含的状态检查与续跑指引
 
 #### Scenario: 未授权不创建
 
