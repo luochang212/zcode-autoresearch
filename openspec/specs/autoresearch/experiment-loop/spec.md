@@ -124,7 +124,7 @@
 
 ### Requirement: log_experiment 记录结果并执行 git 语义
 
-`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除会话状态**：`.auto/` 与 `.zcode/` 会话目录、生成的 dashboard）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免会话状态，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。工具 SHALL 在记录后执行 `.auto/hooks/after.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"after", cwd, run_entry, session}`，其中 `run_entry` SHALL 透传本条 run 的 `{run, status, metric, description, commit, asi}`（无 asi 时为 null）；`session` SHALL 含与 before 钩子一致的同一组字段（`{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`），`started_at_epoch` 为同一 segment 起始时刻的 epoch 秒（账本无 config 行时为 null）；`goal` 同前，为同一会话名；钩子失败 SHALL 不阻断记录，但 SHALL 以 `after_steer` 返回错误提示；每次触发 SHALL 向 `.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 观测条目。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
+`log_experiment` 工具 SHALL 接受主度量值、status（keep/discard/crash/checks_failed/noop）、描述与可选次级度量；keep 时自动 stage 当前全部改动（**排除会话状态**：`.auto/` 与 `.zcode/` 会话目录、生成的 dashboard）并 commit（message 带 `experiment:` 前缀与结构化结果），非 keep（discard/crash/checks_failed）时丢弃工作区改动但豁免会话状态，noop 不回滚；记录追加到 `.auto/log.jsonl` 并回填真实短 hash。status=crash 时 metric SHALL 记为 null（不得写入占位 0）：crash 行不参与 baseline/best/置信度/平台期计算，避免污染后续 delta 显示。`status=checks_failed` SHALL 为**有据记录**：仅当最近一次 `run_experiment` 留下失败的 checks 判定（`pendingChecksFailed` 为 true）时 SHALL 接受，否则 SHALL 拒绝并提示正确状态（metric 未超保留值用 discard、benchmark 自身失败用 crash）；该门与 keep 门同层（位于审计之前、不受 `auditBypass` 影响）。`status=noop` 时若工作树脏（会话状态豁免口径），SHALL 在返回中携带显式 `warning`（advisory，不拒绝——脏可能是合法的用户文件）：noop 不回滚，脏树将进入下一轮测量。工具 SHALL 在记录后执行 `.auto/hooks/after.sh`（若存在且可执行），stdin 为单行 JSON：`{event:"after", cwd, run_entry, session}`，其中 `run_entry` SHALL 透传本条 run 的 `{run, status, metric, description, commit, asi}`（无 asi 时为 null）；`session` SHALL 含与 before 钩子一致的同一组字段（`{metric_name, direction, baseline_metric, best_metric, run_count, started_at_epoch, goal}`），`started_at_epoch` 为同一 segment 起始时刻的 epoch 秒（账本无 config 行时为 null）；`goal` 同前，为同一会话名；钩子失败 SHALL 不阻断记录，但 SHALL 以 `after_steer` 返回错误提示；每次触发 SHALL 向 `.auto/log.jsonl` 追加 `{type:"hook", stage:"after", …}` 观测条目。工具 SHALL 在写入前校验账本不变量与**次级度量约束**，违规 SHALL 拒绝写入并返回错误：
 
 - **次级度量约束**：当调用含 `constraints: [{ name, maxPct }]` 且 status=keep 时，工具 SHALL 校验该次级度量（来自本次 run 的 metrics 字典）不超过"当前 segment 首条 run 该度量值"的 maxPct%；超界 SHALL 拒收 keep（返回错误提示放宽约束或改判）；无 constraints 或非 keep 时不校验。
 
@@ -153,6 +153,16 @@
 - **WHEN** agent 以 status=discard 调用且 metric 优于当前保留值、但上次 checks 未失败
 - **THEN** 工具拒绝写入并返回错误（提示真改进不应丢弃，或注明 checks 失败）
 
+#### Scenario: checks_failed 无判定被拒
+
+- **WHEN** agent 以 status=checks_failed 调用，但最近一次 run_experiment 未留下失败的 checks 判定（未跑 run、checks 通过、或 checks 属基础设施故障未产生判定）
+- **THEN** 工具拒绝写入并返回错误（含 "no failed-checks verdict" 语义，提示改用 discard 或 crash），账本不落行
+
+#### Scenario: checks_failed 有判定放行
+
+- **WHEN** 最近一次 run_experiment 的 checks 判定为失败（pendingChecksFailed 为 true），agent 以 status=checks_failed 调用
+- **THEN** 记录正常完成，账本行含 `checksFailed: true`
+
 #### Scenario: 次级度量超界禁 keep
 
 - **WHEN** 调用含 `constraints: [{name: "memory_mb", maxPct: 105}]`，本次 run 的 memory_mb 为首条 run 的 110%
@@ -177,6 +187,16 @@
 
 - **WHEN** agent 以 status=noop 调用（未改动代码）
 - **THEN** 工作区保持不变，账本追加 noop 行
+
+#### Scenario: noop 脏树显式警告
+
+- **WHEN** agent 以 status=noop 调用时工作树存在会话状态之外的改动
+- **THEN** 记录正常完成（noop 不拒绝），返回携带显式 `warning`（说明 noop 不回滚、脏树将进入下一轮测量）
+
+#### Scenario: noop 干净树静默
+
+- **WHEN** agent 以 status=noop 调用时工作树干净（会话状态豁免口径）
+- **THEN** 返回不携带 `warning` 字段
 
 #### Scenario: crash 行不污染 baseline
 
