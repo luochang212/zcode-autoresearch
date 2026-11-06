@@ -112,9 +112,11 @@ Setting `"workingDir": "work/"` in `.auto/config.json` separates the research di
 | `ideas.md`      | optional hypothesis list                                                                                                                                                                                                                                                                                                                                                     |
 | `experience.md` | optional cross-segment lessons (at most one per segment; survives clear)                                                                                                                                                                                                                                                                                                     |
 
+The manifest `userConfig` (`maxIterations` / timeouts) seeds the **MCP server's** defaults via env; the hooks (Stop continuation, memory injection) cannot see it — they read `.auto/config.json` overrides only and fall back to 20 runs / 3 failures. Set session-level overrides in `config.json` when hooks and server must agree.
+
 ## Known limits (research-backed, see `docs/research/autoresearch-survey.md` §4.1 at the repository root)
 
-- **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (recurring + maxRuns, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
+- **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (finite schedule + `maxRuns`, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
 - **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.
 - A keep commits every uncommitted change inside the research directory — unrelated files included (known pi inheritance); commit a clean baseline during setup. Changes outside the research dir (`workingDir` mode) are never committed, and any pre-staged files elsewhere in the repo are unstaged first so the commit describes exactly this experiment.
 

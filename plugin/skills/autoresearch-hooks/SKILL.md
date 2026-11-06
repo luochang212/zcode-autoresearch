@@ -54,7 +54,7 @@ Ask: does this hook **remind** (before, produce steer) or **do work** (after, si
      | bash .auto/hooks/before.sh
    ```
    For an after hook, replace with an `{"event":"after","cwd":".","run_entry":{...},"session":{...}}` payload.
-5. `chmod +x .auto/hooks/before.sh` (or `after.sh`) and commit; the loop picks it up immediately.
+5. `chmod +x .auto/hooks/before.sh` (or `after.sh`); the loop picks it up immediately. Hooks live under `.auto/` — exempt from rollback and preserved by `clear_experiments` — so they survive without git; whether to commit them is the project's call (the setup guide recommends keeping `.auto/` out of git).
 
 ## Guidelines
 

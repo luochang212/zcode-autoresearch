@@ -112,9 +112,11 @@ plugin/
 | `ideas.md`      | 可选假设清单                                                                                                                                                                                                                                                                                                     |
 | `experience.md` | 可选跨 segment 经验（每段至多一条；clear 后保留）                                                                                                                                                                                                                                                                |
 
+清单 `userConfig`（`maxIterations` / 超时）经 env 注入，只作为 **MCP server 侧**的默认值；hooks（Stop 续跑、记忆注入）看不到它——只读 `.auto/config.json` 覆盖项，缺省按 20 轮 / 3 连败。需要 hooks 与 server 口径一致时，在 `config.json` 里设会话级覆盖。
+
 ## 已知边界（研究实证，详见报告 `docs/research/autoresearch-survey.md` §4.1）
 
-- **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（recurring + maxRuns，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
+- **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（有限日程 + `maxRuns`，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
 - keep 会提交研究目录内所有未提交改动——含无关文件（继承 pi 的已知弱点）；setup 时先提交干净基线。`workingDir` 模式下研究目录之外的改动不会被提交，仓库内其他位置预暂存的文件会先被 unstage，保证 commit 恰好描述本次实验。
 

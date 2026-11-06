@@ -14,8 +14,8 @@ Create the CronCreate task immediately after the user authorizes. Do not wait fo
 
 ## CronCreate parameters
 
-- Recurring schedule, not `delayMinutes`: automation turns cannot write Cron, so a one-shot chain cannot re-arm itself; recurring + maxRuns is the only self-driving form.
-- `interval`: 5 minutes is the default (one wake turn runs at most ~1-4 experiments inside the Stop window; a 2-minute interval mostly produces idle turns).
+- Finite schedule, not `delayMinutes`: automation turns cannot write Cron, so a one-shot chain cannot re-arm itself — a finite schedule (`recurring: false`) with a run cap (`maxRuns`) is the only self-driving form. Do **not** combine `recurring: true` with `maxRuns`: under the current host contract that pair is rejected (recurring means indefinite), and a silently ignored cap would turn a bounded overnight run into an unbounded one. Re-check CronCreate's current contract when you create the task; these parameters follow the 2026-11 shape.
+- `interval`: every 5 minutes is the default (one wake turn runs at most ~1-4 experiments inside the Stop window; a 2-minute interval mostly produces idle turns).
 - `maxRuns`: 24 is the default (5 min × 24 ≈ 2 hours of unattended time). Scale to the ask ("overnight" → up to ~100; confirm the arithmetic with the user).
 - Wake prompt: pass the template below as the task prompt. It must be self-contained: a wake turn may run after a compaction, so it may rely only on `.auto/` files, not on conversation memory.
 

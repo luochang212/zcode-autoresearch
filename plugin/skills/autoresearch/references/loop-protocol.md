@@ -11,7 +11,7 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 5. **Decide**: compare the returned `metric` against the segment `baseline`:
    - **improved** → `log_experiment` `status:"keep"`. The tool auto-commits (`experiment: <desc>` + Result JSON).
    - **equal or worse** → `status:"discard"`. Working tree is reverted, `.auto/` survives.
-   - **exit_code ≠ 0 / timed_out** → `status:"crash"` (metric null). Same revert.
+   - **exit_code ≠ 0 / timed_out with nothing measured** → `status:"crash"` (metric null). Same revert. If the benchmark printed a valid `METRIC` line before dying, the tool rejects `crash` ("measured something") — log the observed value as `discard`/`keep` instead.
    - **checks.failed** → `status:"checks_failed"`. Same revert; never keep.
    - **no actual change made** (e.g. only measured) → `status:"noop"` if you want it recorded, else skip logging.
 6. **Log**: always pass `asi` on non-keep runs: `{ hypothesis, next_action_hint, rollback }`. This survives the revert and drives the next iteration.
@@ -41,13 +41,13 @@ The prefixes are an advisory convention: the tools never validate them, and unta
 
 ## Failure handling
 
-| Symptom               | Handling                                             |
-| --------------------- | ---------------------------------------------------- |
-| benchmark crashes     | fix the script/change; log as `crash` (reverts)      |
-| repeated crashes (>2) | log `crash`, pick a smaller/different hypothesis     |
-| checks fail           | log `checks_failed` (reverts), do not keep           |
-| command hangs         | `run_experiment` kills at timeout; log `crash`       |
-| iteration cap reached | stop; optionally `init_experiment` for a new segment |
+| Symptom               | Handling                                                                                                                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| benchmark crashes     | fix the script/change; log as `crash` (reverts) — only when nothing was measured; a crash with an observed metric is rejected, discard/keep with the value |
+| repeated crashes (>2) | log `crash`, pick a smaller/different hypothesis                                                                                                           |
+| checks fail           | log `checks_failed` (reverts), do not keep                                                                                                                 |
+| command hangs         | `run_experiment` kills at timeout; log `crash`                                                                                                             |
+| iteration cap reached | stop; optionally `init_experiment` for a new segment                                                                                                       |
 
 ## Stopping
 
