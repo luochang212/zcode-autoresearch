@@ -52,6 +52,8 @@ import {
   isDirty,
   currentBranch,
   safeShortHash,
+  headSha,
+  undoCommitTo,
 } from "./lib/git.ts";
 import { renderDashboard } from "./lib/dashboard.ts";
 import { resolveWorkCwd } from "./lib/paths.ts";
@@ -1517,6 +1519,10 @@ async function toolLogExperiment(
   let rolledBack: string[] = [];
   let restoredTo: string | null = null;
   let rollbackResidual: string[] = [];
+  // HEAD before the keep commit: the rollback target if the ledger append
+  // fails after the commit succeeded (see the append guard below). null on
+  // an unborn branch — init_experiment rejects those, so this is defensive.
+  const preCommitHead = status === "keep" ? headSha(cwd) : null;
   if (status === "keep") {
     const hash = commitExperiment(cwd, {
       description: description || "(no description)",
@@ -1529,7 +1535,7 @@ async function toolLogExperiment(
       return {
         ok: false,
         error:
-          "audit: keep with no changes to commit; there is nothing to retain. Make a real change first, or use status=noop.",
+          "audit: keep with no changes to commit; there is nothing to retain. Make a real change first, or use status=noop. (Any pre-staged files outside the experiment were unstaged while attempting the keep — re-stage them if needed.)",
       };
     }
   } else if (status !== "noop") {
@@ -1575,7 +1581,43 @@ async function toolLogExperiment(
     };
   }
 
-  appendLedgerEntry(cwd, entry);
+  // Ledger append is the second half of a keep's two-step write (commit →
+  // row). If it fails, the commit must not survive as an orphan: a commit
+  // without its ledger row silently diverges from the audit chain, and the
+  // naive retry dead-ends (the tree is clean, so the next keep finds nothing
+  // to commit). Undo the commit (changes return to the tree unstaged) and
+  // leave the observation pending — the retry then looks like the first
+  // attempt. Non-keep rows have no commit to undo; the rollback above already
+  // restored the tree.
+  try {
+    appendLedgerEntry(cwd, entry);
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    if (status === "keep" && commit != null) {
+      if (preCommitHead != null) {
+        try {
+          undoCommitTo(cwd, preCommitHead);
+          return {
+            ok: false,
+            error: `ledger append failed after the keep commit (commit undone; working tree back to uncommitted changes): ${reason}. No row was written and the observation is still pending — fix the filesystem issue and log again.`,
+          };
+        } catch (resetErr) {
+          return {
+            ok: false,
+            error: `ledger append failed (${reason}) AND the orphan commit ${commit} could not be undone (${resetErr instanceof Error ? resetErr.message : String(resetErr)}); commit ${commit} has no ledger row — inspect git log and the ledger before proceeding`,
+          };
+        }
+      }
+      return {
+        ok: false,
+        error: `ledger append failed (${reason}); the keep commit ${commit} has no ledger row (no pre-keep HEAD to undo to) — inspect git log and the ledger before proceeding`,
+      };
+    }
+    return {
+      ok: false,
+      error: `ledger append failed: ${reason}; no row was written and the observation is still pending`,
+    };
+  }
   // The pending run is now accounted for — clear the keep-gate state and the
   // observation snapshot (one log per run).
   setPendingChecksFailed(false);

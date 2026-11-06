@@ -154,6 +154,28 @@ export function safeShortHash(cwd: string): string | null {
   }
 }
 
+/** Full HEAD sha, or null on an unborn branch / git failure. */
+export function headSha(cwd: string): string | null {
+  if (!hasCommit(cwd)) return null;
+  try {
+    return git(cwd, ["rev-parse", "HEAD"]).trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Undo the experiment keep commit: move the branch back to `sha` and reset
+ * the index to it, leaving the working tree untouched — the committed changes
+ * return to the tree as unstaged modifications, i.e. exactly the pre-keep
+ * state. Used when the ledger append fails after a successful commit: a
+ * commit without its ledger row would silently diverge from the audit chain
+ * (after the undo, the retry looks exactly like the first attempt).
+ */
+export function undoCommitTo(cwd: string, sha: string): void {
+  git(cwd, ["reset", "-q", "--mixed", sha]);
+}
+
 /**
  * Commit all tracked+untracked changes as one experiment, excluding session
  * state (`.auto/`, `.zcode/` and the generated dashboard): a keep with only
@@ -231,7 +253,7 @@ export function commitExperiment(
         ? String((err as { stderr?: unknown }).stderr).trim()
         : "";
     throw new Error(
-      `git commit failed: ${stderr || (err instanceof Error ? err.message : String(err))}`,
+      `git commit failed: ${stderr || (err instanceof Error ? err.message : String(err))}. The experiment changes remain staged in the index (pre-staged entries elsewhere were unstaged while attempting the keep).`,
     );
   }
   return shortHash(cwd);
