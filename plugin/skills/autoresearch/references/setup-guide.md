@@ -36,7 +36,7 @@ A correctness gate that exits non-zero when the change broke something:
 node test-correctness.ts
 ```
 
-Checks run automatically after a passing benchmark; failure forbids `keep`.
+Checks run automatically after a passing benchmark; failure forbids `keep`. A gate that never produces a verdict (not executable, killed by a signal, exits ≥126) is infrastructure, not failure — it does not veto keeps.
 
 **Calibrate the noise floor first**: before the first real experiment, run `measure.sh` 2-3 times on the unmodified code (or one `run_experiment` with `repeat: 3`) and confirm the numbers sit within a stable band. Record that band in the charter's Metric section — it is the floor every future delta is judged against; a "gain" smaller than the band is noise, not progress.
 

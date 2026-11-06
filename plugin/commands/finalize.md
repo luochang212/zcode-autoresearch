@@ -5,7 +5,7 @@ description: Split kept experiments into clean topic branches you can PR. Usage:
 Finalize the experiment session into clean, PR-able topic branches.
 
 1. Read `.auto/log.jsonl`, collect the **kept** experiments (status=keep with a commit).
-2. Group experiments that touch the same files into the same branch; separate branches must have disjoint file sets (the script rejects overlap). Keep groups small and in commit order.
+2. Group experiments that touch the same files into the same branch; separate branches must have disjoint file sets (the script rejects overlap). Keep groups small and in commit order. The script verifies that the union of the group branches equals **every** change between the trunk merge-base and HEAD (session files excluded) — manual, non-experiment commits included — so either fold ungrouped commits into a group or the verify step fails and rolls everything back.
 3. Write `groups.json` at the project root:
    ```json
    {
