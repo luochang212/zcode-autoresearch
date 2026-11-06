@@ -1,10 +1,19 @@
 // Git operations for the experiment loop (ADR-2 semantics):
 // keep → commit with `experiment:` prefix + structured Result JSON.
 // discard/crash/checks_failed → drop working-tree changes, exempt session state
-// (`.auto/` and the generated dashboard).
+// (`.auto/`, the host session dir `.zcode/` and the generated dashboard).
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { DASHBOARD_FILE } from "./ledger.ts";
+
+// Session state dirs exempt from every git consumption site (keep staging,
+// dirty check, rollback restore/clean). Single source of truth: the sites
+// speak different pathspec dialects, and per-site enumeration missed `.zcode`
+// the same way `.auto` once did (evidence 2026-11-05: rollback clean -fd
+// deleted the host's .zcode/plans on every discard, and dirtyFiles counted
+// session files as tree changes, deadlocking the crash gate).
+const SESSION_STATE_DIRS = [".auto", ".zcode"];
 
 // Standard install locations a slim GUI PATH can hide. On macOS the
 // launchd-default PATH still contains /usr/bin, whose git (the CLT shim)
@@ -111,7 +120,7 @@ export function dirtyFiles(cwd: string): string[] {
     "--porcelain",
     "--",
     ".",
-    ":(exclude).auto",
+    ...SESSION_STATE_DIRS.map((d) => `:(exclude)${d}`),
     `:(exclude)${DASHBOARD_FILE}`,
   ])
     .split(/\r?\n/)
@@ -147,8 +156,8 @@ export function safeShortHash(cwd: string): string | null {
 
 /**
  * Commit all tracked+untracked changes as one experiment, excluding session
- * state (`.auto/` plus the generated dashboard): a keep with only session-file
- * changes must hit the "nothing to commit" path.
+ * state (`.auto/`, `.zcode/` and the generated dashboard): a keep with only
+ * session-file changes must hit the "nothing to commit" path.
  * Returns the short hash, or null when there is nothing to commit.
  */
 export function commitExperiment(
@@ -181,7 +190,14 @@ export function commitExperiment(
   // ml-auto: .zcode/plans/plan-sess_*.md landed in an experiment commit).
   // Non-existent pathspecs here are a silent no-op (git reset exit 0).
   git(cwd, ["add", "-A", "--", "."]);
-  git(cwd, ["reset", "-q", "HEAD", "--", ".auto", ".zcode", DASHBOARD_FILE]);
+  git(cwd, [
+    "reset",
+    "-q",
+    "HEAD",
+    "--",
+    ...SESSION_STATE_DIRS,
+    DASHBOARD_FILE,
+  ]);
   // git diff --cached --quiet exits 0 when there are no staged changes.
   const hasStaged = (() => {
     try {
@@ -222,9 +238,53 @@ export function commitExperiment(
 }
 
 /**
+ * Declare `.zcode` in the repo's local exclude file (`.git/info/exclude`) so
+ * untracked host session files are invisible to `add -A`, `status` and
+ * `clean -fd` alike — git-native ignore instead of per-site enumeration.
+ * Per-session-file evidence (2026-11-05, ml-auto): the enumeration layer alone
+ * shipped three gaps in one day (keep staging swept .zcode/plans into a
+ * commit; clean -fd deleted the host session dir on every discard; dirtyFiles
+ * deadlocked the crash gate). Skipped when the path is already ignored
+ * (project `.gitignore` covers it); idempotent when the declaration is already
+ * present; any failure is swallowed — the SESSION_STATE_DIRS enumeration is
+ * the correctness backstop, this layer is recurrence prevention.
+ * Returns whether the declaration was newly written.
+ */
+export function ensureSessionStateIgnored(cwd: string): boolean {
+  try {
+    execFileSync(resolveGit(), ["check-ignore", "-q", ".zcode"], {
+      cwd,
+      stdio: "ignore",
+    });
+    return false; // exit 0: already ignored, nothing to declare
+  } catch {
+    // exit 1 = not ignored (the expected path); any other failure falls
+    // through and attempts the write anyway — the append is harmless.
+  }
+  try {
+    const gitDir = git(cwd, ["rev-parse", "--git-dir"]);
+    const excludeFile = resolve(cwd, gitDir, "info", "exclude");
+    let current = "";
+    try {
+      current = readFileSync(excludeFile, "utf8");
+    } catch {
+      // missing or unreadable → created by the append below (info/ may not
+      // exist on bare or sparsely provisioned repos)
+    }
+    if (current.split(/\r?\n/).includes(".zcode")) return false;
+    mkdirSync(dirname(excludeFile), { recursive: true });
+    appendFileSync(excludeFile, ".zcode\n");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Discard every working-tree + index change while keeping session state
- * (`.auto/` and the generated dashboard) intact. Uses `checkout HEAD` (not
- * `checkout --`) so staged-but-uncommitted experiment changes are reverted too.
+ * (`.auto/`, `.zcode/` and the generated dashboard) intact. Uses `checkout
+ * HEAD` (not `checkout --`) so staged-but-uncommitted experiment changes are
+ * reverted too.
  *
  * Returns what the rollback did: `rolledBack` = the working-tree files the
  * restore disposed of (pre-restore dirtyFiles — tracked reverts and untracked
@@ -254,7 +314,7 @@ export function rollbackWorkingTree(cwd: string): {
         "HEAD",
         "--",
         ".",
-        ":(exclude,glob)**/.auto/**",
+        ...SESSION_STATE_DIRS.map((d) => `:(exclude,glob)**/${d}/**`),
         `:(exclude)${DASHBOARD_FILE}`,
       ],
       { cwd, encoding: "utf8" },
@@ -279,12 +339,9 @@ export function rollbackWorkingTree(cwd: string): {
     [
       "clean",
       "-fd",
+      ...SESSION_STATE_DIRS.flatMap((d) => ["-e", d, "-e", `${d}/`]),
       "-e",
-      ".auto",
-      "-e",
-      ".auto/",
-      "-e",
-      "autoresearch-dashboard.html",
+      DASHBOARD_FILE,
     ],
     { cwd, stdio: "ignore" },
   );

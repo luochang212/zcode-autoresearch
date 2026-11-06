@@ -184,6 +184,21 @@ test("run_experiment: command still required in free-form mode (no measure.sh)",
   });
 });
 
+test("init_experiment declares .zcode in .git/info/exclude", async () => {
+  // 2026-11-05: untracked host session files otherwise reach add -A / status /
+  // clean -fd; the local-exclude declaration makes git itself exempt them.
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(init.ok, true);
+  });
+  const exclude = readFileSync(join(cwd, ".git", "info", "exclude"), "utf8");
+  assert.ok(exclude.split(/\r?\n/).includes(".zcode"));
+});
+
 test("iteration hooks: before runs before benchmark, after after logging, steer returned", async () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });

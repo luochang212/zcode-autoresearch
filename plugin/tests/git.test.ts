@@ -20,6 +20,7 @@ import {
   shortHash,
   currentBranch,
   resolveGit,
+  ensureSessionStateIgnored,
 } from "../mcp/lib/git.ts";
 
 function gitInit(cwd: string): void {
@@ -340,6 +341,48 @@ test("rollbackWorkingTree discards changes but keeps .auto/", () => {
   );
 });
 
+test("rollbackWorkingTree keeps .zcode/ host session files", () => {
+  // 2026-11-05 (ml-auto shape): clean -fd deleted the whole host session dir
+  // on every discard — .zcode is session state, exempt like .auto.
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".zcode", "plans"), { recursive: true });
+  writeFileSync(join(cwd, ".zcode", "plans", "plan-sess_x.md"), "# plan\n");
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  writeFileSync(join(cwd, "scratch.txt"), "junk\n");
+  const r = rollbackWorkingTree(cwd);
+  assert.equal(readFileSync(join(cwd, "main.js"), "utf8"), "v1\n");
+  assert.ok(!existsSync(join(cwd, "scratch.txt")), "untracked junk cleaned");
+  assert.ok(
+    existsSync(join(cwd, ".zcode", "plans", "plan-sess_x.md")),
+    ".zcode session files survive clean",
+  );
+  // the disposal list names experiment files only, never session state
+  assert.ok(!r.rolledBack.some((f) => f.includes(".zcode")));
+  assert.deepEqual(r.residual, []);
+});
+
+test("rollbackWorkingTree keeps tracked .zcode modifications too", () => {
+  // checkout excludes session state from the restore, tracked or not —
+  // reverting a tracked .zcode file would destroy non-experiment host work.
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".zcode"), { recursive: true });
+  writeFileSync(join(cwd, ".zcode", "skills.md"), "v1\n");
+  execFileSync("git", ["add", "-A"], { cwd, stdio: "ignore" });
+  execFileSync("git", ["commit", "-qm", "track session dir"], {
+    cwd,
+    stdio: "ignore",
+  });
+  writeFileSync(join(cwd, ".zcode", "skills.md"), "v2-host-edit\n");
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  rollbackWorkingTree(cwd);
+  assert.equal(readFileSync(join(cwd, "main.js"), "utf8"), "v1\n");
+  assert.equal(
+    readFileSync(join(cwd, ".zcode", "skills.md"), "utf8"),
+    "v2-host-edit\n",
+    "tracked .zcode edit survives the restore",
+  );
+});
+
 test("isDirty ignores .auto-only changes but sees real ones", () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto"), { recursive: true });
@@ -404,6 +447,40 @@ test("dirtyFiles names real changes and stays silent on session files", () => {
   const residual = dirtyFiles(cwd);
   assert.equal(residual.length, 1);
   assert.match(residual[0], /main\.js/);
+});
+
+test("isDirty ignores .zcode-only changes but sees real ones", () => {
+  // 2026-11-05: session files kept the crash gate's isDirty true forever —
+  // the tree was never dirty, only the host was writing.
+  const cwd = tempRepo();
+  mkdirSync(join(cwd, ".zcode", "plans"), { recursive: true });
+  writeFileSync(join(cwd, ".zcode", "plans", "plan-sess_x.md"), "# plan\n");
+  assert.equal(isDirty(cwd), false); // host session files alone are not dirty
+  assert.deepEqual(dirtyFiles(cwd), []);
+  writeFileSync(join(cwd, "main.js"), "v2\n");
+  assert.equal(isDirty(cwd), true); // a real change still counts
+});
+
+test("ensureSessionStateIgnored appends once and skips when already ignored", () => {
+  // idempotent: two calls leave exactly one declaration
+  const cwd = tempRepo();
+  assert.equal(ensureSessionStateIgnored(cwd), true);
+  assert.equal(ensureSessionStateIgnored(cwd), false);
+  const exclude = readFileSync(join(cwd, ".git", "info", "exclude"), "utf8");
+  assert.equal(exclude.split(/\r?\n/).filter((l) => l === ".zcode").length, 1);
+  // project .gitignore covers it → no local declaration needed (dir must
+  // exist for check-ignore to match a dir-only pattern — the realistic state,
+  // the host session dir is present during a session)
+  const cwd2 = tempRepo();
+  writeFileSync(join(cwd2, ".gitignore"), ".zcode/\n");
+  mkdirSync(join(cwd2, ".zcode"), { recursive: true });
+  assert.equal(ensureSessionStateIgnored(cwd2), false);
+  const excludePath2 = join(cwd2, ".git", "info", "exclude");
+  if (existsSync(excludePath2)) {
+    assert.ok(
+      !readFileSync(excludePath2, "utf8").split(/\r?\n/).includes(".zcode"),
+    );
+  }
 });
 
 test("shortHash and currentBranch work", () => {

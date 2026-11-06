@@ -47,6 +47,7 @@ import {
   rollbackWorkingTree,
   isGitRepo,
   hasCommit,
+  ensureSessionStateIgnored,
   isDirty,
   currentBranch,
   safeShortHash,
@@ -885,6 +886,11 @@ async function toolInitExperiment(
         "research directory is a git repository but has no commits; commit a baseline first (git add -A && git commit -m baseline) so discard/crash rollback has a HEAD to restore.",
     };
   }
+  // Best-effort local ignore for the host session dir: untracked .zcode files
+  // then never reach add -A / status / clean -fd (session-state exclusion is
+  // enumerated in git.ts either way — this is recurrence prevention, and a
+  // failed declaration must not block initialization).
+  ensureSessionStateIgnored(cwd);
   const state = sessionState();
   const segment = (state.segment ?? 0) + 1;
   // Config write precedes the ledger row: a corrupt config.json fails init
