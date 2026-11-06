@@ -30,4 +30,4 @@ paths: [plugin/hooks/**, plugin/mcp/**]
 ## Consequences
 
 - 买到了：下一步有明确、低成本、可执行的前置项；视野从"追平 pi"扩展到"吸收生态最佳实践"；防作弊从 prompt 升级为结构性控制的路径明确。
-- 付出的：auto-resume/widget/overlay 仍是永久能力差（如实文档化）；P1/P2 项需后续 change 逐个实施，非一次到位。
+- 付出的：auto-resume/widget/overlay 仍是永久能力差（如实文档化）；P1/P2 项需后续 change 逐个实施，非一次到位。（2026-11-07 回指：auto-resume 已由 ADR-7 的 CronCreate 有界自唤醒收敛，widget/overlay 的 UI 扩展点已由 ADR-8 判定可行——两处「永久」均已过时，以 ADR-7/8 为准。）

@@ -27,4 +27,4 @@ autoresearch 循环里 discard（实验失败/度量未改善）时的回滚语�
 ## Consequences
 
 - 买到了：git 历史即"被接受的实验链"，干净可 review；失败实验仍记录在 `.auto/log.jsonl`（含 description 与 ASI 诊断信息），不依赖 git 保存失败痕迹；回滚零 commit 噪音。
-- 付出的：失败 diff 不在 git 里（要看重跑前后需从账本 ASI 或 agent 描述还原）；`git add -A` 会把工作区无关脏文件一并 commit（继承 pi 的已知弱点，实现时可用 Files-in-Scope 过滤缓解）；要求实验分支隔离（setup 时 `git checkout -b autoresearch/<tag>`）以保护用户主分支。
+- 付出的：失败 diff 不在 git 里（要看重跑前后需从账本 ASI 或 agent 描述还原）；`git add -A` 会把工作区无关脏文件一并 commit（继承 pi 的已知弱点，实现时可用 Files-in-Scope 过滤缓解）；实验分支隔离以保护用户主分支（2026-11-07 勘误：原文「要求」过强——现实现为 advisory，setup-guide recommended + init 返回 branch note，单分支直跑是有意支持的形态；commit/rollback 均 pathspec 限定在研究目录内，误跑主分支的破坏面有限）。

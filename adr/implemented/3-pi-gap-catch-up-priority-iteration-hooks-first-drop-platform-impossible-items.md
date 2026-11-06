@@ -33,4 +33,4 @@ paths: [plugin/hooks/**, plugin/skills/**]
 ## Consequences
 
 - 买到了：追平投入集中在高价值低成本项，迭代钩子先行打开生态扩展面；平台不可行项有明确、诚实的最终形态，README 已知边界可信。
-- 付出的：与 pi 相比，长会话信息连续性（compaction）与无人值守（auto-resume）存在**永久能力差**，只能靠用户参与（回车续跑）与记忆注入近似弥补；widget/overlay 类沉浸体验无法追平，浏览器 dashboard 为替代。
+- 付出的：与 pi 相比，长会话信息连续性（compaction）与无人值守（auto-resume）存在**永久能力差**，只能靠用户参与（回车续跑）与记忆注入近似弥补；widget/overlay 类沉浸体验无法追平，浏览器 dashboard 为替代。（2026-11-07 回指：无人值守已由 ADR-7 收敛为 CronCreate 有界自唤醒，「永久」降级为「当时不可行」；UI 扩展点已由 ADR-8 判定可行、待宿主发布接入。只读本条会得出过时结论，以 ADR-7/8 为准。）
