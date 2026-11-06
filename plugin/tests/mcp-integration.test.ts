@@ -819,13 +819,13 @@ test(
   {
     skip:
       process.platform === "win32"
-        ? 'POSIX spawn("bash") PATH lookup and symlink shim'
+        ? "POSIX PATH lookup of bash; git-only PATH via symlink shim"
         : false,
   },
   async () => {
     const cwd = tempRepo();
     // A PATH with git but no bash: the server itself runs on process.execPath,
-    // init works, and run_experiment's spawn("bash") fails with ENOENT — the
+    // init works, and the benchmark spawn of bash fails with ENOENT — the
     // exact "bash missing" case the spawnError branch exists for.
     const shims = mkdtempSync(join(tmpdir(), "ar-shims-"));
     symlinkSync(
