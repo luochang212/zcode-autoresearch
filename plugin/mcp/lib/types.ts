@@ -36,6 +36,10 @@ export interface LedgerRun {
   description?: string;
   commit?: string | null;
   checksFailed?: boolean;
+  /** Mechanical fact: the tree (session state excluded) at log time. */
+  treeDirty?: boolean;
+  /** Working-tree residue a rollback could not restore (absent = clean). */
+  residual?: string[];
   /** confidence snapshot at record time (log_experiment); absent on legacy
    *  rows and whenever the computation had too little data to judge. */
   confidence?: ConfidenceSnapshot | null;
@@ -79,6 +83,21 @@ export type LedgerEntry =
   | LedgerHook
   | LedgerHarnessEdit
   | LedgerFrozenAttempt;
+
+/**
+ * Observation snapshot persisted by run_experiment (config.json
+ * `pendingObservation`) and consumed by log_experiment: run_experiment is the
+ * loop's only observer, and this snapshot is what makes every quantitative
+ * claim in the ledger a transcription of a measured fact instead of a free
+ * declaration. Overwritten by the next run; consumed by each successful log.
+ */
+export interface PendingObservation {
+  metric: number | null;
+  metrics: Record<string, number>;
+  exit_code: number | null;
+  timed_out: boolean;
+  at: string;
+}
 
 /**
  * Loose run shape consumed by analysis functions (isStopReached,
@@ -143,6 +162,8 @@ export interface SessionConfig {
   harnessHashes?: Record<string, string | null> | null;
   /** Server-managed: checks outcome of the latest run_experiment (keep gate). */
   pendingChecksFailed?: boolean;
+  /** Server-managed: observation snapshot consumed by log_experiment's binding gates. */
+  pendingObservation?: PendingObservation | null;
   /**
    * Loop calibration: plateau window in runs (integer ≥2, default 5) and the
    * minimum relative improvement over that window (≥0, default 0.01). Set

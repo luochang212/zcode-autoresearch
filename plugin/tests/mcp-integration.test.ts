@@ -85,6 +85,25 @@ function makeExecutable(...files: string[]) {
   for (const file of files) chmodSync(file, 0o755);
 }
 
+// Controllable benchmark: prints time_ms from .auto/metric.txt (default 42)
+// so tests craft metric chains through the real run→log observation binding
+// instead of transcription (which the binding gate now rejects).
+function useControlledMeasure(cwd: string) {
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    '#!/usr/bin/env bash\necho "METRIC time_ms=$(cat .auto/metric.txt 2>/dev/null || echo 42)"\n',
+  );
+}
+function setMetricValue(cwd: string, v: number) {
+  writeFileSync(join(cwd, ".auto", "metric.txt"), `${v}\n`);
+}
+function setMemoryValue(cwd: string, v: number) {
+  writeFileSync(join(cwd, ".auto", "memory.txt"), `${v}\n`);
+}
+function runBenchmark(s: McpClient) {
+  return s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+}
+
 function connect(cwd: string): McpClient {
   const proc = spawn(process.execPath, [SERVER], { cwd });
   let id = 0;
@@ -425,10 +444,11 @@ test("benchmark drift: changing measure.sh after init warns on next run", async 
 
 test("secondary metric constraints: keep rejected when a constraint is exceeded", async () => {
   const cwd = tempRepo();
-  // measure.sh emits a primary + a secondary metric
+  // measure.sh emits a primary + a secondary metric, both file-controlled so
+  // each log is attested by a real observation (binding gate)
   writeFileSync(
     join(cwd, ".auto", "measure.sh"),
-    '#!/usr/bin/env bash\necho "METRIC time_ms=42"\necho "METRIC memory_mb=100"\n',
+    '#!/usr/bin/env bash\necho "METRIC time_ms=$(cat .auto/metric.txt 2>/dev/null || echo 42)"\necho "METRIC memory_mb=$(cat .auto/memory.txt 2>/dev/null || echo 100)"\n',
   );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -445,6 +465,9 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       metrics: { memory_mb: 100 },
     });
     // constraint within band → keep passes (vs baseline memory_mb=100)
+    setMetricValue(cwd, 41);
+    setMemoryValue(cwd, 100);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// c2\n");
     const ok = await s.tool("log_experiment", {
       status: "keep",
@@ -459,6 +482,9 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
     ]);
     // now a keep that blows the constraint → rejected (before any git op,
     // so the change stays in the working tree for the next keep)
+    setMetricValue(cwd, 40);
+    setMemoryValue(cwd, 110);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// c3\n");
     const bad = await s.tool("log_experiment", {
       status: "keep",
@@ -473,6 +499,10 @@ test("secondary metric constraints: keep rejected when a constraint is exceeded"
       /constraint violation: secondary metric memory_mb=110/,
     );
     // no constraints → no secondary check
+    setMetricValue(cwd, 39);
+    setMemoryValue(cwd, 999);
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// c4\n");
     const free = await s.tool("log_experiment", {
       status: "keep",
       metric: 39,
@@ -543,6 +573,7 @@ test("checks gate: keep rejected after failed checks, allowed again after a pass
 
 test("checks gate: a checks script that never produced a verdict does not block keeps", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   // exit 127 = the gate never ran (interpreter missing / script not found).
   // Evidence 2026-10-28: a WSL-alias bash turned every checks invocation into
   // 127, and the old rule read that as "checks failed" — vetoing every keep.
@@ -571,9 +602,8 @@ test("checks gate: a checks script that never produced a verdict does not block 
       join(cwd, ".auto", "checks.sh"),
       "#!/usr/bin/env bash\nexit 1\n",
     );
-    const r2 = await s.tool("run_experiment", {
-      command: "bash .auto/measure.sh",
-    });
+    setMetricValue(cwd, 43);
+    const r2 = await runBenchmark(s);
     const checks2 = r2.checks as Record<string, unknown>;
     assert.equal(checks2.verdict, true);
     assert.equal(checks2.failed, true);
@@ -779,7 +809,12 @@ test("crash rows record metric null and do not pollute the baseline", async () =
   const cwd = tempRepo();
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    // a benchmark that fails without emitting METRIC lines attests the crash
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      "#!/usr/bin/env bash\nexit 1\n",
+    );
+    await runBenchmark(s);
     await s.tool("log_experiment", { status: "crash", description: "boom" });
     const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
       .trim()
@@ -787,16 +822,20 @@ test("crash rows record metric null and do not pollute the baseline", async () =
       .map((l) => JSON.parse(l) as Record<string, unknown>);
     const crashRow = rows.find((r) => r.type === "run" && r.status === "crash");
     assert.equal(crashRow?.metric, null); // not the 0 placeholder
+    // metric chains now go through real observations
+    useControlledMeasure(cwd);
+    setMetricValue(cwd, 50);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v2\n");
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     const keep1 = await s.tool("log_experiment", {
       status: "keep",
       metric: 50,
       description: "first real keep",
     });
     assert.equal(keep1.baseline, 50); // crash's null did not seed baseline 0
+    setMetricValue(cwd, 42);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v3\n");
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     const keep2 = await s.tool("log_experiment", {
       status: "keep",
       metric: 42,
@@ -822,6 +861,11 @@ test("init_experiment rejects a non-git research directory", async () => {
 
 test("logging a crash does not block the next run via .auto dirtiness", async () => {
   const cwd = tempRepo();
+  // failing benchmark (no METRIC output) so the crash is attested
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
@@ -848,6 +892,11 @@ test("logging a crash does not block the next run via .auto dirtiness", async ()
 // ledger-wide last run (lastRunEver): a dirty tree is physical state.
 test("re-init does not launder the crash+dirty-tree audit gate", async () => {
   const cwd = tempRepo();
+  // failing benchmark (no METRIC output) so the crash is attested
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
@@ -943,9 +992,10 @@ test("initialize reports the plugin.json version (no hardcoded third copy)", asy
 
 test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned discard exists in the segment", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await runBenchmark(s);
     // no discard rows yet → field omitted entirely
     appendFileSync(join(cwd, "code.js"), "// v2\n");
     const keep1 = await s.tool("log_experiment", {
@@ -956,7 +1006,8 @@ test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned dis
     assert.equal(keep1.ok, true);
     assert.equal(keep1.revisit_nudge, undefined);
     // a discard without a rollback reason is nothing to revisit
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 43);
+    await runBenchmark(s);
     const disc1 = await s.tool("log_experiment", {
       status: "discard",
       metric: 43,
@@ -966,7 +1017,8 @@ test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned dis
     assert.equal(disc1.revisit_nudge, undefined);
     // the decision moment: a reasoned discard fires the nudge on its own
     // landing (no waiting for the next log)
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 44);
+    await runBenchmark(s);
     const disc2 = await s.tool("log_experiment", {
       status: "discard",
       metric: 44,
@@ -983,7 +1035,8 @@ test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned dis
     // keep landings are not the decision moment — the nudge is omitted even
     // when a reasoned discard exists (standing visibility is the memory
     // inject's discard-reasons line)
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 41);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v3\n");
     const keep2 = await s.tool("log_experiment", {
       status: "keep",
@@ -1000,7 +1053,7 @@ test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned dis
     assert.ok(keep2.confidence, "confidence still returned");
     // a new segment resets the trigger: the old discard must not carry over
     await s.tool("init_experiment", { name: "t2", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v4\n");
     const keep3 = await s.tool("log_experiment", {
       status: "keep",
@@ -1014,6 +1067,7 @@ test("revisit_nudge: fires when a discard/checks_failed lands and a reasoned dis
 
 test("plateau calibration: config threshold and deterministic flag shape detection and hint", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   await withServer(cwd, async (s) => {
     const init = await s.tool("init_experiment", {
       name: "t",
@@ -1033,7 +1087,8 @@ test("plateau calibration: config threshold and deterministic flag shape detecti
     const words = ["alpha", "beta", "gamma", "delta", "epsilon"];
     let last: Record<string, unknown> = {};
     for (let i = 0; i < metrics.length; i++) {
-      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      setMetricValue(cwd, metrics[i]);
+      await runBenchmark(s);
       last = await s.tool("log_experiment", {
         status: i % 2 === 0 ? "discard" : "noop",
         metric: metrics[i],
@@ -1043,7 +1098,8 @@ test("plateau calibration: config threshold and deterministic flag shape detecti
       assert.equal(last.runs_left, 20 - (i + 1)); // effective default cap 20
     }
     assert.equal(last.plateau, false); // 0.2% ≥ 0.02%: not a plateau
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 50.03);
+    await runBenchmark(s);
     // the window turns flat (best 50 = first 50) → plateau fires, but the
     // wording carries the calibrated 0.02% and no repeat suggestion
     const sixth = await s.tool("log_experiment", {
@@ -1070,6 +1126,8 @@ test("plateau calibration: config threshold and deterministic flag shape detecti
 
 test("default plateau wording and the deterministic repeat-suggestion drop", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
+  setMetricValue(cwd, 50);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", {
       name: "t",
@@ -1081,7 +1139,7 @@ test("default plateau wording and the deterministic repeat-suggestion drop", asy
     const words = ["alpha", "beta", "gamma", "delta", "epsilon"];
     let last: Record<string, unknown> = {};
     for (let i = 0; i < metrics.length; i++) {
-      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      await runBenchmark(s);
       last = await s.tool("log_experiment", {
         status: i % 2 === 0 ? "discard" : "noop",
         metric: metrics[i],
@@ -1096,9 +1154,11 @@ test("default plateau wording and the deterministic repeat-suggestion drop", asy
 
 test("rolled_back: a discard reports the disposal list and the restored HEAD", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
+  setMetricValue(cwd, 55);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v2\n");
     writeFileSync(join(cwd, "scratch.txt"), "junk\n");
     const d = await s.tool("log_experiment", {
@@ -1144,9 +1204,11 @@ test("runs_left counts down and the near-cap hint fires with one or two runs lef
   );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    useControlledMeasure(cwd);
     let last: Record<string, unknown> = {};
     for (let i = 0; i < 4; i++) {
-      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+      setMetricValue(cwd, 50 + i);
+      await runBenchmark(s);
       last = await s.tool("log_experiment", {
         status: "discard",
         metric: 50 + i,
@@ -1160,7 +1222,8 @@ test("runs_left counts down and the near-cap hint fires with one or two runs lef
       /approaching iteration cap \(4\/5\); 1 run\(s\) left/,
     );
     // 5th log hits the cap → the cap message takes over
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 54);
+    await runBenchmark(s);
     const fifth = await s.tool("log_experiment", {
       status: "discard",
       metric: 54,
@@ -1216,6 +1279,11 @@ test("asi.revisits_run passes through to ledger and after hook, unvalidated", as
 
 test("asi.infra passes through to the ledger unvalidated (infra crash)", async () => {
   const cwd = tempRepo();
+  // failing benchmark (no METRIC output) so the crash is attested
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
@@ -1236,9 +1304,10 @@ test("asi.infra passes through to the ledger unvalidated (infra crash)", async (
 
 test("confidence snapshot: ledger row matches the returned value, crash row safe", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v2\n");
     const k1 = await s.tool("log_experiment", {
       status: "keep",
@@ -1247,14 +1316,16 @@ test("confidence snapshot: ledger row matches the returned value, crash row safe
     });
     // too little data to judge: no returned confidence and no snapshot
     assert.equal(k1.confidence, null);
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 43);
+    await runBenchmark(s);
     const d2 = await s.tool("log_experiment", {
       status: "discard",
       metric: 43,
       description: "worse",
     });
     assert.equal(d2.confidence, null);
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    setMetricValue(cwd, 41);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// v3\n");
     const k3 = await s.tool("log_experiment", {
       status: "keep",
@@ -1277,7 +1348,13 @@ test("confidence snapshot: ledger row matches the returned value, crash row safe
     assert.equal(runRows()[0]?.confidence, undefined); // legacy-style row
     assert.deepEqual(runRows()[2]?.confidence, { level: "yellow", value: 1 });
     assert.equal(runRows()[2]?.confidence.value, k3.confidence.value);
-    // crash row: metric null, snapshot over the existing values, no throw
+    // crash row: metric null, snapshot over the existing values, no throw —
+    // attested by a failing benchmark that measures nothing
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      "#!/usr/bin/env bash\nexit 1\n",
+    );
+    await runBenchmark(s);
     const crash = await s.tool("log_experiment", {
       status: "crash",
       description: "boom",
@@ -1394,6 +1471,11 @@ test("init and clear reset autoresearchOff", async () => {
 
 test("crash response mirrors the null ledger metric", async () => {
   const cwd = tempRepo();
+  // failing benchmark (no METRIC output) so the crash is attested
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
@@ -1419,9 +1501,10 @@ test("auditBypass skips secondary metric constraints", async () => {
     join(cwd, ".auto", "config.json"),
     JSON.stringify({ auditBypass: true }),
   );
+  // both metrics file-controlled so each keep is attested by a real run
   writeFileSync(
     join(cwd, ".auto", "measure.sh"),
-    '#!/usr/bin/env bash\necho "METRIC time_ms=42"\necho "METRIC memory_mb=100"\n',
+    '#!/usr/bin/env bash\necho "METRIC time_ms=$(cat .auto/metric.txt 2>/dev/null || echo 42)"\necho "METRIC memory_mb=$(cat .auto/memory.txt 2>/dev/null || echo 100)"\n',
   );
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
@@ -1435,6 +1518,9 @@ test("auditBypass skips secondary metric constraints", async () => {
     });
     assert.equal(base.ok, true);
 
+    setMetricValue(cwd, 41);
+    setMemoryValue(cwd, 200);
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     appendFileSync(join(cwd, "code.js"), "// faster but heavier\n");
     const keep = await s.tool("log_experiment", {
       status: "keep",
@@ -1464,6 +1550,11 @@ test("dashboard-only keep is rejected and does not block crash recovery", async 
     assert.equal(keep.ok, false);
     assert.match(String(keep.error), /no changes to commit/);
 
+    // the crash must be attested by a benchmark that measured nothing
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      "#!/usr/bin/env bash\nexit 1\n",
+    );
     await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     await s.tool("log_experiment", { status: "crash", description: "boom" });
     writeFileSync(
@@ -1479,9 +1570,10 @@ test("dashboard-only keep is rejected and does not block crash recovery", async 
 
 test("first keep cannot regress against the segment baseline", async () => {
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    await runBenchmark(s);
     const baseline = await s.tool("log_experiment", {
       status: "discard",
       metric: 42,
@@ -1489,6 +1581,8 @@ test("first keep cannot regress against the segment baseline", async () => {
     });
     assert.equal(baseline.ok, true);
 
+    setMetricValue(cwd, 45);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// slower\n");
     const keep = await s.tool("log_experiment", {
       status: "keep",
@@ -1556,9 +1650,13 @@ test("attestation gate: checks_failed requires a recorded failed-checks verdict"
   // nothing recorded. checks_failed must attest: the latest run_experiment
   // must have left a failed-checks verdict (pendingChecksFailed).
   const cwd = tempRepo();
+  useControlledMeasure(cwd);
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
-    // First keep establishes the retained value.
+    // First keep establishes the retained value (real observation, not a
+    // transcribed number — the binding gate would reject that).
+    setMetricValue(cwd, 50);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// c2\n");
     const k = await s.tool("log_experiment", {
       status: "keep",
@@ -1567,6 +1665,8 @@ test("attestation gate: checks_failed requires a recorded failed-checks verdict"
     });
     assert.equal(k.ok, true);
     // An improving candidate → honest discard is rejected by the audit…
+    setMetricValue(cwd, 30);
+    await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// c3\n");
     const d = await s.tool("log_experiment", {
       status: "discard",
@@ -1593,6 +1693,26 @@ test("attestation gate: checks_failed requires a recorded failed-checks verdict"
   });
 });
 
+test("observation binding: the snapshot survives a server restart", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    appendFileSync(join(cwd, "code.js"), "// c2\n");
+    await runBenchmark(s);
+  });
+  // A fresh server process over the same workspace: the observation is
+  // persisted state (config.json), not server memory — the log still attests.
+  await withServer(cwd, async (s) => {
+    const k = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "logged after restart",
+    });
+    assert.equal(k.ok, true);
+    assert.equal(k.metric, 42);
+  });
+});
+
 test("noop: dirty working tree is surfaced as an explicit warning", async () => {
   // noop rolls nothing back (by design), so a dirty tree at noop time would
   // otherwise enter the next measurement silently. Advisory, not a gate: the
@@ -1601,6 +1721,7 @@ test("noop: dirty working tree is surfaced as an explicit warning", async () => 
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     appendFileSync(join(cwd, "code.js"), "// scratch\n");
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     const dirty = await s.tool("log_experiment", {
       status: "noop",
       metric: 42,
@@ -1608,8 +1729,21 @@ test("noop: dirty working tree is surfaced as an explicit warning", async () => 
     });
     assert.equal(dirty.ok, true);
     assert.match(String(dirty.warning), /working tree/i);
-    // Clean tree → silent noop (no noise on the honest path).
-    writeFileSync(join(cwd, "code.js"), "v1\n");
+    // the mechanical fact lands on the row regardless of status
+    const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.trim())
+      .map((l) => JSON.parse(l));
+    const noopRow = rows.find((r) => r.type === "run" && r.status === "noop");
+    assert.equal(noopRow.treeDirty, true);
+  });
+});
+
+test("noop: clean tree stays silent", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
     const clean = await s.tool("log_experiment", {
       status: "noop",
       metric: 42,
@@ -1617,5 +1751,77 @@ test("noop: dirty working tree is surfaced as an explicit warning", async () => 
     });
     assert.equal(clean.ok, true);
     assert.equal(clean.warning, undefined);
+  });
+});
+
+test("observation binding: no-run logs, metric mismatch and fake crash are rejected", async () => {
+  // Root cause (worth-fix 2026-11-06): run_experiment is the only observer,
+  // but its observation died with the response — everything in the ledger was
+  // agent transcription. The snapshot now persists (pendingObservation) and
+  // every log must attest against it: one log per run, metric equal to what
+  // was measured, crash only when nothing was measured.
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    appendFileSync(join(cwd, "code.js"), "// c2\n");
+    // no run ever happened → nothing to attest the log against
+    const noRun = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 50,
+      description: "fabricated",
+    });
+    assert.equal(noRun.ok, false);
+    assert.match(String(noRun.error), /run_experiment/);
+    // the benchmark observes 42; a different number is a transcription
+    await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    const mismatch = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 40,
+      description: "nicer number",
+    });
+    assert.equal(mismatch.ok, false);
+    assert.match(String(mismatch.error), /does not match/);
+    // a valid metric was observed → "measured nothing" (crash) is not attested
+    const fakeCrash = await s.tool("log_experiment", {
+      status: "crash",
+      description: "it ran fine, actually",
+    });
+    assert.equal(fakeCrash.ok, false);
+    assert.match(String(fakeCrash.error), /observed a valid metric/);
+    // the honest log passes and consumes the observation (one log per run)
+    const honest = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "honest",
+    });
+    assert.equal(honest.ok, true);
+    const spent = await s.tool("log_experiment", {
+      status: "noop",
+      metric: 42,
+      description: "double log",
+    });
+    assert.equal(spent.ok, false);
+    assert.match(String(spent.error), /run_experiment/);
+  });
+});
+
+test("observation binding: a failing benchmark attests an honest crash", async () => {
+  const cwd = tempRepo();
+  writeFileSync(
+    join(cwd, ".auto", "measure.sh"),
+    "#!/usr/bin/env bash\nexit 1\n",
+  );
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    const r = await s.tool("run_experiment", {
+      command: "bash .auto/measure.sh",
+    });
+    assert.equal(r.ok, true); // advisory warning, observation still persisted
+    const c = await s.tool("log_experiment", {
+      status: "crash",
+      description: "boom",
+    });
+    assert.equal(c.ok, true);
+    assert.equal(c.metric, null);
   });
 });

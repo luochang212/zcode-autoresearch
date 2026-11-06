@@ -17,20 +17,38 @@ const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 export function parseMetricLines(
   output: unknown,
   metricName?: string,
-): { metrics: Record<string, number>; primary: number | undefined } {
+): {
+  metrics: Record<string, number>;
+  primary: number | undefined;
+  nearMisses: string[];
+} {
   const metrics: Record<string, number> = {};
   let primary: number | undefined;
+  // Near-miss diagnostics: a line that looks like a METRIC row but fails the
+  // parse (bad name charset, non-numeric value) must not vanish silently — a
+  // silently dropped primary metric only surfaces later as a confusing
+  // "metric must be a finite number" on keep. Same never-silent principle as
+  // the ledger's corrupt-line diagnostic.
+  const nearMisses: string[] = [];
   for (const line of String(output ?? "").split("\n")) {
-    const m = METRIC_RE.exec(line.trim());
-    if (!m) continue;
-    const [, name, rawValue] = m;
-    if (FORBIDDEN_KEYS.has(name)) continue;
-    const value = Number(rawValue);
-    if (!Number.isFinite(value)) continue;
-    metrics[name] = value;
-    if (name === metricName) primary = value;
+    const trimmed = line.trim();
+    if (!/^METRIC\s/.test(trimmed)) continue;
+    // Every METRIC-looking line must land in metrics or in nearMisses — the
+    // silent middle (regex passes, Number() fails; name charset rejects) is
+    // where primary metrics used to vanish (never-silent principle, same as
+    // the ledger's corrupt-line diagnostic).
+    const m = METRIC_RE.exec(trimmed);
+    const name = m?.[1];
+    const value =
+      name != null && !FORBIDDEN_KEYS.has(name) ? Number(m?.[2]) : NaN;
+    if (name != null && Number.isFinite(value)) {
+      metrics[name] = value;
+      if (name === metricName) primary = value;
+    } else if (nearMisses.length < 10) {
+      nearMisses.push(trimmed);
+    }
   }
-  return { metrics, primary };
+  return { metrics, primary, nearMisses };
 }
 
 /**

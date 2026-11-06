@@ -200,8 +200,17 @@ test("harness trace: editing a surface before log_experiment leaves a row", asyn
   const cwd = tempRepo();
   await withServer(cwd, async (s) => {
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    // the run→log observation binding requires a real measurement per log
+    writeFileSync(
+      join(cwd, ".auto", "measure.sh"),
+      '#!/usr/bin/env bash\necho "METRIC time_ms=41"\n',
+    );
+    const run = async () => {
+      await s.tool("run_experiment", { command: "bash .auto/measure.sh" });
+    };
     const content = "# charter\nrevised by the edit step\n";
     writeFileSync(join(cwd, ".auto", "prompt.md"), content);
+    await run();
     const log = await s.tool("log_experiment", {
       status: "discard",
       metric: 41,
@@ -217,6 +226,7 @@ test("harness trace: editing a surface before log_experiment leaves a row", asyn
     assert.equal(row.digest_after, sha256(content));
     // The baseline moved with the trace: a second log with no further edits
     // must not repeat the row.
+    await run();
     await s.tool("log_experiment", {
       status: "discard",
       metric: 41,

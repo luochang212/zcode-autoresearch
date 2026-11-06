@@ -53,6 +53,18 @@ test("parseMetricLines accepts hyphenated metric names", () => {
   assert.equal(primary, 128);
 });
 
+test("parseMetricLines surfaces near-miss METRIC lines for loud diagnostics", () => {
+  // A silently dropped primary metric only surfaces later as a confusing
+  // keep-gate error; near-misses are collected so the server can log them.
+  const { metrics, primary, nearMisses } = parseMetricLines(
+    "METRIC time_ms=abc\nMETRIC =5\nMETRIC ok=1\nnot a metric",
+    "ok",
+  );
+  assert.deepEqual(nearMisses, ["METRIC time_ms=abc", "METRIC =5"]);
+  assert.deepEqual(metrics, { ok: 1 });
+  assert.equal(primary, 1);
+});
+
 test("isBetter is direction-aware", () => {
   assert.equal(isBetter(41, 42, "lower"), true);
   assert.equal(isBetter(42, 42, "lower"), false);

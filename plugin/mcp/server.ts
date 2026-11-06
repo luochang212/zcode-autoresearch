@@ -69,6 +69,7 @@ import type {
   Confidence,
   Direction,
   LedgerRun,
+  PendingObservation,
   RunStatus,
   SessionState,
 } from "./lib/types.ts";
@@ -560,6 +561,22 @@ function pendingChecksFailed(): boolean {
 }
 
 /**
+ * Observation snapshot of the latest run_experiment (see PendingObservation):
+ * run_experiment is the loop's only observer, and before this snapshot its
+ * observation died with the response — everything quantitative in the ledger
+ * was agent transcription. Same persistence mechanics as pendingChecksFailed
+ * (config.json, restart-survivable); overwritten by the next run, consumed by
+ * every successful log.
+ */
+function setPendingObservation(o: PendingObservation | null): void {
+  patchSessionConfig({ pendingObservation: o });
+}
+
+function readPendingObservation(): PendingObservation | null {
+  return readSessionConfig(projectCwd).pendingObservation ?? null;
+}
+
+/**
  * Compare current frozen-file hashes against the session's recorded ones.
  * Returns { drift, reason, deleted } where drift is true when a recorded hash
  * changed (deleted=false) or a recorded file was deleted (deleted=true).
@@ -988,6 +1005,15 @@ async function toolRunExperiment(
   const driftWarn = drift.drift
     ? `benchmark_drift: ${drift.reason === "measure" ? "measure.sh" : "checks.sh"} ${drift.deleted ? "was deleted" : "changed"} since session start, so metrics are no longer comparable. Start a new segment (init_experiment) or confirm the change.`
     : null;
+  // Residual advisory (evidence nano-jev V1 run 6): a rollback that left the
+  // tree dirty poisons later reads. The fact is persisted on the run row at
+  // log time; surfaced here while it still matters. Advisory — the residue
+  // may have been legitimately edited or cleaned since.
+  const lastResidual = state.lastRunEver?.residual;
+  const residualWarn =
+    lastResidual && lastResidual.length > 0 && isDirty(cwd)
+      ? `the last rollback left working-tree residue (${lastResidual.slice(0, 5).join(", ")}${lastResidual.length > 5 ? ", …" : ""}) and the tree is still dirty — later reads would sit on un-rolled-back inputs`
+      : null;
   // Harness trace: record editable-surface changes before they can influence
   // this run (the trace precedes the run it may have shaped).
   recordHarnessEdits(state.segment);
@@ -1044,12 +1070,27 @@ async function toolRunExperiment(
   for (let i = 0; i < repeat; i++) {
     last = await runCommand(rawCommand, timeoutMs);
     if (last.spawnError) {
+      // Nothing executed, but the attempt is still an observation ("tried
+      // and failed") — persist it so an honest crash can be attested.
+      setPendingObservation({
+        metric: null,
+        metrics: {},
+        exit_code: null,
+        timed_out: false,
+        at: new Date().toISOString(),
+      });
       return {
         ok: false,
         error: `run_experiment could not start the benchmark: ${last.spawnError}`,
       };
     }
-    const { metrics, primary } = parseMetricLines(last.output, metricName);
+    const { metrics, primary, nearMisses } = parseMetricLines(
+      last.output,
+      metricName,
+    );
+    for (const near of nearMisses) {
+      log("METRIC-like line failed to parse (not counted):", near);
+    }
     runs.push({
       run: i + 1,
       exit_code: last.exitCode,
@@ -1116,6 +1157,16 @@ async function toolRunExperiment(
     if (m != null) aggMetrics[n] = m;
   }
 
+  // Observation snapshot: what this run actually measured is now the only
+  // quantitative story log_experiment can tell (binding gates below).
+  setPendingObservation({
+    metric: medianMetric,
+    metrics: aggMetrics,
+    exit_code: last.exitCode,
+    timed_out: last.timedOut,
+    at: new Date().toISOString(),
+  });
+
   const ret = {
     ok: true,
     repeat,
@@ -1139,6 +1190,7 @@ async function toolRunExperiment(
     output_tail: truncateTail(last.outputTail),
     log_file: last.logFile ?? null,
     ...(benchmarkWarning ? { benchmark_warning: benchmarkWarning } : {}),
+    ...(residualWarn ? { residual_warning: residualWarn } : {}),
     ...(before ? { before_steer: before.steer } : {}),
     ...(driftWarn ? { benchmark_drift: true, warning: driftWarn } : {}),
     ...(medianMetric != null && state.config
@@ -1212,6 +1264,32 @@ async function toolLogExperiment(
       ok: false,
       error:
         "no failed-checks verdict on record for the latest run_experiment; status=checks_failed must be attested by a failing .auto/checks.sh run. Use status=discard (metric does not beat the retained value) or status=crash (the benchmark itself failed).",
+    };
+  }
+  // Observation binding: the ledger's quantitative story must be transcribed
+  // from what run_experiment actually observed (red tests 2026-11-06: a
+  // no-run log, a retyped metric and a post-observation fake crash all
+  // landed). Fact gate — same layer as the keep gates, not subject to
+  // auditBypass; the decision space (keep/discard/noop) is untouched.
+  const obs = readPendingObservation();
+  if (!obs) {
+    return {
+      ok: false,
+      error:
+        "no run_experiment observation to attest this log — run the benchmark first; every successful log consumes the latest observation (one log per run)",
+    };
+  }
+  if (status === "crash") {
+    if (obs.metric != null && Number.isFinite(obs.metric)) {
+      return {
+        ok: false,
+        error: `the latest run observed a valid metric (${obs.metric}); a crash attests "measured nothing" — log the observed value as discard/keep instead, or fix the benchmark to fail without emitting METRIC lines`,
+      };
+    }
+  } else if (metric !== obs.metric) {
+    return {
+      ok: false,
+      error: `metric ${metric} does not match the value run_experiment observed (${obs.metric}); log what was measured, or run the benchmark again for a new observation`,
     };
   }
   // Secondary-metric constraints: keep only if secondary metrics stay within
@@ -1292,6 +1370,10 @@ async function toolLogExperiment(
   }
 
   let commit = args.commit ?? null;
+  // Mechanical tree-state fact at accounting time (session state excluded):
+  // recorded on the row regardless of status — post-hoc analysis should see
+  // the physical state the claim was made against, not re-derive it.
+  const treeDirtyAtLog = isDirty(cwd);
   // Rollback bookkeeping for non-keep rows: what the restore disposed of
   // (rolledBack), where it landed (restoredTo), and what it could not restore
   // (rollbackResidual). Empty for noop — nothing was changed, so there is
@@ -1335,6 +1417,8 @@ async function toolLogExperiment(
     commit,
     // audit trail: a checks_failed row carries the flag explicitly
     ...(status === "checks_failed" ? { checksFailed: true } : {}),
+    treeDirty: treeDirtyAtLog,
+    ...(rollbackResidual.length > 0 ? { residual: rollbackResidual } : {}),
     timestamp: new Date().toISOString(),
   };
   // Confidence snapshot (design D4): computed once over "existing runs + this
@@ -1353,8 +1437,10 @@ async function toolLogExperiment(
   }
 
   appendLedgerEntry(cwd, entry);
-  // The pending run is now accounted for — clear the keep-gate state.
+  // The pending run is now accounted for — clear the keep-gate state and the
+  // observation snapshot (one log per run).
   setPendingChecksFailed(false);
+  setPendingObservation(null);
   broadcastDashboardUpdate();
 
   // Iteration hook: .auto/hooks/after.sh runs after the record (fail-open).
@@ -1438,7 +1524,7 @@ async function toolLogExperiment(
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
     ...(after ? { after_steer: after.steer } : {}),
     ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
-    ...(status === "noop" && isDirty(cwd)
+    ...(status === "noop" && treeDirtyAtLog
       ? { warning: NOOP_DIRTY_WARNING }
       : {}),
     ...(rolledBack.length > 0
