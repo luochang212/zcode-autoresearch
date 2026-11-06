@@ -174,3 +174,12 @@ dashboard 渲染 SHALL 对账本字段做运行时类型防御：最后一条 ru
 
 - **WHEN** config.name 为 `{ "toString": null }` 导致 GET / 渲染失败
 - **THEN** 请求返回 500 和可读错误文本，随后 GET /autoresearch.jsonl 仍返回 200
+
+### Requirement: 刻度小数位的跨度不变性
+
+静态与实时 dashboard 的坐标轴刻度标签 SHALL 在任意度量跨度下携带正确的小数位：步长小于 1 时按数量级推导小数位（含 2.5 系数步长多一位），SHALL NOT 因步长的指数字符串形式（如 `2.5e-7`）误判而把标签塌缩为 `0.0000`。
+
+#### Scenario: 次微跨度刻度可读
+
+- **WHEN** 度量跨度使刻度步长为 `2.5e-7`
+- **THEN** 刻度标签以 8 位小数渲染（`0.00000025` 形态），SHALL NOT 全部显示为 `0.0000`
