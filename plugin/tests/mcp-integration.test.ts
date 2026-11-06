@@ -623,6 +623,54 @@ test("secondary transcription: metrics dict must match the observed aggregation"
   });
 });
 
+test("keep with failing ledger append undoes the orphan commit", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// change\n");
+    // Make the ledger unwritable: the append (second half of the keep's
+    // two-step write) fails with EACCES after the commit succeeded. On
+    // Windows chmod maps the write bits to the read-only attribute, which
+    // makes appendFileSync fail the same way.
+    const logPath = join(cwd, ".auto", "log.jsonl");
+    chmodSync(logPath, 0o444);
+    const preHead = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
+    const r = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "orphan guard",
+    });
+    assert.equal(r.ok, false);
+    assert.match(String(r.error), /commit undone/);
+    // branch back at the pre-keep HEAD; the change is back in the tree, uncommitted
+    const head = execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).trim();
+    assert.equal(head, preHead);
+    assert.equal(readFileSync(join(cwd, "code.js"), "utf8"), "v1\n// change\n");
+    // fix the filesystem issue and retry: the observation is still pending,
+    // so the retry looks exactly like the first attempt
+    chmodSync(logPath, 0o644);
+    const retry = await s.tool("log_experiment", {
+      status: "keep",
+      metric: 42,
+      description: "orphan guard retry",
+    });
+    assert.equal(retry.ok, true);
+    const files = execFileSync(
+      "git",
+      ["show", "--name-only", "--format=", "HEAD"],
+      { cwd, encoding: "utf8" },
+    ).trim();
+    assert.ok(files.includes("code.js"));
+  });
+});
+
 test("checks gate: keep rejected after failed checks, allowed again after a passing run", async () => {
   const cwd = tempRepo();
   // checks fail while code.js contains "broken"
