@@ -22,7 +22,8 @@ function fmtMetric(v: number | null | undefined): string {
  * Nice grid-tick values for [lo, hi]: step is 1/2/2.5/5 × 10^k, so tick values
  * stay short and all share the same decimal precision — no 61.6667-style noise.
  */
-function niceTicks(
+/** Exported for tests: tick computation is spec-pinned (decimals invariant). */
+export function niceTicks(
   lo: number,
   hi: number,
   target = 3,
@@ -33,8 +34,16 @@ function niceTicks(
   const step =
     pow *
     (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10);
-  const ds = String(step).split(".")[1];
-  const decimals = ds ? ds.replace(/0+$/, "").length : 0;
+  // String(step) is exponential for sub-micro steps ("2.5e-7"), which a naive
+  // split(".") misreads ("5e-7" → 4 decimals → every label collapses to
+  // 0.0000). Below 1, derive decimals from the magnitude instead; the step
+  // mantissa is a closed set {1, 2, 2.5, 5, 10} × 10^k, and 2.5 carries one
+  // extra fractional digit.
+  const exp = Math.floor(Math.log10(step));
+  const decimals =
+    step >= 1
+      ? (String(step).split(".")[1]?.replace(/0+$/, "").length ?? 0)
+      : Math.min(20, -exp + (norm === 2.5 ? 1 : 0));
   const out: Array<{ value: number; decimals: number }> = [];
   const first = Math.ceil((lo - 1e-9) / step);
   const last = Math.floor((hi + 1e-9) / step);
@@ -414,7 +423,6 @@ ${rows.join("\n")}
     .r-no { grid-area: no; font: 500 .85rem var(--mono); }
     .r-stamp { grid-area: stamp; font-size: .62rem; padding: .2em .5em; }
     .r-metric { grid-area: metric; font-size: .85rem; justify-self: end; }
-    .r-metric .u { display: none; }
     .r-delta { grid-area: delta; font-size: .85rem; }
     .r-desc { grid-area: desc; font-size: .8rem; color: var(--muted); }
     .r-desc .revisits { font-size: .7rem; }

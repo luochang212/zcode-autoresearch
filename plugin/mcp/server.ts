@@ -161,15 +161,27 @@ const PLUGIN_VERSION = (() => {
   }
 })();
 
-const envMax = Number(process.env.AR_MAX_ITERATIONS);
-const DEFAULT_MAX_ITERATIONS =
-  Number.isFinite(envMax) && envMax > 0 ? envMax : 20;
-const BENCHMARK_TIMEOUT_MS =
-  Number(process.env.AR_BENCHMARK_TIMEOUT_MS) || 600_000;
+// Numeric env vars are convenience overrides (manifest userConfig seeded via
+// env by the host is the primary channel): an invalid value falls back to the
+// default with a stderr diagnostic instead of silently taking effect — a
+// negative timeout would pass the `||` chain and SIGTERM every run instantly.
+function envPositive(name: string, fallback: number): number {
+  const raw = Number(process.env[name]);
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  if (process.env[name] !== undefined && process.env[name] !== "") {
+    process.stderr.write(
+      `[autoresearch] ${name}=${process.env[name]} is not a positive finite number; using default ${fallback}\n`,
+    );
+  }
+  return fallback;
+}
+
+const DEFAULT_MAX_ITERATIONS = envPositive("AR_MAX_ITERATIONS", 20);
+const BENCHMARK_TIMEOUT_MS = envPositive("AR_BENCHMARK_TIMEOUT_MS", 600_000);
 // Node's setTimeout treats delays above 2^31-1 ms as 1ms: an unclamped huge
 // timeout_seconds would SIGTERM the benchmark immediately instead of never.
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
-const CHECKS_TIMEOUT_MS = Number(process.env.AR_CHECKS_TIMEOUT_MS) || 300_000;
+const CHECKS_TIMEOUT_MS = envPositive("AR_CHECKS_TIMEOUT_MS", 300_000);
 
 // LLM-facing output budget (mirrors pi-autoresearch): tight truncation.
 const LLM_MAX_LINES = 10;
@@ -697,9 +709,13 @@ function recordHarnessEdits(segment?: number): void {
       });
     }
     patchSessionConfig({ harnessHashes: current });
-  } catch {
+  } catch (err) {
     // Tracing is bookkeeping, not a gate: a failed trace must never block
-    // the run/log/export it rides on.
+    // the run/log/export it rides on — but it must not fail silently either
+    // (never-silent rule).
+    process.stderr.write(
+      `[autoresearch] harness trace recording failed (bookkeeping only, not blocking): ${err instanceof Error ? err.message : String(err)}\n`,
+    );
   }
 }
 
@@ -1668,12 +1684,14 @@ async function toolLogExperiment(
     nextState.maxIterations != null
       ? Math.max(nextState.maxIterations - nextState.runs.length, 0)
       : null;
+  // Computed once for both the hint chain and the doom_loop response field.
+  const doom = detectDoomLoop(nextState.runs);
   const baseHint =
     nextState.runs.length >= maxIterNow
       ? "iteration cap reached; run init_experiment for a new segment, or /autoresearch off"
       : runsLeft != null && runsLeft > 0 && runsLeft <= 2
         ? `approaching iteration cap (${nextState.runs.length}/${nextState.maxIterations}); ${runsLeft} run(s) left — plan the closing experiment(s)`
-        : detectDoomLoop(nextState.runs)
+        : doom
           ? "doom loop detected (repeated/oscillating hypotheses); stop repeating: do a research pass first (re-read prompt.md What's Been Tried, related docs, prior near-misses), then pick a structurally different direction"
           : nextState.consecutiveFailures >= nextState.failureThreshold
             ? `consecutive failures reached (${nextState.consecutiveFailures}/${nextState.failureThreshold}); consider a different approach or stopping`
@@ -1700,7 +1718,7 @@ async function toolLogExperiment(
         }
       : null,
     plateau: nextState.plateau === true,
-    doom_loop: detectDoomLoop(nextState.runs)?.doomLoop ?? false,
+    doom_loop: doom?.doomLoop ?? false,
     consecutive_failures: nextState.consecutiveFailures,
     runs_left: runsLeft,
     ...(constraintResults.length > 0 ? { constraints: constraintResults } : {}),
@@ -1738,8 +1756,16 @@ async function toolClearExperiments() {
   if (!existsSync(paths.log))
     return { ok: true, message: "no active session to clear" };
   // Clearing is a fresh start: a paused loop must not survive into the next
-  // session.
-  patchSessionConfig({ autoresearchOff: false });
+  // session. A corrupt config must not block the reset (clear must not gain
+  // a new failure mode): the ledger deletion proceeds; the config itself
+  // stays broken and needs the user's hand either way.
+  try {
+    patchSessionConfig({ autoresearchOff: false });
+  } catch (err) {
+    process.stderr.write(
+      `[autoresearch] clear_experiments: could not reset autoresearchOff in .auto/config.json (${err instanceof Error ? err.message : String(err)}); ledger deletion proceeds\n`,
+    );
+  }
   const { rmSync } = await import("node:fs");
   rmSync(paths.log, { force: true });
   return {
@@ -1917,9 +1943,18 @@ const handlerFor: Record<
 // ---------------------------------------------------------------------------
 
 let buffer = "";
+// Line-framed JSON-RPC: input without a newline is invalid framing and would
+// otherwise grow the buffer without bound (broken or hostile client).
+const STDIN_BUFFER_CAP = 10 * 1024 * 1024;
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => {
   buffer += chunk;
+  if (buffer.length > STDIN_BUFFER_CAP) {
+    process.stderr.write(
+      `[autoresearch] stdin exceeded ${STDIN_BUFFER_CAP} bytes without a newline; dropping buffered input\n`,
+    );
+    buffer = "";
+  }
   let idx;
   while ((idx = buffer.indexOf("\n")) >= 0) {
     const line = buffer.slice(0, idx).trim();
@@ -1929,6 +1964,16 @@ process.stdin.on("data", (chunk) => {
     try {
       msg = JSON.parse(line);
     } catch {
+      // JSON-RPC requires a -32700 for unparseable frames; silent skipping
+      // would leave the caller waiting on a response that never comes.
+      process.stderr.write(
+        `[autoresearch] unparseable JSON-RPC line: ${line.slice(0, 120)}\n`,
+      );
+      send({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "Parse error" },
+      });
       continue;
     }
     dispatch(msg);

@@ -34,10 +34,16 @@ let calib: ReturnType<typeof plateauCalibration> = {
   window: undefined,
   deterministic: false,
 };
+// Whether the continuation window below runs on the built-in default (no
+// maxIterations in .auto/config.json): manifest userConfig is invisible to
+// hooks, so a server-side cap set that way can be tighter than this window —
+// the block reason says so once, so the model can align instead of spinning.
+let usedDefaultMax = true;
 try {
   const cfg = readSessionConfig(projectCwd);
   if (cfg.autoresearchOff === true) failOpen();
   const max = Number(cfg.maxIterations);
+  usedDefaultMax = !(Number.isFinite(max) && max > 0);
   const fails = Number(cfg.consecutiveFailures);
   calib = plateauCalibration(projectCwd);
   state = rebuildState(cwd, {
@@ -109,6 +115,9 @@ try {
         ? `⚠️ 检测到重复/震荡尝试：请停止重复同一假设，换一个结构性不同的方向。\n`
         : "") +
       `请继续下一个假设：修改代码 → run_experiment → log_experiment（keep/discard）。\n` +
+      (usedDefaultMax
+        ? `（提示：本续跑窗口按缺省 ${state.maxIterations ?? 20} 次计算；清单 userConfig 的 maxIterations 对 hook 不可见，若 server 侧窗口更小会在 run_experiment 处报「iteration cap reached」——需对齐时在 .auto/config.json 设置 maxIterations。）\n`
+        : "") +
       `（若用户已要求无人值守续跑，可按 unattended 规程用 CronCreate 创建有界定时唤醒。）`;
 
     process.stdout.write(JSON.stringify({ decision: "block", reason }));

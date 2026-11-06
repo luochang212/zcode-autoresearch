@@ -14,7 +14,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { renderDashboard, renderLiveDashboard } from "../mcp/lib/dashboard.ts";
+import {
+  niceTicks,
+  renderDashboard,
+  renderLiveDashboard,
+} from "../mcp/lib/dashboard.ts";
 import { rebuildHistory } from "../mcp/lib/ledger.ts";
 import type { LedgerEntry, LedgerRun } from "../mcp/lib/types.ts";
 
@@ -578,4 +582,15 @@ test("dashboard tolerates non-string timestamps and escapes HTML", () => {
   const escaped = renderDashboard(rebuildHistory(xss));
   assert.match(escaped, /&lt;b&gt;hi&lt;\/b&gt;/);
   assert.doesNotMatch(escaped, /<b>hi<\/b>/);
+});
+
+test("niceTicks decimals hold at any magnitude (sub-micro spans)", () => {
+  // step 2.5e-7: the exponential String form must not collapse labels to 0.0000
+  const ticks = niceTicks(0, 5e-7, 2);
+  assert.ok(ticks.length > 0);
+  assert.equal(ticks[0].decimals, 8); // 0.00000025
+  // regular magnitudes keep their shapes
+  assert.equal(niceTicks(0, 10, 3)[0].decimals, 0);
+  assert.equal(niceTicks(0, 0.2, 2)[0].decimals, 1);
+  assert.equal(niceTicks(0, 0.25, 1)[0].decimals, 2); // 2.5 mantissa → +1 digit
 });

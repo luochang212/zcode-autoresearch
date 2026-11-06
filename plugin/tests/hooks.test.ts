@@ -1,11 +1,12 @@
 // Hook contract tests: pipe stdin JSON, assert stdout JSON / exit codes.
 // These protect the hook runner path (not exercised by headless CLI).
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   writeFileSync,
   mkdirSync,
 } from "node:fs";
@@ -35,8 +36,16 @@ function runHookStderr(name: string, cwd: string, stdin: string): string {
   return r.stderr ?? "";
 }
 
+// Temp cwds are removed once at file end (node:test after).
+const tempRoots: string[] = [];
+after(() => {
+  for (const root of tempRoots) rmSync(root, { recursive: true, force: true });
+});
+
 function tempCwd(): string {
-  return mkdtempSync(join(tmpdir(), "ar-hook-"));
+  const dir = mkdtempSync(join(tmpdir(), "ar-hook-"));
+  tempRoots.push(dir);
+  return dir;
 }
 
 function seedLedger(cwd: string, entries: LedgerEntry[]): void {

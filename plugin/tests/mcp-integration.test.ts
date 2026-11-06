@@ -1,5 +1,5 @@
 // MCP integration tests: spawn the real server and drive the tools over JSON-RPC.
-import { test } from "node:test";
+import { after, test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import {
@@ -20,6 +20,14 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const SERVER = join(ROOT, "mcp", "server.ts");
+
+// Temp roots are registered here and removed once at file end (node:test
+// after): withServer-internal cleanup would break the restart-survival tests
+// that run two servers against the same cwd.
+const tempRoots: string[] = [];
+after(() => {
+  for (const root of tempRoots) rmSync(root, { recursive: true, force: true });
+});
 
 interface JsonRpcResponse {
   id?: number;
@@ -48,6 +56,7 @@ function tempRepo(
   } = {},
 ) {
   const root = mkdtempSync(join(tmpdir(), "ar-mcp-"));
+  tempRoots.push(root);
   // Nested name lets a test put the repo behind a hostile path segment.
   const cwd = opts.name ? join(root, opts.name) : root;
   mkdirSync(cwd, { recursive: true });
@@ -620,6 +629,53 @@ test("secondary transcription: metrics dict must match the observed aggregation"
     });
     assert.equal(malformed.ok, false);
     assert.match(String(malformed.error), /malformed constraint entry/);
+  });
+});
+
+test("invalid AR_BENCHMARK_TIMEOUT_MS falls back to the default with a diagnostic", async () => {
+  const cwd = tempRepo();
+  // -1 would pass the legacy `||` chain and SIGTERM every run in 1ms; the
+  // guard falls back to the default 600s instead.
+  await withServer(
+    cwd,
+    async (s) => {
+      await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+      const r = await s.tool("run_experiment", {
+        command: "bash .auto/measure.sh",
+      });
+      assert.equal(r.ok, true);
+      assert.equal(r.metric, 42);
+      assert.equal(r.timed_out, false);
+    },
+    { ...process.env, AR_BENCHMARK_TIMEOUT_MS: "-1" },
+  );
+});
+
+test("unparseable JSON-RPC frame gets a -32700 response", async () => {
+  const cwd = tempRepo();
+  const proc = spawn(process.execPath, [SERVER], { cwd });
+  proc.stdout.setEncoding("utf8");
+  const firstLine = new Promise<string>((resolve) =>
+    proc.stdout.once("data", (d: string) => resolve(d.split("\n")[0])),
+  );
+  proc.stdin.write("this is not json\n");
+  const line = await firstLine;
+  const msg = JSON.parse(line) as JsonRpcResponse & {
+    error?: { code: number; message: string };
+  };
+  assert.equal(msg.id, null);
+  assert.equal(msg.error?.code, -32700);
+  proc.kill();
+});
+
+test("clear_experiments tolerates a corrupt config.json", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    writeFileSync(join(cwd, ".auto", "config.json"), "{corrupt");
+    const r = await s.tool("clear_experiments", {});
+    assert.equal(r.ok, true);
+    assert.ok(!existsSync(join(cwd, ".auto", "log.jsonl")));
   });
 });
 
