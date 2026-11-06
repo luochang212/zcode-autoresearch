@@ -77,7 +77,7 @@ Use hooks for things the agent shouldn't do by itself: checking external docs be
 
 ## Unattended runs (optional, user-authorized only)
 
-When the user explicitly asks for unattended operation ("run overnight", "无人值守跑"), the loop can keep going across turns: create a scheduled self-wakeup with the host's `CronCreate` tool (recurring + maxRuns, self-contained wake prompt) right after authorization; wake turns re-enter the loop via the `.auto/` facts. Only create the task on explicit user request - an unprompted scheduled wakeup is a scare behavior. Cleanup happens in user turns (`/autoresearch:off` / `/autoresearch:clear` / `/autoresearch:finalize` include the CronList + CronDelete step); leftover wakes idle cheaply until maxRuns if the loop ends early. Full protocol: `references/unattended.md`
+When the user explicitly asks for unattended operation ("run overnight", "无人值守跑"), the loop can keep going across turns: create a scheduled self-wakeup with the host's `CronCreate` tool (finite schedule + maxRuns, self-contained wake prompt) right after authorization; wake turns re-enter the loop via the `.auto/` facts. Only create the task on explicit user request - an unprompted scheduled wakeup is a scare behavior. Cleanup happens in user turns (`/autoresearch:off` / `/autoresearch:clear` / `/autoresearch:finalize` include the CronList + CronDelete step); leftover wakes idle cheaply until maxRuns if the loop ends early. Full protocol: `references/unattended.md`
 
 ## Details
 

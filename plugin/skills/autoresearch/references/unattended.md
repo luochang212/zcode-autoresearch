@@ -1,6 +1,6 @@
 # Unattended runs (scheduled self-wakeup)
 
-Bounded unattended continuation for the experiment loop: the agent schedules its own wake-up turns with the host's `CronCreate` tool, so an experiment loop can keep iterating while the user is away. The Stop hook's 3-continuation window still applies inside every wake turn; the cron chain drives the turns across time. Source verdict and the runtime E2E gate are recorded in ADR-7 and the change design (all four gate points passed on the installed runtime: same-session wakes, exact intervals, maxRuns hard stop, MCP experiment tools visible in wake turns, Cron writes physically absent from the wake-turn tool list).
+Bounded unattended continuation for the experiment loop: the agent schedules its own wake-up turns with the host's `CronCreate` tool, so an experiment loop can keep iterating while the user is away. The Stop hook's 3-continuation window still applies inside every wake turn; the cron chain drives the turns across time. Source verdict and the runtime E2E gate are recorded in ADR-7 and the change design (all five gate points passed on the installed runtime: same-session wakes, exact intervals, maxRuns hard stop, MCP experiment tools visible in wake turns, Cron writes physically absent from the wake-turn tool list).
 
 ## Authorization comes first (hard requirement)
 
