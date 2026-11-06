@@ -118,6 +118,8 @@ The manifest `userConfig` (`maxIterations` / timeouts) seeds the **MCP server's*
 
 - **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (finite schedule + `maxRuns`, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
 - **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.
+- **Frozen-file write protection covers file tools only**: the PreToolUse guard sees `Write`/`Edit`/`ApplyPatch`; shell redirections (e.g. `echo x > .auto/measure.sh`) bypass it and are caught by benchmark drift detection instead — detection after the fact, not prevention.
+- **Windows spawn chain not yet verified**: the MCP server and all hooks start via `sh run-node.sh`, which needs a POSIX `sh` on PATH (Git-Bash environments provide one); native-Windows behavior is untested — report anything odd there.
 - A keep commits every uncommitted change inside the research directory — unrelated files included (known pi inheritance); commit a clean baseline during setup. Changes outside the research dir (`workingDir` mode) are never committed, and any pre-staged files elsewhere in the repo are unstaged first so the commit describes exactly this experiment.
 
 ## Development

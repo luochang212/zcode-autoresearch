@@ -118,6 +118,8 @@ plugin/
 
 - **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（有限日程 + `maxRuns`，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
+- **冻结文件写保护只覆盖文件类工具**：PreToolUse 守卫只看 `Write`/`Edit`/`ApplyPatch`；shell 重定向（如 `echo x > .auto/measure.sh`）绕过它，由基准漂移检测事后捕获——是检测而非阻止。
+- **Windows 启动链未验证**：MCP server 与全部 hooks 经 `sh run-node.sh` 启动，需要 PATH 上有 POSIX `sh`（Git-Bash 环境自带）；原生 Windows 行为未实测——遇到异常请反馈。
 - keep 会提交研究目录内所有未提交改动——含无关文件（继承 pi 的已知弱点）；setup 时先提交干净基线。`workingDir` 模式下研究目录之外的改动不会被提交，仓库内其他位置预暂存的文件会先被 unstage，保证 commit 恰好描述本次实验。
 
 ## 开发
