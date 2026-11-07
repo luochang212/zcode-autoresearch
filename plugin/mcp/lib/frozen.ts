@@ -14,7 +14,7 @@ export const FROZEN_FILES: ReadonlySet<string> = new Set([
 
 export const FROZEN_REASONS: Record<string, string> = {
   ".auto/measure.sh":
-    "the benchmark metric must not change during the loop. If you really need a new metric, start over: init_experiment with a new target.",
+    "the benchmark metric must not change during the loop. If you really need a new metric, the recorded file must go first: have the user delete it (or delete it with an explicitly user-approved command) — this guard only protects a file that exists — then set up the new benchmark and start a new segment with init_experiment.",
   ".auto/checks.sh": "the correctness gate must not change during the loop.",
   ".auto/goal.md":
     "the deep goal is the root the loop serves; it was recorded verbatim from the user and cannot be rewritten. Surface-goal wording is revisable via the harness-edit step's editable surfaces, or a new segment via init_experiment.",

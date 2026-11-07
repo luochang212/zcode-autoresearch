@@ -727,6 +727,37 @@ test("keep with failing ledger append undoes the orphan commit", async () => {
   });
 });
 
+test("a failed pending-state reset does not unseat the logged row", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// change\n");
+    // Make config.json unwritable AFTER run_experiment persisted its snapshot:
+    // the ledger append succeeds, the pending-state clear fails with EACCES.
+    // The row must stand (ok:true + warning) — returning an error here would
+    // invite a retry that the still-pending observation would attest, i.e. a
+    // duplicate run row the audit cannot catch.
+    const cfgPath = join(cwd, ".auto", "config.json");
+    chmodSync(cfgPath, 0o444);
+    try {
+      const r = await s.tool("log_experiment", {
+        status: "discard",
+        metric: 42,
+        description: "pending reset failure",
+      });
+      assert.equal(r.ok, true);
+      assert.match(String(r.pending_reset_warning), /do not log again/);
+      const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+        .split("\n")
+        .filter((l) => l.includes('"type":"run"')).length;
+      assert.equal(rows, 1);
+    } finally {
+      chmodSync(cfgPath, 0o644);
+    }
+  });
+});
+
 test("checks gate: keep rejected after failed checks, allowed again after a passing run", async () => {
   const cwd = tempRepo();
   // checks fail while code.js contains "broken"

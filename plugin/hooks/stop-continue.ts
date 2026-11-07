@@ -116,7 +116,7 @@ try {
         : "") +
       `请继续下一个假设：修改代码 → run_experiment → log_experiment（keep/discard）。\n` +
       (usedDefaultMax
-        ? `（提示：本续跑窗口按缺省 ${state.maxIterations ?? 20} 次计算；清单 userConfig 的 maxIterations 对 hook 不可见，若 server 侧窗口更小会在 run_experiment 处报「iteration cap reached」——需对齐时在 .auto/config.json 设置 maxIterations。）\n`
+        ? `（提示：本续跑窗口按缺省 ${state.maxIterations ?? 20} 次计算；清单 userConfig 与 AR_MAX_ITERATIONS 环境变量的 maxIterations 对 hook 不可见，若 server 侧窗口更小会在 run_experiment 处报「iteration cap reached」——需对齐时在 .auto/config.json 设置 maxIterations。）\n`
         : "") +
       `（若用户已要求无人值守续跑，可按 unattended 规程用 CronCreate 创建有界定时唤醒。）`;
 

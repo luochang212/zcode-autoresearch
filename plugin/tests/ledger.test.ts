@@ -12,6 +12,7 @@ import { join } from "node:path";
 import {
   appendLedgerEntry,
   readLedger,
+  rebuildHistory,
   rebuildState,
   readSessionConfig,
   LOG_FILE,
@@ -314,4 +315,67 @@ test("config boundary resets the failure streak and last run", () => {
   assert.equal(state.consecutiveFailures, 1); // not 3 from segment 1
   assert.equal(state.lastRun?.run, 1);
   assert.equal(state.lastRun?.status, "discard");
+});
+
+// Regression (worth-fix 2026-11-07): pre-ADR-10 ledgers record crash rows with
+// a 0 placeholder. The metric collectors only looked at `metric != null`, so
+// the placeholder became the baseline (0) and skewed confidence, while
+// validateLedger (which already skipped crash rows) disagreed with the same
+// ledger. Replay excludes crash rows everywhere; the append-only file itself
+// is never rewritten.
+test("legacy crash placeholder rows stay out of baseline/confidence/history", () => {
+  const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(
+    join(cwd, LOG_FILE),
+    [
+      JSON.stringify({
+        type: "config",
+        segment: 1,
+        name: "t",
+        metricName: "time_ms",
+        direction: "lower",
+      }),
+      JSON.stringify({ type: "run", run: 1, status: "crash", metric: 0 }),
+      JSON.stringify({ type: "run", run: 2, status: "keep", metric: 42 }),
+      JSON.stringify({ type: "run", run: 3, status: "keep", metric: 40 }),
+    ].join("\n") + "\n",
+  );
+
+  const state = rebuildState(cwd);
+  assert.equal(
+    state.baseline,
+    42,
+    "crash placeholder 0 must not become the baseline",
+  );
+  // The value set excludes the placeholder: 2 finite values remain, below the
+  // 3-value confidence floor — null instead of a 0-skewed number.
+  assert.equal(state.confidence, null);
+
+  const history = rebuildHistory(readLedger(cwd));
+  assert.equal(history.firstMetric, 42);
+  assert.equal(history.confidence, null);
+});
+
+test("crash rows still count toward the failure streak (exclusion is metric-scoped)", () => {
+  const cwd = tempCwd();
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(
+    join(cwd, LOG_FILE),
+    [
+      JSON.stringify({
+        type: "config",
+        segment: 1,
+        name: "t",
+        metricName: "m",
+        direction: "lower",
+      }),
+      JSON.stringify({ type: "run", run: 1, status: "crash", metric: 0 }),
+      JSON.stringify({ type: "run", run: 2, status: "crash", metric: null }),
+      JSON.stringify({ type: "run", run: 3, status: "crash", metric: null }),
+    ].join("\n") + "\n",
+  );
+  const state = rebuildState(cwd);
+  assert.equal(state.consecutiveFailures, 3);
+  assert.equal(state.baseline, null); // nothing was measured
 });

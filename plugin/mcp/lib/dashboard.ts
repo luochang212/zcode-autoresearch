@@ -40,10 +40,14 @@ export function niceTicks(
   // mantissa is a closed set {1, 2, 2.5, 5, 10} × 10^k, and 2.5 carries one
   // extra fractional digit.
   const exp = Math.floor(Math.log10(step));
+  // The +1 tracks the step's mantissa being 2.5 (0.25/2.5e-7 need one extra
+  // digit), i.e. the same (2, 2.5] band the step selector maps to the 2.5
+  // coefficient — not norm === 2.5 exact equality, which misses norm 2.1→step
+  // 0.25 (gridline labeled "0.3") and norm 2.1e-7→step 2.5e-7 ("0.0000002").
   const decimals =
     step >= 1
       ? (String(step).split(".")[1]?.replace(/0+$/, "").length ?? 0)
-      : Math.min(20, -exp + (norm === 2.5 ? 1 : 0));
+      : Math.min(20, -exp + (norm > 2 && norm <= 2.5 ? 1 : 0));
   const out: Array<{ value: number; decimals: number }> = [];
   const first = Math.ceil((lo - 1e-9) / step);
   const last = Math.floor((hi + 1e-9) / step);

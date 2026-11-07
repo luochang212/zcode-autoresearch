@@ -522,3 +522,19 @@ test("CJK hypotheses without spaces dedupe and trigger doom-loop", () => {
   );
   assert.equal(detectDoomLoop(runs)?.pattern, "oscillate");
 });
+
+// Regression (worth-fix 2026-11-07): a crash row carrying a legacy 0
+// placeholder must not enter the plateau window. With the row included, the
+// window's first value becomes 0 and the flat real values look like a 10×
+// "improvement" (plateau false); excluded, the flat window correctly plateaus.
+test("detectPlateau excludes crash rows (legacy placeholders are not data points)", () => {
+  const rows = [
+    { run: 1, status: "keep", metric: 10 },
+    { run: 2, status: "crash", metric: 0 }, // pre-ADR-10 placeholder
+    { run: 3, status: "keep", metric: 10 },
+    { run: 4, status: "keep", metric: 10 },
+    { run: 5, status: "keep", metric: 10 },
+    { run: 6, status: "keep", metric: 10 },
+  ];
+  assert.equal(detectPlateau(rows, { window: 5, minImprovement: 0.01 }), true);
+});

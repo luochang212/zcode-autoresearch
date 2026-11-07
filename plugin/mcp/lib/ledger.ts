@@ -156,7 +156,15 @@ export function rebuildState(
         config: state.config,
       };
       state.runs.push(run);
-      if (state.baseline == null && run.metric != null)
+      // Crash rows measure nothing (ADR-10: metric null; pre-ADR-10 rows carry
+      // a 0 placeholder) — they must not become the baseline, or a legacy
+      // ledger shows baseline 0 and absurd deltas. Matches validateLedger,
+      // which already skips crash rows here.
+      if (
+        state.baseline == null &&
+        run.metric != null &&
+        run.status !== "crash"
+      )
         state.baseline = run.metric;
       if (run.status === "keep" && run.metric != null) {
         const dir = state.config?.direction ?? "lower";
@@ -174,8 +182,10 @@ export function rebuildState(
       state.lastRunEver = run;
     }
   }
-  // Confidence over the current segment's values.
+  // Confidence over the current segment's values. Crash rows (including
+  // legacy 0-placeholder ones) measure nothing and stay out of the value set.
   const values = state.runs
+    .filter((r) => r.status !== "crash")
     .map((r) => r.metric)
     .filter((v): v is number => v != null && Number.isFinite(v));
   if (state.config && values.length > 0) {
@@ -240,7 +250,14 @@ export function rebuildHistory(entries: LedgerEntry[]): SessionHistory {
       config = e;
     } else if (e.type === "run") {
       runs.push(e);
-      if (firstMetric == null && e.metric != null && Number.isFinite(e.metric))
+      // Crash rows measure nothing (see rebuildState): a legacy 0-placeholder
+      // must not become the dashboard's global baseline.
+      if (
+        firstMetric == null &&
+        e.metric != null &&
+        Number.isFinite(e.metric) &&
+        e.status !== "crash"
+      )
         firstMetric = e.metric;
       lastRunAt = e.timestamp ?? null;
     }
@@ -255,7 +272,9 @@ export function rebuildHistory(entries: LedgerEntry[]): SessionHistory {
       bestMetric = r.metric;
   }
   // Confidence over all measured values against the global baseline/best.
+  // Crash rows (legacy 0 placeholders included) measure nothing.
   const values = runs
+    .filter((r) => r.status !== "crash")
     .map((r) => r.metric)
     .filter((v): v is number => v != null && Number.isFinite(v));
   const confidence =

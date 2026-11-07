@@ -270,11 +270,15 @@ function confidenceForSegment(
   let best: number | null = null;
   const values: number[] = [];
   for (const r of runs) {
-    if (baseline == null && r.metric != null) baseline = r.metric;
+    // Crash rows measure nothing (ADR-10; legacy rows carry a 0 placeholder):
+    // stay out of baseline and the value set, same as rebuildState.
+    if (baseline == null && r.metric != null && r.status !== "crash")
+      baseline = r.metric;
     if (r.status === "keep" && r.metric != null) {
       if (best == null || isBetter(r.metric, best, direction)) best = r.metric;
     }
-    if (r.metric != null && Number.isFinite(r.metric)) values.push(r.metric);
+    if (r.metric != null && Number.isFinite(r.metric) && r.status !== "crash")
+      values.push(r.metric);
   }
   if (values.length === 0) return null;
   return computeConfidence({ values, baseline, best });
@@ -1635,9 +1639,30 @@ async function toolLogExperiment(
     };
   }
   // The pending run is now accounted for — clear the keep-gate state and the
-  // observation snapshot (one log per run).
-  setPendingChecksFailed(false);
-  setPendingObservation(null);
+  // observation snapshot (one log per run). Clearing is bookkeeping, not the
+  // ledger write itself: a failed clear must NOT fail the call — the row is
+  // committed, and an error would invite a retry that the still-pending
+  // snapshot would attest (a duplicate run row the audit cannot catch). Warn
+  // loudly instead; the stale snapshot is overwritten by the next run.
+  let pendingResetError: string | null = null;
+  try {
+    setPendingChecksFailed(false);
+  } catch (err) {
+    pendingResetError = `pendingChecksFailed: ${err instanceof Error ? err.message : String(err)}`;
+  }
+  try {
+    setPendingObservation(null);
+  } catch (err) {
+    const detail = `pendingObservation: ${err instanceof Error ? err.message : String(err)}`;
+    pendingResetError = pendingResetError
+      ? `${pendingResetError}; ${detail}`
+      : detail;
+  }
+  if (pendingResetError) {
+    process.stderr.write(
+      `[autoresearch] log_experiment: ledger row was written, but clearing the .auto/config.json pending state failed (${pendingResetError}); do not log again before the next run_experiment\n`,
+    );
+  }
   broadcastDashboardUpdate();
 
   // Iteration hook: .auto/hooks/after.sh runs after the record (fail-open).
@@ -1726,6 +1751,11 @@ async function toolLogExperiment(
     ...(revisitWorthy ? { revisit_nudge: REVISIT_NUDGE } : {}),
     ...(status === "noop" && treeDirtyAtLog
       ? { warning: NOOP_DIRTY_WARNING }
+      : {}),
+    ...(pendingResetError
+      ? {
+          pending_reset_warning: `the run row was written, but the cross-call state in .auto/config.json could not be cleared (${pendingResetError}); do not log again before the next run_experiment — the stale snapshot is overwritten by the next run`,
+        }
       : {}),
     ...(rolledBack.length > 0
       ? {

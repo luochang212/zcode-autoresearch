@@ -593,4 +593,15 @@ test("niceTicks decimals hold at any magnitude (sub-micro spans)", () => {
   assert.equal(niceTicks(0, 10, 3)[0].decimals, 0);
   assert.equal(niceTicks(0, 0.2, 2)[0].decimals, 1);
   assert.equal(niceTicks(0, 0.25, 1)[0].decimals, 2); // 2.5 mantissa → +1 digit
+  // the whole (2, 2.5] norm band selects the 2.5 coefficient, not just
+  // norm === 2.5 exactly: span 0.63 → step 0.25, gridline must read "0.25"
+  // (norm 2.1 previously missed the +1 and labeled it "0.3")
+  assert.equal(niceTicks(0, 0.63)[0].decimals, 2);
+  assert.ok(
+    niceTicks(0, 0.63).some(
+      (t) => t.value === 0.25 && t.value.toFixed(t.decimals) === "0.25",
+    ),
+  );
+  // span 6.3e-7 → step 2.5e-7 → 8 decimals (7 collapsed it to 0.0000002)
+  assert.equal(niceTicks(0, 6.3e-7)[0].decimals, 8);
 });

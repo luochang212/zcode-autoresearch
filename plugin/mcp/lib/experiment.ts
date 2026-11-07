@@ -309,7 +309,12 @@ export function detectPlateau(
   } = {},
 ): boolean {
   const valid = runs
-    .filter((r) => r.metric != null && Number.isFinite(r.metric))
+    .filter(
+      (r) =>
+        // Crash rows measure nothing (ADR-10; legacy rows carry a 0
+        // placeholder) — they are not data points for the plateau window.
+        r.status !== "crash" && r.metric != null && Number.isFinite(r.metric),
+    )
     .slice(-window);
   if (valid.length < window) return false;
   const first = valid[0].metric;
