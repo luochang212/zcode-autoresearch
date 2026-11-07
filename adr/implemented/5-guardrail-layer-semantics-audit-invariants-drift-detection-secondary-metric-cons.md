@@ -35,4 +35,4 @@ paths: [plugin/mcp/**]
 ## Consequences
 
 - 买到了：四层护栏各管一维（checks=输出、审计=账本、漂移=尺子、约束=代价），语义边界清晰不重叠；全部确定性、零 LLM、可单测；解锁出口统一且显式。
-- 付出的：审计的"对账不裁判"边界意味着它不拦"真实但平庸的改进"、也不拦 checks 未覆盖的 reward hacking 语义层（那些靠 checks/约束补位）；auditBypass 是信任用户的后门（误用会绕过保护，已在文档警示）；漂移/约束的 hash 与 baseline 信任模型防"顺手作弊"不防对抗性伪造（对抗场景需要 doctor+签名，见 next-steps 后置项）。
+- 付出的：审计的"对账不裁判"边界意味着它不拦"真实但平庸的改进"、也不拦 checks 未覆盖的 reward hacking 语义层（那些靠 checks/约束补位）；auditBypass 是信任用户的后门（误用会绕过保护，已在文档警示）；漂移/约束的 hash 与 baseline 信任模型防"顺手作弊"不防对抗性伪造（对抗场景需要 doctor+签名，见 next-steps 后置项）。（2026-11-07 回指：全护栏的威胁模型已收敛为「合作但会犯错的 Agent」，见 ADR-11——纯红队构造的假设旁路不再开 change，只留 known-boundary 文档；本条各层校验语义不变。）

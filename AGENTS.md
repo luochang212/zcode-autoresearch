@@ -30,12 +30,12 @@
 
 1. **根目录 `archived/` 是草稿本**：这是临时资料夹。外部仓库 clone、调研残留、随手草稿都放这里，**可随意修改**，但**不进 git**。注意 `.gitignore` 写的是 `/archived/`（仅锚定根目录）：`adr/archived/` 是 adrkit 的退役决策目录（0.24 起无封条、无 MANIFEST），普通 git 历史、**必须进 git**，两者无关。正式内容别只存在根目录草稿本。
 2. **零第三方依赖**：插件所有代码只允许 Node（≥24）标准库（`plugin/` 无 `package.json` 依赖、无 `node_modules`、无 `npm install` 流程）。hooks 与 MCP server 都是 `.ts`，由 Node 原生剥离类型直接运行（无构建步骤）。仓库根 `package.json` 仅存开发工具 devDependencies，不进 `plugin/`，不违反本条。
-3. **隐私卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。
+3. **隐私与引用卫生**：仓库内不得出现 API key、绝对路径（`/Users/...`、`/tmp/...`）、个人邮箱；路径一律相对或模板变量（`${ZCODE_PLUGIN_ROOT}`、`${ZCODE_PROJECT_DIR}`）。文档与代码注释不得内嵌提交哈希（ADRKit 同款教训：散文里的哈希不可读、跨仓库悬空）——证据由日期、版本号、回归测试与 git 历史承载，哈希只活在 git 历史与运行时指纹里。
 4. **插件改动走 openspec change**：任何行为变更先 `openspec new change`（propose → specs/design/tasks → `openspec validate --strict` → apply → archive），归档时 delta specs 合并进 `openspec/specs/`。
 5. **关键决策用 adrkit**：平台可行性判定、插件形态/架构取舍、永久放弃的方向、跨 change 的语义约定，这四类必须进 `adr/implemented/`；单 change 内的实现取舍留在 change 的 design.md，不双写。已落地决策：`adrkit record "<title>" --raised-by human|agent --decided-by human|agent` 生成于 `adr/implemented/`（两个声明须如实标注：谁把决策摆上桌面、谁的判断拍板），补全 Problem/Decision/Alternatives/Consequences 后 `adrkit validate`；未落地方向先 `adrkit propose`，落地后 `adrkit implement` 转正拿编号；否决用 `adrkit reject`（进 `adr/rejected/` 留作反模式记忆）；退役/替换用 `adrkit archive`/`adrkit supersede`（进 `adr/archived/`，普通 git 历史，勿静默手改）。
 6. **测试必须通过**：根目录 `npm test`（= 插件单测 `npm run test:plugin`，即 `cd plugin && node --test tests/*.test.ts`，加上 marketplace 契约检查 `npm run test:contract`；单文件直接传路径）。新增功能必须带测试；平时跑覆盖改动面的最小检查，提交前全量通过。
 7. **提交纪律**：提交分批按逻辑单元（chore/docs/spec/feat），**同一文件只出现在一个提交里**；`.gitignore` 排除 `/archived/`（仅根目录草稿本）、`node_modules/`、`*.tgz`、`.husky/_`。pre-commit 钩子（husky + lint-staged）自动对暂存文件跑 eslint --fix、prettier --write、`bash -n`；pre-push 跑 typecheck + 全量测试（`git push --no-verify` 可跳过）。
-8. **版本与发布**：版本号双写 `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`，由 `tests/marketplace-contract.test.ts` 守护。正式分发以上游 `zai-org/zcode-plugins` 市场为准；本仓库可作为开发源被添加为市场（跟随 `main`，非稳定版）。每次发布在已发布快照上打 annotated tag + GitHub Release，**不挂构建产物**（市场 zip 是唯一权威包）；当前基线 `v0.1.0` = 上游落地提交 `d5690038`，未发布改动用 `git diff v0.1.0..HEAD -- plugin/` 对比。
+8. **版本与发布**：版本号双写 `plugin/.zcode-plugin/plugin.json` 与根 `marketplace.json`，由 `tests/marketplace-contract.test.ts` 守护。正式分发以上游 `zai-org/zcode-plugins` 市场为准；本仓库可作为开发源被添加为市场（跟随 `main`，非稳定版）。每次发布在已发布快照上打 annotated tag + GitHub Release，**不挂构建产物**（市场 zip 是唯一权威包）；当前基线 `v0.1.0`（annotated tag），未发布改动用 `git diff v0.1.0..HEAD -- plugin/` 对比。
 
 ## 架构决策记录
 
@@ -56,6 +56,7 @@
 
 - 平台不可行（勿再投入）：无限 auto-resume（zcode 无会话注入）、确定性 compaction（无 PreCompact 事件）、TUI widget/overlay（无 UI 扩展点）。这些方向的最终形态是 Stop 3 次窗口、memory-inject、有界 Cron 自唤醒与浏览器 dashboard（见 ADR-3/4/7）。
 - 信号均 advisory（plateau/doom-loop/drift 警告），除非属于明确硬校验（审计不变量、次级度量约束）。决策权留给 agent 与用户。
+- 护栏威胁模型 = 合作但会犯错的 Agent（ADR-11）：护栏语义是数据完整性 + 错误引导，非对抗防作弊；护栏类 change 须引现场事故证据，红队构造的纯假设旁路只留 known-boundary 文档不开 change；review 提问轴 help-first（哪里卡住 / 困惑 / 浪费轮次 / 信号读不懂）。
 
 ## 常用命令
 
