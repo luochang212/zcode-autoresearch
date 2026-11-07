@@ -2,7 +2,7 @@
 
 ## Context
 
-会话状态豁免目前以「每个 git 消费点各自枚举路径」实现，共四处，且各站点的枚举语法互不相同（`reset --` 路径参数、`status :(exclude)`、`checkout :(exclude,glob)`、`clean -e`）。2026-11-05 的实证（见 proposal）表明枚举已两次漏项：`.auto` 当年是单点修复后膨胀成四站点；`.zcode` 今日重演，且当日修复（90b28ed）只覆盖了四分之一——keep 暂存。另见 `experiment-loop/spec.md` 的 log_experiment requirement：其豁免范围写的是 `.auto/`，今晨的 `.zcode` 提交修复本身已偏离规范文本。
+会话状态豁免目前以「每个 git 消费点各自枚举路径」实现，共四处，且各站点的枚举语法互不相同（`reset --` 路径参数、`status :(exclude)`、`checkout :(exclude,glob)`、`clean -e`）。2026-11-05 的实证（见 proposal）表明枚举已两次漏项：`.auto` 当年是单点修复后膨胀成四站点；`.zcode` 今日重演，且当日修复只覆盖了四分之一——keep 暂存。另见 `experiment-loop/spec.md` 的 log_experiment requirement：其豁免范围写的是 `.auto/`，今晨的 `.zcode` 提交修复本身已偏离规范文本。
 
 ## Goals / Non-Goals
 
@@ -30,9 +30,9 @@
 
 三个插件提交未走 change 即落 main，规范偏差一并在此付清、不另立 retro change：
 
-- `90b28ed`（keep 暂存排除 `.zcode`）：本 change 的子集，由此 change 补全为全覆盖并回写规范。
-- `aabbd2f`（directionLabel 半角句点）：guardrails 规范只说「提炼方向标签」，未规定拆分标点，无文本冲突，偏差为规范未覆盖而非冲突，接受现状。
-- `c86b7fd`（run_experiment command 缺省）：experiment-loop 规范说「SHALL 接受任意 shell 命令」，未规定必填；`required` 从 schema 移除属工具契约变更，规范既未违反也未覆盖，接受现状；README 已可补一句说明（tasks 内）。
+- keep 暂存排除 `.zcode`：本 change 的子集，由此 change 补全为全覆盖并回写规范。
+- directionLabel 半角句点：guardrails 规范只说「提炼方向标签」，未规定拆分标点，无文本冲突，偏差为规范未覆盖而非冲突，接受现状。
+- run_experiment command 缺省：experiment-loop 规范说「SHALL 接受任意 shell 命令」，未规定必填；`required` 从 schema 移除属工具契约变更，规范既未违反也未覆盖，接受现状；README 已可补一句说明（tasks 内）。
 
 ## 明确不修（worth-fix 判定留痕）
 

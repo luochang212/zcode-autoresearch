@@ -1,7 +1,7 @@
 # pi-autoresearch 验收审计:当前实态差距报告
 
 > 2026-08-27 · OpenSpec change: `audit-pi-autoresearch-gap`
-> 基线:pi v1.6.2(`archived/pi-autoresearch`)↔ 我方 `plugin/`(commit `6c52535`,58/58 测试通过,`node --test tests/*.test.mjs`)。
+> 基线:pi v1.6.2(`archived/pi-autoresearch`)↔ 我方 `plugin/`(58/58 测试通过,`node --test tests/*.test.mjs`)。
 > 性质:**验收审计**,以代码实态为准,取代 `pi-gap-analysis.md` §2–§4 的规划期差距矩阵(那份写于里程碑实现之前)。
 
 ## TL;DR

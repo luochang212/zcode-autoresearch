@@ -20,7 +20,7 @@
 - [x] 3.3 git.test.ts：`dirtyFiles`/`isDirty` 排除 `.zcode/`（仅会话文件改动时视为干净）
 - [x] 3.4 git.test.ts：`ensureSessionStateIgnored` 幂等（两次调用仅一行）且 `.gitignore` 已忽略时跳过
 - [x] 3.5 mcp-integration.test.ts：`init_experiment` 后 `.git/info/exclude` 含 `.zcode`
-- [x] 3.6 既有 `.zcode` keep 排除测试（90b28ed 加入）继续通过
+- [x] 3.6 既有 `.zcode` keep 排除测试继续通过
 
 ## 4. 文档与验证
 

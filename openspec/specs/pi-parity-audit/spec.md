@@ -8,7 +8,7 @@
 
 ### Requirement: 报告必须以代码实态逐项验收 28 项能力
 
-报告 SHALL 对照 `docs/research/pi-gap-analysis.md` 的 28 项能力清单，逐项核对当前 `plugin/` 代码（commit `6c52535`）的实态；每个判定 MUST 附代码位置证据（文件路径+行号或文件名），并标注为「已对齐」「超出」「缩水」「缺失」「平台硬顶」五级之一。
+报告 SHALL 对照 `docs/research/pi-gap-analysis.md` 的 28 项能力清单，逐项核对当前 `plugin/` 代码的实态；每个判定 MUST 附代码位置证据（文件路径+行号或文件名），并标注为「已对齐」「超出」「缩水」「缺失」「平台硬顶」五级之一。
 
 #### Scenario: 判定可复核
 

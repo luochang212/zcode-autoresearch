@@ -16,7 +16,7 @@ paths: [plugin/**]
 
 ## Decision
 
-插件采用三层解耦，映射到 zcode 插件五类组件（依据 zcode-plugins @ c06b727 官方文档）：
+插件采用三层解耦，映射到 zcode 插件五类组件（依据 zcode-plugins 官方文档）：
 
 1. **MCP 服务承载机制**（`.mcp.json` + `mcp/server.ts`）：`init_experiment` / `run_experiment` / `log_experiment` 三件套工具，实现计时、`METRIC name=value` 解析、10 行/4KB 回传截断、benchmark 脚本锁定、checks 背压、keep 自动 commit / 非 keep 自动 revert、`.auto/log.jsonl` append-only 账本。借自 pi-autoresearch。
 2. **skill 承载流程**：`skills/autoresearch/SKILL.md` 保持薄路由（≤60 行，安全不变量 + 循环规程 + 状态文件指针），详细协议放 `references/` 按需展开。借自 uditgoenka 的薄路由教训（其 SKILL.md 两个版本内从 41 行膨胀回 107 行，协议放 reference 才能延缓回流）。（2026-11-07 注：现状 86 行——unattended/迭代钩子/workingDir 章节为后续 change 所加，行数纪律已破但薄路由形态未变：协议仍在 references/。如实留痕，行数上限不再作为验收口径，形态才是。）

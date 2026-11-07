@@ -1,7 +1,7 @@
 # change 队列 worth-fix 审计：平台前提复核 + 逐项判定
 
 > 2026-09-24 · 方法：worth-fix，真实性判定（源码实证 / 最小复现）与价值判定（四维 + 后悔不对称）分离进行，勘误显式记录。
-> 触发：① pi 上游 1.6.2 → 1.8.1 delta 追平队列需要过一遍价值关；② zcode 开源（本机 clone，v3.14.3 @ 29628c9），ADR-1/3/4 的平台前提从「发行 bundle 实证」升级为「源码实证」。
+> 触发：① pi 上游 1.6.2 → 1.8.1 delta 追平队列需要过一遍价值关；② zcode 开源（本机 clone，v3.14.3），ADR-1/3/4 的平台前提从「发行 bundle 实证」升级为「源码实证」。
 
 > **落地状态回填（2026-10-31）**：§C 队列 1（discard-revisit + B3 confidence 快照）已落地（change `add-discard-revisit`）；2（cron-chained-continuation）已落地（change `add-cron-chained-continuation`，平台判定进 ADR-7）；3（B2 外部知识示例）与 4（docs 微项：setup-guide 预检一行、hooks 教学 stop_hook_active 一句）仍未落地，保持开放；5 出队项维持原判。
 
@@ -138,7 +138,7 @@ Hook 事件全集 = `SessionStart | UserPromptSubmit | PreToolUse | PermissionRe
 
 ## 证据索引
 
-- zcode 源码：开源仓库本机 clone（v3.14.3 @ 29628c9）；文中引用均为仓内相对路径。核心 runtime：apps/zcode-cli/packages/core/src；契约：apps/zcode-cli/packages/contracts/src；MCP 适配：apps/zcode-cli/packages/adapters/src/mcp。
+- zcode 源码：开源仓库本机 clone（v3.14.3）；文中引用均为仓内相对路径。核心 runtime：apps/zcode-cli/packages/core/src；契约：apps/zcode-cli/packages/contracts/src；MCP 适配：apps/zcode-cli/packages/adapters/src/mcp。
 - pi 上游：archived/pi-autoresearch 已 fetch 至 origin/main（v1.8.1）；机制引文见 §B1。
 - finalize 探针：§B4 四条，临时仓库已删，按步骤可复现（git init → 造组链 commit → 写 groups.json → bash plugin/scripts/finalize.sh）。
 - 子代理全量 survey：Q1-Q10 十问逐条 file:line（要点已并入 §A）。

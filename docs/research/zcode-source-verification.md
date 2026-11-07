@@ -1,6 +1,6 @@
 # ZCode 源码核验报告（v3.14.3）
 
-ZCode 已开源（github.com/zai-org/ZCode，本地核验版本 v3.14.3，commit 29628c9）。
+ZCode 已开源（github.com/zai-org/ZCode，本地核验版本 v3.14.3）。
 本文把插件依赖的平台假设逐条对照源码核验，替代此前 field-test / pi-gap-analysis
 中「实测推断 + bundle 搜索」级别的证据。核验日期：2026-09-24。
 

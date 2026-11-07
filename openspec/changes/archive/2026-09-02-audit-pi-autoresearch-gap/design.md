@@ -2,7 +2,7 @@
 
 ## 审计方法
 
-1. **对比基线**：pi v1.6.2 归档源码（`archived/pi-autoresearch/`）↔ 我方 `plugin/`（commit `6c52535`，58/58 测试通过）。
+1. **对比基线**：pi v1.6.2 归档源码（`archived/pi-autoresearch/`）↔ 我方 `plugin/`（58/58 测试通过）。
 2. **实态核对**：逐项读 `plugin/mcp/server.mjs`、`plugin/mcp/lib/*.mjs`、`plugin/hooks/*`（含 hooks.json）、`plugin/scripts/finalize.sh`、`plugin/skills/`、`plugin/commands/`，对照 pi 的 28 项能力清单判定，不做"规划态"推断。
 3. **一致性三查**：实现 ↔ SKILL.md 声称 ↔ 示例脚本依赖（三方对齐才是"已对齐"；两方对齐一方掉队即记 G1）。
 4. **测试佐证**：跑 `node --test tests/*.test.mjs` 确认基线健康；同时记录测试盲区（如 hooks.test.mjs 无 asi 覆盖）。

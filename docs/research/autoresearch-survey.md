@@ -11,12 +11,12 @@
 
 **研究样本与版本**（对比时请勿按"成熟度"排序，三者代表三条不同路线）：
 
-| 样本                    | 版本/快照                         | 形态                             | 一句话定位                                         |
-| ----------------------- | --------------------------------- | -------------------------------- | -------------------------------------------------- |
-| karpathy-autoresearch   | commit `228791f`，2026-03-25      | **纯 prompt 章程**（program.md） | 原始概念验证：LLM 训练这一个领域                   |
-| pi-autoresearch         | v1.6.2（package.json）            | **extension 工具 + skill 流程**  | 工程化：任意优化目标，宿主为 pi 终端 agent         |
-| uditgoenka-autoresearch | v2.2.2（`050e30d`，2026-08 快照） | **多命令 skill 套件**            | 泛化：Claude Code/OpenCode/Codex 三宿主，14 个命令 |
-| zcode-plugins（参考）   | commit `c06b727`，2026-08-26      | zcode 官方插件市场               | 核实 zcode 插件组成单元（§4）                      |
+| 样本                    | 版本/快照              | 形态                             | 一句话定位                                         |
+| ----------------------- | ---------------------- | -------------------------------- | -------------------------------------------------- |
+| karpathy-autoresearch   | 2026-03-25             | **纯 prompt 章程**（program.md） | 原始概念验证：LLM 训练这一个领域                   |
+| pi-autoresearch         | v1.6.2（package.json） | **extension 工具 + skill 流程**  | 工程化：任意优化目标，宿主为 pi 终端 agent         |
+| uditgoenka-autoresearch | v2.2.2（2026-08 快照） | **多命令 skill 套件**            | 泛化：Claude Code/OpenCode/Codex 三宿主，14 个命令 |
+| zcode-plugins（参考）   | 2026-08-26             | zcode 官方插件市场               | 核实 zcode 插件组成单元（§4）                      |
 
 ---
 
@@ -190,7 +190,7 @@ plain-language goal → `orchestrate.sh classify`（**纯 grep 关键词 + 硬�
 
 ---
 
-## 4. zcode 插件组成单元核实（zcode-plugins @ c06b727，2026-08-26）
+## 4. zcode 插件组成单元核实（zcode-plugins，2026-08-26）
 
 依据官方 `docs/PLUGIN_DEVELOPMENT_CN.md` 与 `plugins/example-plugin`（v0.3.0，官方推荐复制起步的模板）：
 

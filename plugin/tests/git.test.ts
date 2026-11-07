@@ -265,10 +265,10 @@ test("keep stages only the research dir when cwd is a workingDir subdir", () => 
 
 test("keep succeeds when the research dir's .auto is gitignored", () => {
   // git >= 2.55 exits 1 from add when an exclude pathspec covers a gitignored
-  // path, which once killed every keep in repos that gitignore .auto/ (780e211)
-  // — and 5e47f0f re-shaped the add argv in exactly that vicinity. So: the
-  // pathspec-less exclude must stay gone, and add must stage the code while
-  // silently skipping the ignored session dir.
+  // path, which once killed every keep in repos that gitignore .auto/, and an
+  // unrelated change later re-shaped the add argv in exactly that vicinity.
+  // So: the pathspec-less exclude must stay gone, and add must stage the code
+  // while silently skipping the ignored session dir.
   const cwd = tempRepo();
   writeFileSync(join(cwd, ".gitignore"), ".auto/\n");
   mkdirSync(join(cwd, ".auto"));
