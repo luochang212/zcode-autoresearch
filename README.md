@@ -19,7 +19,7 @@ A ZCode plugin that lets a coding agent iterate autonomously against a **fixed m
 
 - **Autonomous experiment loop**: one focused change per round → run the benchmark → improvements are auto-kept and committed, regressions auto-discarded and rolled back, until convergence or the iteration limit
 - **Proven in practice**: in a documented field test, the agent independently optimized a prime-number computation from 2852ms to 4ms (~713x) with correctness checks passing throughout ([field test](docs/research/autoresearch-field-test.md))
-- **Anti-cheating guardrails**: frozen-benchmark write protection, correctness-gate checks, ledger auditing, benchmark drift detection, secondary metric constraints (see below)
+- **Integrity guardrails**: frozen-benchmark write protection, correctness-gate checks, ledger auditing, benchmark drift detection, secondary metric constraints — they keep results honest and mistakes visible; the threat model is a cooperative but fallible agent, not adversarial cheating (ADR-11) (details below)
 - **Iteration hooks**: `.auto/hooks/before.sh` and `after.sh` run automatically before and after every experiment, with 7 ready-made examples (repeat-failure prevention, hypothesis reflection, learning logs, and more) you can copy and use
 - **Live dashboard**: a local dashboard auto-refreshes via SSE, so you can watch experiments as they run
 - **One-command wrap-up**: `/autoresearch:finalize` turns kept experiments into a clean, PR-ready branch
@@ -45,12 +45,12 @@ The agent will then guide you through setup and enter the loop.
 
 The biggest risk of an autonomous loop is the agent faking results to "score points". Four guardrail layers cover different failure modes (hard rejects where possible, warnings where a human must decide):
 
-| Layer                        | What it prevents                                        | Mechanism                                                                                                      |
-| ---------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Correctness backpressure     | Wrong output or deleted functionality                   | Assertions in `.auto/checks.sh`; a failure blocks keep                                                         |
-| Audit invariants             | A lying ledger: faked keeps or discards                 | Validated before `log_experiment` writes: keeps must be real improvements, event ordering, commit traceability |
-| Benchmark drift detection    | Modifying the benchmark to fake the metric              | `init_experiment` records hashes of frozen files; any mid-run change triggers a warning                        |
-| Secondary metric constraints | Trading memory or call count for speed (reward hacking) | Opt-in `constraints: [{name, maxPct}]`; exceeding the bound blocks keep                                        |
+| Layer                        | What it prevents                                             | Mechanism                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Correctness backpressure     | Wrong output or deleted functionality                        | Assertions in `.auto/checks.sh`; a failure blocks keep                                                         |
+| Audit invariants             | A lying ledger: faked keeps or discards                      | Validated before `log_experiment` writes: keeps must be real improvements, event ordering, commit traceability |
+| Benchmark drift detection    | Modifying the benchmark to fake the metric                   | `init_experiment` records hashes of frozen files; any mid-run change triggers a warning                        |
+| Secondary metric constraints | A keep that trades memory or call count for speed is invalid | Opt-in `constraints: [{name, maxPct}]`; exceeding the bound blocks keep                                        |
 
 > [!NOTE]
 > **Known limits** (platform constraints, recorded honestly): zcode has no session-injection API, so _unbounded_ auto-resume is impossible; continuation relies on the 3-time Stop window, manual turns, and the bounded `CronCreate` self-wakeup (see [`plugin/skills/autoresearch/references/unattended.md`](plugin/skills/autoresearch/references/unattended.md)). There is no compaction event either; memory is preserved via aggregated-summary injection. No TUI widget exists, which is why the dashboard lives in the browser. See [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md) for details.

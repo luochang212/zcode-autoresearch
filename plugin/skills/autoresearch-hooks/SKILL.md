@@ -25,7 +25,7 @@ Rules of thumb:
 
 - **Silence is the default**: print nothing unless you have something worth saying.
 - **One hook, one concern**: a reminder hook vs a journal hook are different files.
-- No environment variables; everything comes from stdin.
+- The contract is stdin, not the environment: spawn passes the server's env through, but hooks should not depend on it (the shipped `self-check` example's optional interval override is the one sanctioned exception).
 
 ## Scenario selection
 

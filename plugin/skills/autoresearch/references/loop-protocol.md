@@ -55,7 +55,7 @@ The prefixes are an advisory convention: the tools never validate them, and unta
 - Consecutive failures reach the threshold (`.auto/config.json` `consecutiveFailures`, default 3) → stop, the approach is not working.
 - User interrupts → complete the current run+log cycle first, then summarize.
 - **Do not** run experiments that change `.auto/measure.sh` or `.auto/checks.sh`; if the target changes, call `init_experiment` again (new segment) instead.
-- Reset everything with `clear_experiments` (`/autoresearch:clear`).
+- Clear the ledger with `clear_experiments` (`/autoresearch:clear`; the other `.auto/` files are kept).
 - When done, run `export_dashboard` for a live URL + static report, then `/autoresearch:finalize` to split kept experiments into topic branches.
 
 ## Harness editing (second-order loop)

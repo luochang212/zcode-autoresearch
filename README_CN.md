@@ -19,7 +19,7 @@
 
 - **自主实验循环**：一次聚焦改动 → 跑基准 → 改进自动 keep 并 commit，退化自动 discard 并回滚，直到收敛或达到迭代上限
 - **实测有效**：在留档的实测中，agent 独立把质数计算从 2852ms 优化到 4ms（约 713 倍），正确性全程守住（[实测记录](docs/research/autoresearch-field-test.md)）
-- **防作弊护栏**：冻结基准写保护、checks 正确性门禁、账本审计、基准漂移检测、次级度量约束（见下文）
+- **完整性护栏**：冻结基准写保护、checks 正确性门禁、账本审计、基准漂移检测、次级度量约束——让结果诚实、错误可见；威胁模型是合作但会犯错的 agent，非对抗防作弊（ADR-11，详见下文）
 - **迭代钩子**：`.auto/hooks/before.sh` 与 `after.sh` 在每次实验前后自动执行，7 个现成示例（防重复失败、假设反思、学习日志等）复制即用
 - **实时面板**：本地 dashboard 通过 SSE 自动刷新，实验过程边跑边看
 - **一键收尾**：`/autoresearch:finalize` 把 kept 实验整理成可 PR 的干净分支
@@ -45,12 +45,12 @@
 
 自主循环最大的风险是 agent 为了「跑分」造假。四层护栏各管一类失效（能硬拒的硬拒，需要人判断的只警告）：
 
-| 层                | 防什么                                  | 机制                                                                  |
-| ----------------- | --------------------------------------- | --------------------------------------------------------------------- |
-| checks 正确性背压 | 输出不对或删功能                        | `.auto/checks.sh` 断言，失败禁 keep                                   |
-| 审计不变量        | 账本说谎，假装保留或丢弃                | `log_experiment` 写入前校验：keep 必须真实改进、事件顺序、commit 溯源 |
-| 基准漂移检测      | 改基准造假 metric                       | `init_experiment` 记录冻结文件哈希，中途变更即警告                    |
-| 次级度量约束      | 用内存或调用数换速度，即 reward hacking | opt-in 的 `constraints: [{name, maxPct}]`，超界禁 keep                |
+| 层                | 防什么                             | 机制                                                                  |
+| ----------------- | ---------------------------------- | --------------------------------------------------------------------- |
+| checks 正确性背压 | 输出不对或删功能                   | `.auto/checks.sh` 断言，失败禁 keep                                   |
+| 审计不变量        | 账本说谎，假装保留或丢弃           | `log_experiment` 写入前校验：keep 必须真实改进、事件顺序、commit 溯源 |
+| 基准漂移检测      | 改基准造假 metric                  | `init_experiment` 记录冻结文件哈希，中途变更即警告                    |
+| 次级度量约束      | 以内存或调用数换速度的 keep 不合法 | opt-in 的 `constraints: [{name, maxPct}]`，超界禁 keep                |
 
 > [!NOTE]
 > **已知边界**（平台限制，如实记录）：zcode 无会话注入 API，无法**无限** auto-resume；续跑靠 Stop 3 次窗口、人工触发，以及有界的 `CronCreate` 自唤醒（见 [`plugin/skills/autoresearch/references/unattended.md`](plugin/skills/autoresearch/references/unattended.md)）。无 compaction 事件，靠聚合摘要注入保住记忆；无 TUI widget，因此面板放在浏览器里。详见 [`docs/research/pi-gap-analysis.md`](docs/research/pi-gap-analysis.md)。

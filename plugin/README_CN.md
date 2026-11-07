@@ -68,7 +68,7 @@
 - **止损**：连续失败达 `.auto/config.json` 的 `consecutiveFailures`（默认 3，可配）时提示停止。
 - **账本审计**：`log_experiment` 写入前校验不变量（keep 必须真实改进、discard 真改进须 failed guard、checks_failed 须有最近一次 run 的失败判定背书、事件顺序、commit 字段），且落账 metric 必须等于 `run_experiment` 的观测值——run 的观测快照持久化于 config.json、每次成功 log 消费（一次 run 对应一次 log；crash 仅在未观测到度量时有据；`pending*` 跨调用态在 segment 边界——`init_experiment`/`clear_experiments`——整体清除，上一 session 的观测不为本 session 背书），违规拒收；脏树上的 noop 携带显式警告；crash 未回滚禁止续跑。`.auto/config.json` 的 `auditBypass: true` 会同时跳过审计与次级度量约束（不推荐）。
 - **基准漂移检测**：`init_experiment` 记录 measure.sh/checks.sh 哈希，`run_experiment` 比对；基准中途变更时返回 `benchmark_drift` 警告（暴露基准改动，不静默接受不可比 metric）。
-- **次级度量约束**（opt-in）：`log_experiment` 支持 `constraints: [{name, maxPct}]`。keep 时校验次级度量不超首轮值的 maxPct%，超界拒收（防"用内存换速度"类 reward hacking）。
+- **次级度量约束**（opt-in）：`log_experiment` 支持 `constraints: [{name, maxPct}]`。keep 时校验次级度量不超首轮值的 maxPct%，超界拒收（"更快但重得多"的 keep 不合法）。
 
 ## 目录结构
 
