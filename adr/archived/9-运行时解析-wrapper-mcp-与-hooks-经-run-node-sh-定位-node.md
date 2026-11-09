@@ -1,10 +1,13 @@
 ---
-status: implemented
-date: 2026-11-01
+status: superseded
+date: 2026-11-10
 description: 改 MCP server/hooks 启动链（run-node.sh、.mcp.json、hooks.json）或排查插件装完没反应、工具不挂载时读。
 raised-by: agent
 decided-by: human
 created: 2026-11-01
+superseded-by: 12
+archived: 2026-11-10
+archive-reason: superseded by ADR 12
 ---
 
 # ADR: 9 运行时解析 wrapper：MCP 与 hooks 经 run-node.sh 定位 Node
