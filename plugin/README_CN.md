@@ -16,7 +16,9 @@
 
 > 无第三方 npm 依赖：MCP server 与 hooks 均为 Node 标准库 TypeScript 脚本（Node ≥24，类型由 Node 原生剥离，无构建步骤）。
 >
-> 运行要求：机器上需存在 Node ≥24，但不要求它在宿主 PATH 上。MCP server 与 hooks 经 `scripts/run-node.sh` 启动，按 PATH → nvm（`$NVM_DIR`）→ Homebrew → `/usr/local/bin` 自动解析，可用 `AUTORESEARCH_NODE_BIN` 显式指定（`sh scripts/run-node.sh --resolve` 可查看解析结果）。启动入口依赖 POSIX sh；Windows 上只有 node 在 PATH 并不够（基准脚本本就是 bash，需要 POSIX shell）。hooks 同样经 `sh`（`hooks.json`）拉起：Windows 上需要 Git-Bash（或其他 `sh`）在 PATH 上，否则 hooks（含冻结写保护）会静默失效。
+> 运行要求：机器上需存在 Node ≥24，但不要求它在宿主 PATH 上。MCP server 与 hooks 经 `scripts/launcher.mjs` 以裸 `node` 启动（`node` 是宿主在三平台都能解析的唯一命令），解析顺序 PATH → nvm（POSIX `$NVM_DIR` / Windows `%NVM_HOME%` 或 `%APPDATA%
+vm`，最新优先）→ Homebrew 或 `/usr/local/bin`（POSIX）→ `%ProgramFiles%
+odejs`（Windows），可用 `AUTORESEARCH_NODE_BIN` 显式指定（`node scripts/launcher.mjs --resolve` 可查看解析结果）。基准脚本（`.auto/measure.sh`、`.auto/checks.sh`）仍是 bash，Windows 上需要 Git-Bash 或 WSL。
 
 ## 安全与副作用
 
@@ -90,7 +92,7 @@ plugin/
 │   ├── autoresearch/           # SKILL.md 薄路由 + references/
 │   └── autoresearch-hooks/     # 迭代钩子教学
 ├── commands/                   # autoresearch / export / off / clear / finalize
-├── scripts/                    # run-node.sh（server 与 hooks 的 Node 解析入口）/ finalize.sh（/autoresearch:finalize 实现）
+├── scripts/                    # launcher.mjs（server 与 hooks 的跨平台 Node 解析入口）/ finalize.sh（/autoresearch:finalize 实现）
 └── tests/                      # node --test 单元测试
 ```
 
@@ -119,7 +121,7 @@ plugin/
 - **无人值守**：双层形态。会话内靠 Stop hook 续跑窗口（连续 3 次），跨 turn 靠 `CronCreate` 有界定时自唤醒（有限日程 + `maxRuns`，须经用户明确授权；见技能 `references/unattended.md`）。无限 auto-resume 仍是平台级不可行。
 - **无头模式（`--prompt`）不执行 hooks**：护栏在交互式会话生效；请用交互式会话跑 autoresearch。
 - **冻结文件写保护只覆盖文件类工具**：PreToolUse 守卫只看 `Write`/`Edit`/`ApplyPatch`；shell 重定向（如 `echo x > .auto/measure.sh`）绕过它，由基准漂移检测事后捕获——是检测而非阻止。
-- **Windows 启动链未验证**：MCP server 与全部 hooks 经 `sh run-node.sh` 启动，需要 PATH 上有 POSIX `sh`（Git-Bash 环境自带）；原生 Windows 行为未实测——遇到异常请反馈。
+- **Windows 启动链已验证**：MCP server 与全部 hooks 经 `node scripts/launcher.mjs` 启动（裸 `node`，不经 POSIX sh）；解析分支在 Windows 上由 `tests/launcher.test.ts` 覆盖——遇到异常请反馈。
 - keep 会提交研究目录内所有未提交改动——含无关文件（继承 pi 的已知弱点）；setup 时先提交干净基线。`workingDir` 模式下研究目录之外的改动不会被提交，仓库内其他位置预暂存的文件会先被 unstage，保证 commit 恰好描述本次实验。
 
 ## 开发

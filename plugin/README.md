@@ -18,7 +18,9 @@ This plugin executes code and operates on a git repository. Enabling it grants c
 
 No third-party npm dependencies: the MCP server and hooks are Node-stdlib TypeScript scripts (Node ≥24, types stripped natively, no build step).
 
-Node ≥24 must exist on the machine, but it does not have to be on the host's PATH: the MCP server and hooks launch through `scripts/run-node.sh`, which resolves Node from PATH, then nvm (`$NVM_DIR`), Homebrew or `/usr/local/bin`, and honors `AUTORESEARCH_NODE_BIN` to pin one explicitly (run `sh scripts/run-node.sh --resolve` to see what it picks). The launcher needs a POSIX `sh`; on Windows, node-on-PATH alone is not enough (the benchmark scripts are bash and require a POSIX shell anyway). The hooks are likewise spawned via `sh` (`hooks.json`): on Windows that means Git-Bash (or another `sh`) must be on PATH, otherwise the hooks silently no-op — write protection included.
+Node ≥24 must exist on the machine, but it does not have to be on the host's PATH: the MCP server and hooks launch through `scripts/launcher.mjs` via plain `node` (the one command the host resolves on all platforms), which resolves Node from PATH, then nvm (POSIX `$NVM_DIR` / Windows `%NVM_HOME%` or `%APPDATA%
+vm`, newest-first), Homebrew or `/usr/local/bin` (POSIX) / `%ProgramFiles%
+odejs` (Windows), and honors `AUTORESEARCH_NODE_BIN` to pin one explicitly (run `node scripts/launcher.mjs --resolve` to see what it picks). The benchmark scripts (`.auto/measure.sh`, `.auto/checks.sh`) are still bash and need a POSIX shell (Git-Bash or WSL) on Windows.
 
 ## Install
 
@@ -90,7 +92,7 @@ plugin/
 │   ├── autoresearch/           # SKILL.md thin router + references/
 │   └── autoresearch-hooks/     # iteration-hook tutorial
 ├── commands/                   # autoresearch / export / off / clear / finalize
-├── scripts/                    # run-node.sh (Node resolver for server + hooks) / finalize.sh (/autoresearch:finalize)
+├── scripts/                    # launcher.mjs (cross-platform Node resolver for server + hooks) / finalize.sh (/autoresearch:finalize)
 └── tests/                      # node --test unit tests
 ```
 
@@ -119,7 +121,7 @@ The manifest `userConfig` (`maxIterations` / timeouts) seeds the **MCP server's*
 - **Unattended runs**: two layers - the Stop-hook continuation window (3 consecutive) inside a session, plus scheduled self-wakeup via `CronCreate` (finite schedule + `maxRuns`, user-authorized only; see the skill's `references/unattended.md`). Infinite auto-resume stays impossible by platform design.
 - **Headless mode (`--prompt`) does not run hooks**: guardrails take effect in interactive sessions; run autoresearch in an interactive session.
 - **Frozen-file write protection covers file tools only**: the PreToolUse guard sees `Write`/`Edit`/`ApplyPatch`; shell redirections (e.g. `echo x > .auto/measure.sh`) bypass it and are caught by benchmark drift detection instead — detection after the fact, not prevention.
-- **Windows spawn chain not yet verified**: the MCP server and all hooks start via `sh run-node.sh`, which needs a POSIX `sh` on PATH (Git-Bash environments provide one); native-Windows behavior is untested — report anything odd there.
+- **Windows spawn chain verified**: the MCP server and all hooks start via `node scripts/launcher.mjs` (plain `node`, no POSIX shell involved); resolver branches are covered on Windows by `tests/launcher.test.ts` — report anything odd there.
 - A keep commits every uncommitted change inside the research directory — unrelated files included (known pi inheritance); commit a clean baseline during setup. Changes outside the research dir (`workingDir` mode) are never committed, and any pre-staged files elsewhere in the repo are unstaged first so the commit describes exactly this experiment.
 
 ## Development
