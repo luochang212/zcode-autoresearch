@@ -81,10 +81,9 @@ function pathCandidates() {
   return out;
 }
 
-// nvm candidates. POSIX keeps the ADR-9 semantics (glob order, first
-// qualifying); win32 nvm-windows keeps one versioned node.exe per directory,
-// so candidates are emitted newest-first and the search takes the first
-// qualifying — same contract, platform-appropriate ordering.
+// nvm candidates. POSIX nvm-sh keeps versions at `$NVM_DIR/versions/node/<v>`
+// (legacy layouts put them at the root); win32 nvm-windows at `<root>/<v>`.
+// Within a base, newest version first — the search takes the first qualifying.
 function nvmCandidates() {
   const out = [];
   const nvmDir =
@@ -93,26 +92,35 @@ function nvmCandidates() {
     (process.platform === "win32"
       ? join(process.env.APPDATA ?? "", "nvm")
       : join(process.env.HOME ?? "", ".nvm"));
-  try {
-    const versions = readdirSync(nvmDir)
-      .filter((name) => /^v?\d+\.\d+\.\d+$/.test(name))
-      .sort((a, b) => {
-        const pa = a.replace(/^v/, "").split(".").map(Number);
-        const pb = b.replace(/^v/, "").split(".").map(Number);
-        for (let i = 0; i < 3; i += 1) {
-          if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pb[i] ?? 0) - (pa[i] ?? 0);
-        }
-        return 0;
-      });
+  const bases =
+    process.platform === "win32"
+      ? [nvmDir]
+      : [join(nvmDir, "versions", "node"), nvmDir];
+  for (const base of bases) {
+    let versions = [];
+    try {
+      versions = readdirSync(base)
+        .filter((name) => /^v?\d+\.\d+\.\d+$/.test(name))
+        .sort((a, b) => {
+          const pa = a.replace(/^v/, "").split(".").map(Number);
+          const pb = b.replace(/^v/, "").split(".").map(Number);
+          for (let i = 0; i < 3; i += 1) {
+            if ((pa[i] ?? 0) !== (pb[i] ?? 0))
+              return (pb[i] ?? 0) - (pa[i] ?? 0);
+          }
+          return 0;
+        });
+    } catch {
+      // base does not exist — no candidates from here.
+      continue;
+    }
     for (const version of versions) {
       const bin =
         process.platform === "win32"
-          ? join(nvmDir, version, "node.exe")
-          : join(nvmDir, "versions", "node", version, "bin", "node");
+          ? join(base, version, "node.exe")
+          : join(base, version, "bin", "node");
       if (isExecutable(bin) && !out.includes(bin)) out.push(bin);
     }
-  } catch {
-    // nvm not installed at this location — no candidates from here.
   }
   return out;
 }
