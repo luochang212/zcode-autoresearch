@@ -20,12 +20,15 @@ set -euo pipefail
 PROJECT="${1:?projectCwd required}"
 GJSON="${2:?groups.json required}"
 
-# Resolve Node through the plugin's resolver (ADR-9): a desktop app does not
-# always inherit a login PATH, and this script would die under set -e the
-# moment bare `node` is missing. A failed resolution is a loud 127 with
-# run-node.sh's diagnostic on stderr. SCRIPT_DIR must be captured before cd.
+# Resolve Node through the plugin's launcher (cross-platform contract, see
+# openspec autoresearch/runtime): a desktop app does not always inherit a
+# login PATH, and this script would die under set -e the moment bare `node`
+# is missing. Running the launcher itself needs a bare `node` on the caller's
+# PATH (finalize runs in the agent shell, which has it); a failed resolution
+# is a loud 127 with launcher.mjs's diagnostic on stderr. SCRIPT_DIR must be
+# captured before cd.
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-NODE_BIN="$(sh "$SCRIPT_DIR/run-node.sh" --resolve | sed -n 's/^node=//p')"
+NODE_BIN="$(node "$SCRIPT_DIR/launcher.mjs" --resolve | sed -n 's/^node=//p')"
 
 # Normalize groups.json to an absolute path BEFORE cd: relative paths resolve
 # against the caller's cwd, not the project dir.
