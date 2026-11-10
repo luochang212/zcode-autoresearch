@@ -269,12 +269,35 @@ function renderBody(
       typeof revisits === "number" && Number.isInteger(revisits) && revisits > 0
         ? revisits
         : null;
+    // ADR-11 (help-first): hypothesis / next_action_hint / rollback carry the
+    // loop's reasoning but only reached the agent via memory-inject — the
+    // dashboard showed nothing. Render them as a collapsible block so a human
+    // reading the trend can answer "why did this round do what it did".
+    const asiParts: Array<[string, string]> = [];
+    if (typeof r.asi?.hypothesis === "string" && r.asi.hypothesis.length > 0)
+      asiParts.push(["假设", r.asi.hypothesis]);
+    if (
+      typeof r.asi?.next_action_hint === "string" &&
+      r.asi.next_action_hint.length > 0
+    )
+      asiParts.push(["下一步", r.asi.next_action_hint]);
+    if (typeof r.asi?.rollback === "string" && r.asi.rollback.length > 0)
+      asiParts.push(["回滚理由", r.asi.rollback]);
+    const asiBlock =
+      asiParts.length > 0
+        ? `<details class="r-asi"><summary>假设与结论</summary>${asiParts
+            .map(
+              ([k, v]) =>
+                `<div class="asi-row"><span class="asi-k">${k}</span><span class="asi-v">${escapeHtml(v)}</span></div>`,
+            )
+            .join("")}</details>`
+        : "";
     rows.push(`<div class="run" id="run-${i + 1}" data-status="${r.status === "keep" ? "keep" : r.status === "noop" ? "noop" : "reverted"}" tabindex="-1">
   <div class="r-no">${i + 1}</div>
   <div class="r-stamp ${badge.cls}">${badge.label}</div>
   <div class="r-metric">${fmtMetric(r.metric)}${r.metric != null && current?.metricUnit ? `<span class="u">${escapeHtml(current.metricUnit)}</span>` : ""}</div>
   <div class="r-delta">${d ? `<span class="d ${d.cls}">${d.text}</span>` : `<span class="d neut">—</span>`}</div>
-  <div class="r-desc">${escapeHtml(r.description ?? "")}${revisitsN != null ? ` <span class="revisits">↻ Revisiting #${revisitsN}</span>` : ""}</div>
+  <div class="r-desc">${escapeHtml(r.description ?? "")}${revisitsN != null ? ` <span class="revisits">↻ Revisiting #${revisitsN}</span>` : ""}${asiBlock}</div>
   <div class="r-commit">${r.commit ? `<code>${escapeHtml(r.commit)}</code>` : ""}</div>
 </div>`);
   });
@@ -394,6 +417,11 @@ ${rows.join("\n")}
   .d.neut { color: var(--neut); }
   .r-desc { font-size: .9rem; min-width: 0; overflow-wrap: anywhere; }
   .revisits { color: var(--muted); font: .75rem var(--mono); white-space: nowrap; }
+  .r-asi { margin-top: 3px; font-size: .78rem; }
+  .r-asi summary { cursor: pointer; opacity: .65; }
+  .asi-row { display: flex; gap: 6px; margin: 4px 0; }
+  .asi-k { flex: none; font-weight: 600; opacity: .7; }
+  .asi-v { white-space: pre-wrap; word-break: break-word; min-width: 0; }
   .r-commit { font: .78rem var(--mono); text-align: right; }
   .r-commit code { background: var(--accent-soft); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
   .empty { color: var(--muted); padding: 2rem 0 3rem; }

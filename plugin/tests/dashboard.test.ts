@@ -519,6 +519,46 @@ test("renderer: revisits_run marker renders only for positive integers", () => {
   assert.match(renderLiveDashboard(rebuildHistory(entries)), /↻ Revisiting #3/);
 });
 
+test("renderer: asi hypothesis/next/rollback render as a collapsible block", () => {
+  // 2026-11-11: the loop's reasoning (hypothesis / next_action_hint /
+  // rollback) only reached the agent via memory-inject; the dashboard showed
+  // nothing — a human reading the trend could not answer "why this round".
+  const entries = entriesWithRuns([
+    ["keep", 100],
+    ["discard", 105],
+  ]);
+  const runs = entries.filter((e) => e.type === "run") as LedgerRun[];
+  runs[0].asi = {
+    hypothesis: "swap to catboost",
+    next_action_hint: "tune depth",
+    rollback: "kept as winner",
+  };
+  const html = renderDashboard(rebuildHistory(entries));
+  assert.match(html, /<details class="r-asi"><summary>假设与结论<\/summary>/);
+  assert.match(
+    html,
+    /<span class="asi-k">假设<\/span><span class="asi-v">swap to catboost<\/span>/,
+  );
+  assert.match(
+    html,
+    /<span class="asi-k">下一步<\/span><span class="asi-v">tune depth<\/span>/,
+  );
+  assert.match(html, /<span class="asi-k">回滚理由<\/span>/);
+  // the live dashboard shares the same render path
+  assert.match(renderLiveDashboard(rebuildHistory(entries)), /class="r-asi"/);
+
+  // rows without asi fields stay block-free
+  const plain = entriesWithRuns([["keep", 100]]);
+  const plainHtml = renderDashboard(rebuildHistory(plain));
+  assert.doesNotMatch(plainHtml, /class="r-asi"/);
+
+  // ledger text is data, never markup
+  runs[1].asi = { hypothesis: '<img src=x onerror="alert(1)">' };
+  const hostile = renderDashboard(rebuildHistory(entries));
+  assert.match(hostile, /&lt;img src=x/);
+  assert.doesNotMatch(hostile, /<img src=x/);
+});
+
 test("renderer: negative baselines preserve improvement direction", () => {
   for (const [direction, best, text] of [
     ["lower", -20, "−100%"],
