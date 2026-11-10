@@ -247,6 +247,49 @@ test("init_experiment declares .zcode in .git/info/exclude", async () => {
   assert.ok(exclude.split(/\r?\n/).includes(".zcode"));
 });
 
+test("init_experiment warns when the working tree starts dirty", async () => {
+  // 2026-11-11: a discard reverts the whole tree, and work already uncommitted
+  // at session start is indistinguishable from experiment changes later —
+  // init is the only observable moment to warn before it can be disposed of.
+  const cwd = tempRepo();
+  writeFileSync(join(cwd, "uncommitted.txt"), "user work\n");
+  await withServer(cwd, async (s) => {
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(init.ok, true);
+    const message = String(init.message ?? "");
+    assert.match(message, /working tree is dirty/);
+    assert.match(message, /uncommitted\.txt/);
+    assert.match(message, /unrecoverable/);
+  });
+});
+
+test("init_experiment on a clean tree carries no dirty warning", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    const init = await s.tool("init_experiment", {
+      name: "t",
+      metric_name: "time_ms",
+    });
+    assert.equal(init.ok, true);
+    assert.doesNotMatch(String(init.message ?? ""), /working tree is dirty/);
+  });
+});
+
+test("init_experiment writes config atomically (valid JSON, no temp residue)", async () => {
+  const cwd = tempRepo();
+  await withServer(cwd, async (s) => {
+    await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
+  });
+  const cfg = JSON.parse(
+    readFileSync(join(cwd, ".auto", "config.json"), "utf8"),
+  );
+  assert.ok(cfg.benchmarkHashes);
+  assert.ok(!existsSync(join(cwd, ".auto", "config.json.tmp")));
+});
+
 test("iteration hooks: before runs before benchmark, after after logging, steer returned", async () => {
   const cwd = tempRepo();
   mkdirSync(join(cwd, ".auto", "hooks"), { recursive: true });
@@ -733,13 +776,15 @@ test("a failed pending-state reset does not unseat the logged row", async () => 
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// change\n");
-    // Make config.json unwritable AFTER run_experiment persisted its snapshot:
-    // the ledger append succeeds, the pending-state clear fails with EACCES.
+    // Make .auto unwritable AFTER run_experiment persisted its snapshot: the
+    // ledger append succeeds (existing file, append needs no directory write),
+    // the pending-state clear fails with EACCES (atomic write creates a temp
+    // file in the directory, and rename is governed by directory permissions).
     // The row must stand (ok:true + warning) — returning an error here would
     // invite a retry that the still-pending observation would attest, i.e. a
     // duplicate run row the audit cannot catch.
-    const cfgPath = join(cwd, ".auto", "config.json");
-    chmodSync(cfgPath, 0o444);
+    const autoDir = join(cwd, ".auto");
+    chmodSync(autoDir, 0o555);
     try {
       const r = await s.tool("log_experiment", {
         status: "discard",
@@ -753,7 +798,7 @@ test("a failed pending-state reset does not unseat the logged row", async () => 
         .filter((l) => l.includes('"type":"run"')).length;
       assert.equal(rows, 1);
     } finally {
-      chmodSync(cfgPath, 0o644);
+      chmodSync(autoDir, 0o755);
     }
   });
 });

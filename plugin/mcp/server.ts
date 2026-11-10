@@ -10,9 +10,11 @@ import type {
 import type { Readable } from "node:stream";
 import {
   appendFileSync,
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -573,7 +575,32 @@ function patchSessionConfig(patch: Record<string, unknown>): void {
     }
   }
   Object.assign(cfg, patch);
-  writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  writeSessionConfigAtomic(cfgPath, cfg);
+}
+
+/**
+ * config.json is the cross-call state family (calibration keys, maxIterations,
+ * auditBypass sit next to server-managed keys) and readSessionConfig degrades
+ * a corrupt file to `{}` — an in-place writeFileSync truncated by a crash
+ * mid-write would silently reset every override on next read. Write to a
+ * sibling temp file and rename: rename is atomic on POSIX, so readers only
+ * ever see the old or the new complete file.
+ */
+function writeSessionConfigAtomic(
+  cfgPath: string,
+  cfg: Record<string, unknown>,
+): void {
+  const tmpPath = `${cfgPath}.tmp`;
+  writeFileSync(tmpPath, JSON.stringify(cfg, null, 2));
+  // rename(2) replaces the target regardless of its permission bits — carry
+  // the existing mode over, or a chmod-restricted config silently gains
+  // default permissions on every update.
+  try {
+    chmodSync(tmpPath, statSync(cfgPath).mode);
+  } catch {
+    // ENOENT (first write) → keep the tmp file's default mode.
+  }
+  renameSync(tmpPath, cfgPath);
 }
 
 function writeBenchmarkHashes(hashes: {
@@ -611,7 +638,7 @@ function resetPendingState(): void {
       touched = true;
     }
   }
-  if (touched) writeFileSync(cfgPath, JSON.stringify(cfg, null, 2));
+  if (touched) writeSessionConfigAtomic(cfgPath, cfg);
 }
 
 /**
@@ -1024,6 +1051,16 @@ async function toolInitExperiment(
       ? ""
       : `\nnote: on branch "${branch}"; consider a dedicated branch (git checkout -b autoresearch/<tag>)`
     : "\nnote: detached HEAD; check out a branch (git checkout -b autoresearch/<tag>) before experimenting";
+  // ADR-11 (help-first): a discard reverts the whole working tree (git.ts
+  // rollbackWorkingTree), and work that was already uncommitted at session
+  // start is indistinguishable from experiment changes later on — the only
+  // observable moment is init. Warn once here so the agent can commit or
+  // stash unrelated work before the first discard can dispose of it.
+  const preDirty = dirtyFiles(cwd);
+  const dirtyNote =
+    preDirty.length > 0
+      ? `\nwarning: working tree is dirty (${preDirty.length} files: ${preDirty.slice(0, 5).join(", ")}${preDirty.length > 5 ? " …" : ""}); these pre-existing changes are outside the experiment's control — a discard before the first keep will revert or delete them too, and uncommitted content is unrecoverable. Commit or stash unrelated work first`
+      : "";
   const calibrationEcho =
     calibMin !== undefined ||
     calibWindow !== undefined ||
@@ -1041,7 +1078,8 @@ async function toolInitExperiment(
     segment,
     message:
       `experiment session "${name}" initialized (segment ${segment}). metric=${metricName} direction=${direction}` +
-      branchNote,
+      branchNote +
+      dirtyNote,
     ...(calibrationEcho ? { calibration: calibrationEcho } : {}),
   };
 }
