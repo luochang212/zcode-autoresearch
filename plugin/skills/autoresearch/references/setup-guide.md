@@ -127,5 +127,5 @@ git commit -m "chore: stop tracking autoresearch session state"
 
 1. Commit a clean baseline first (`git checkout -b autoresearch/<goal>` recommended).
 2. `init_experiment` with name / metric_name / direction.
-3. Run a baseline pass: `run_experiment` → `log_experiment` with the baseline metric as `status:"noop"` (no code change) or `discard` if it equals/worse; a baseline `keep` is rejected because there is nothing to commit.
+3. Run a baseline pass: `run_experiment` → `log_experiment` with the baseline metric as `status:"noop"` (no code change) or `discard` if it equals/worse; a baseline `keep` is rejected because there is nothing to commit. The baseline row counts toward `maxIterations` like every run row (`runs_left = max − all rows`), so plan the cap as _planned experiments + baseline rows_ (e.g. 10 experiments + 1 noop baseline → `maxIterations: 11`).
 4. Then loop: one change → run → log.
