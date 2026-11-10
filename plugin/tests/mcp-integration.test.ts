@@ -776,30 +776,31 @@ test("a failed pending-state reset does not unseat the logged row", async () => 
     await s.tool("init_experiment", { name: "t", metric_name: "time_ms" });
     await runBenchmark(s);
     appendFileSync(join(cwd, "code.js"), "// change\n");
-    // Make .auto unwritable AFTER run_experiment persisted its snapshot: the
-    // ledger append succeeds (existing file, append needs no directory write),
-    // the pending-state clear fails with EACCES (atomic write creates a temp
-    // file in the directory, and rename is governed by directory permissions).
+    // Occupy the atomic-write temp path AFTER run_experiment persisted its
+    // snapshot: the ledger append succeeds (plain append to an existing
+    // file needs no directory write), but the pending-state clear fails —
+    // the atomic config write must create .auto/config.json.tmp before the
+    // rename, and creating a file where a directory stands fails on every
+    // platform. 2026-11-11: the previous injection chmod'ed the .auto
+    // directory read-only, which only works on POSIX — the windows CI
+    // runner ignores the read-only attribute for file creation inside a
+    // directory, so the reset silently succeeded there and the warning
+    // never fired.
     // The row must stand (ok:true + warning) — returning an error here would
     // invite a retry that the still-pending observation would attest, i.e. a
     // duplicate run row the audit cannot catch.
-    const autoDir = join(cwd, ".auto");
-    chmodSync(autoDir, 0o555);
-    try {
-      const r = await s.tool("log_experiment", {
-        status: "discard",
-        metric: 42,
-        description: "pending reset failure",
-      });
-      assert.equal(r.ok, true);
-      assert.match(String(r.pending_reset_warning), /do not log again/);
-      const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
-        .split("\n")
-        .filter((l) => l.includes('"type":"run"')).length;
-      assert.equal(rows, 1);
-    } finally {
-      chmodSync(autoDir, 0o755);
-    }
+    mkdirSync(join(cwd, ".auto", "config.json.tmp"));
+    const r = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 42,
+      description: "pending reset failure",
+    });
+    assert.equal(r.ok, true);
+    assert.match(String(r.pending_reset_warning), /do not log again/);
+    const rows = readFileSync(join(cwd, ".auto", "log.jsonl"), "utf8")
+      .split("\n")
+      .filter((l) => l.includes('"type":"run"')).length;
+    assert.equal(rows, 1);
   });
 });
 
