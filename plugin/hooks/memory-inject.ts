@@ -2,7 +2,11 @@
 // UserPromptSubmit hook: inject an aggregated session-memory summary so the
 // loop survives compaction and long sessions — progress, deduplicated tried
 // directions, best trajectory, recent runs with ASI, and a doom-loop warning.
-import { rebuildState, readSessionConfig } from "../mcp/lib/ledger.ts";
+import {
+  rebuildState,
+  readSessionConfig,
+  plateauCalibration,
+} from "../mcp/lib/ledger.ts";
 import { resolveWorkCwd } from "../mcp/lib/paths.ts";
 import {
   directionLabel,
@@ -34,8 +38,10 @@ try {
   const cfg = readSessionConfig(projectCwd);
   if (cfg.autoresearchOff === true) pass();
   const max = Number(cfg.maxIterations);
+  const calib = plateauCalibration(projectCwd);
   state = rebuildState(cwd, {
     maxIterations: Number.isFinite(max) && max > 0 ? max : 20,
+    deterministic: calib.deterministic,
   });
 } catch {
   pass();

@@ -225,12 +225,13 @@ function consecutiveFailures() {
   return Number.isFinite(v) && v > 0 ? v : 3;
 }
 
-/** Plateau calibration (sanitized in ledger.plateauCalibration) for rebuildState. */
+/** Loop calibration (sanitized in ledger.plateauCalibration) for rebuildState. */
 function plateauOpts() {
   const cal = plateauCalibration(projectCwd);
   return {
     plateauWindow: cal.window,
     plateauMinImprovement: cal.minImprovement,
+    deterministic: cal.deterministic,
   };
 }
 
@@ -262,11 +263,15 @@ function sessionState() {
  * Confidence over a segment's runs (design D4): the same aggregation
  * rebuildState performs (baseline = first valid metric, best = best keep,
  * MAD over the finite values), kept next to the server so the ledger snapshot
- * and the returned confidence share a single computation.
+ * and the returned confidence share a single computation. A deterministic
+ * benchmark (bitwise reproducible) has no noise floor to divide by — the
+ * pooled outcome spread across experiments is effect size, not noise — so
+ * the delta is exact and no confidence ratio is reported.
  */
 function confidenceForSegment(
   runs: LedgerRun[],
   direction: Direction,
+  deterministic: boolean,
 ): Confidence | null {
   let baseline: number | null = null;
   let best: number | null = null;
@@ -283,7 +288,7 @@ function confidenceForSegment(
       values.push(r.metric);
   }
   if (values.length === 0) return null;
-  return computeConfidence({ values, baseline, best });
+  return computeConfidence({ values, baseline, best, deterministic });
 }
 
 // Revisit nudge (design D2): the standing check that keeps a discard from
@@ -1356,7 +1361,7 @@ async function toolLogExperiment(
     return {
       ok: false,
       error:
-        "metric must be a finite number (omit it only for status=crash; noop still logs the verification rerun's metric)",
+        "metric must be a finite number for every status except crash (crash measures nothing) — pass the metric run_experiment returned, including for a noop baseline",
     };
   }
   const metrics =
@@ -1631,6 +1636,7 @@ async function toolLogExperiment(
   const confSnapshot = confidenceForSegment(
     [...state.runs, entry],
     state.config?.direction ?? "lower",
+    plateauOpts().deterministic === true,
   );
   if (confSnapshot) {
     entry.confidence = {

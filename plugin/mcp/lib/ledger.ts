@@ -120,6 +120,7 @@ export function rebuildState(
     consecutiveFailures?: number;
     plateauWindow?: number;
     plateauMinImprovement?: number;
+    deterministic?: boolean;
   } = {},
 ): SessionState {
   const entries = readLedger(cwd);
@@ -193,6 +194,7 @@ export function rebuildState(
       values,
       baseline: state.baseline,
       best: state.best,
+      deterministic: options.deterministic === true,
     });
   } else {
     state.confidence = null;

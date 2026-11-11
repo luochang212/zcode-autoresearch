@@ -51,6 +51,7 @@ try {
     consecutiveFailures: Number.isFinite(fails) && fails > 0 ? fails : 3,
     plateauWindow: calib.window,
     plateauMinImprovement: calib.minImprovement,
+    deterministic: calib.deterministic,
   });
 } catch {
   failOpen();

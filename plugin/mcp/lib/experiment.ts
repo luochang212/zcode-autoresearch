@@ -78,12 +78,16 @@ export function computeConfidence({
   values,
   baseline,
   best,
+  deterministic = false,
 }: {
   values: number[];
   baseline: number | null;
   best: number | null;
+  /** Bitwise-reproducible benchmark: the noise floor is a single point, so no MAD ratio exists — any delta is exact signal, not a directional hint. */
+  deterministic?: boolean;
 }): Confidence | null {
   if (values.length < 3 || baseline == null || best == null) return null;
+  if (deterministic) return null;
   const med = median(values);
   if (med == null || med === 0) return null;
   const deviations = values.map((v) => Math.abs(v - med));
@@ -313,6 +317,9 @@ export function detectPlateau(
       (r) =>
         // Crash rows measure nothing (ADR-10; legacy rows carry a 0
         // placeholder) — they are not data points for the plateau window.
+        // Noop rows DO count: a noop re-measures the metric on unchanged
+        // code, so it is a legitimate trend data point (the repeat:3
+        // confirmation flow relies on it keeping the window flat).
         r.status !== "crash" && r.metric != null && Number.isFinite(r.metric),
     )
     .slice(-window);
