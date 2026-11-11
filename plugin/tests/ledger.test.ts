@@ -379,3 +379,43 @@ test("crash rows still count toward the failure streak (exclusion is metric-scop
   assert.equal(state.consecutiveFailures, 3);
   assert.equal(state.baseline, null); // nothing was measured
 });
+
+// Regression (worth-fix 2026-11-11, segment dota2-logloss run 6): a
+// deterministic benchmark (bitwise reproducible) has a single-point noise
+// band — the pooled outcome spread across experiments is effect size, not
+// noise, so rebuildState must not report a confidence ratio for it.
+test("rebuildState suppresses confidence for a deterministic benchmark", () => {
+  const cwd = tempCwd();
+  appendLedgerEntry(cwd, {
+    type: "config",
+    segment: 1,
+    name: "s",
+    metricName: "time_ms",
+    direction: "lower",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 1,
+    status: "noop",
+    metric: 42,
+    description: "baseline",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 2,
+    status: "discard",
+    metric: 44,
+    description: "worse",
+  });
+  appendLedgerEntry(cwd, {
+    type: "run",
+    run: 3,
+    status: "keep",
+    metric: 41,
+    description: "improved",
+  });
+  const noisy = rebuildState(cwd, {});
+  assert.ok(noisy.confidence);
+  const exact = rebuildState(cwd, { deterministic: true });
+  assert.equal(exact.confidence, null);
+});

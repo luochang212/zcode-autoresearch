@@ -97,6 +97,33 @@ test("computeConfidence uses MAD noise floor", () => {
   );
 });
 
+// Regression (worth-fix 2026-11-11, segment dota2-logloss run 6): on a
+// deterministic benchmark the pooled outcome spread across experiments is
+// effect size, not measurement noise — a bitwise-exact keep was reported as
+// "yellow 1.5× noise" and the loop was nudged into pointless repeat
+// re-measurement (which plateauHintText already declines for the same
+// benchmark). Deterministic input has a single-point noise band: any delta is
+// exact signal, so no confidence ratio is reported.
+test("computeConfidence returns null for a deterministic benchmark", () => {
+  const values = [0.662184, 0.664594, 0.662466, 0.662506, 0.662421, 0.661943];
+  const pooled = computeConfidence({
+    values,
+    baseline: 0.662184,
+    best: 0.661943,
+  });
+  assert.ok(pooled);
+  assert.equal(pooled.level, "yellow");
+  assert.equal(
+    computeConfidence({
+      values,
+      baseline: 0.662184,
+      best: 0.661943,
+      deterministic: true,
+    }),
+    null,
+  );
+});
+
 test("unwrapMeasureCommand allows the benchmark script with wrappers", () => {
   assert.equal(
     unwrapMeasureCommand(".auto/measure.sh", "measure.sh"),
