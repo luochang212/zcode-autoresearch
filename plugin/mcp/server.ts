@@ -1725,9 +1725,18 @@ async function toolLogExperiment(
   // A crash measured nothing; mirror the ledger's null instead of echoing a
   // caller-supplied placeholder into the response/delta.
   const reportedMetric = status === "crash" ? null : metric;
+  // Delta anchors to the decision gate: the pre-log retained value (the
+  // ratchet line this run was judged against — state predates the append).
+  // Anchoring to the baseline instead made a candidate between the baseline
+  // and the current best report a POSITIVE delta on a discard — the headline
+  // number inverted the verdict (bank-seg2 run15: +0.002044 shown, -0.004942
+  // real). The baseline remains the fallback anchor before the first keep,
+  // where the two coincide anyway (the first keep must not be worse than the
+  // baseline).
+  const deltaAnchor = state.best ?? baseline;
   const delta =
-    reportedMetric != null && baseline != null
-      ? (reportedMetric - baseline) *
+    reportedMetric != null && deltaAnchor != null
+      ? (reportedMetric - deltaAnchor) *
         (nextState.config?.direction === "higher" ? 1 : -1)
       : null;
 
@@ -1950,7 +1959,7 @@ const TOOLS = [
   {
     name: "log_experiment",
     description:
-      "Record the experiment outcome. keep → auto-commit with `experiment:` prefix and structured Result in the message; discard/crash/checks_failed → drop working-tree changes while keeping .auto/ intact. Returns baseline/best/delta/confidence and a next-action hint.",
+      "Record the experiment outcome. keep → auto-commit with `experiment:` prefix and structured Result in the message; discard/crash/checks_failed → drop working-tree changes while keeping .auto/ intact. Returns baseline/best/delta/confidence and a next-action hint. delta is direction-adjusted improvement vs the current best (the pre-log retained value; the baseline anchors before the first keep) — the same gate the keep audit enforces.",
     inputSchema: {
       type: "object",
       properties: {

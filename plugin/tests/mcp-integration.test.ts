@@ -1286,6 +1286,21 @@ test("crash rows record metric null and do not pollute the baseline", async () =
       description: "improve",
     });
     assert.equal(keep2.delta, 8); // 42 vs baseline 50, lower=better -> +8 (was reversed before)
+    // Regression (bank-seg2, 2026-11-13): a candidate between the baseline and
+    // the current best used to report a POSITIVE delta (anchored to the
+    // baseline) — the loop's decision gate is the retained value, so the
+    // headline number inverted the verdict. Delta anchors to the pre-log
+    // retained line: 45 is worse than best 42 by 3 (lower=better) even though
+    // it still beats baseline 50.
+    setMetricValue(cwd, 45);
+    await runBenchmark(s);
+    appendFileSync(join(cwd, "code.js"), "// v4\n");
+    const regress = await s.tool("log_experiment", {
+      status: "discard",
+      metric: 45,
+      description: "between baseline and best",
+    });
+    assert.equal(regress.delta, -3); // 45 vs retained 42, lower=better -> -3 (was +5 vs baseline)
   });
 });
 
