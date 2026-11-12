@@ -127,9 +127,21 @@ if (doom) {
   );
 }
 
-lines.push(
-  "如果你在运行 autoresearch 循环，请基于上述进度选择下一个假设并继续 run_experiment → log_experiment。",
-);
+// Continuation guidance must agree with the loop's own terminal states: at
+// the cap the server refuses run_experiment (and the Stop hook stands down),
+// so a continuation nudge here would push a run that cannot happen — worst
+// right after a compaction, when this inject is the agent's main anchor.
+const capReached =
+  state.maxIterations != null && state.runs.length >= state.maxIterations;
+if (capReached) {
+  lines.push(
+    `迭代上限已到（${state.runs.length}/${state.maxIterations}）：本 segment 请收官总结，勿继续 run_experiment；续优用 init_experiment 开新 segment，暂停用 /autoresearch:off。`,
+  );
+} else {
+  lines.push(
+    "如果你在运行 autoresearch 循环，请基于上述进度选择下一个假设并继续 run_experiment → log_experiment。",
+  );
+}
 
 process.stdout.write(
   JSON.stringify({

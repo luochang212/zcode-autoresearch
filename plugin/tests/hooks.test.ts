@@ -349,6 +349,61 @@ test("memory-inject aggregates tried directions and trajectory", () => {
   assert.equal((dirLine.match(/sqrt cutoff/g) || []).length, 1);
 });
 
+// Cap-reached gating: the memory inject must hand the loop's closing states
+// the same verdict the server and the Stop hook already use — a finished
+// segment gets closing guidance, never a continuation nudge. Without this
+// gate a post-cap prompt (worst: right after a compaction, when this inject
+// is the agent's main anchor) actively pushes a new run the server will
+// refuse at the cap (evidence: bank-seg2 15/15 ledger, 2026-11-13).
+function capFixture(n: number): LedgerRun[] {
+  return Array.from({ length: n }, (_, i) => ({
+    type: "run" as const,
+    run: i + 1,
+    segment: 1,
+    status: (i + 1) % 3 === 0 ? "keep" : "discard",
+    metric: 10 - Math.floor(i / 3) * 0.5,
+    description: `run ${i + 1}`,
+  }));
+}
+
+function seedCapLedger(cwd: string, runs: number, maxIterations: number): void {
+  mkdirSync(join(cwd, ".auto"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".auto", "config.json"),
+    JSON.stringify({ maxIterations }),
+  );
+  seedLedger(cwd, [cfgLine, ...capFixture(runs)]);
+}
+
+function memoryInjectContext(cwd: string): string {
+  return JSON.parse(
+    runHook(
+      "memory-inject.ts",
+      cwd,
+      JSON.stringify({ hook_event_name: "UserPromptSubmit", prompt: "x" }),
+    ),
+  ).hookSpecificOutput.additionalContext as string;
+}
+
+test("memory-inject: cap reached gets closing guidance, not a continuation nudge", () => {
+  const cwd = tempCwd();
+  seedCapLedger(cwd, 15, 15);
+  const ctx = memoryInjectContext(cwd);
+  assert.match(ctx, /已跑 15\/15/);
+  assert.match(ctx, /迭代上限已到（15\/15）/);
+  assert.match(ctx, /init_experiment/);
+  assert.doesNotMatch(ctx, /请基于上述进度选择下一个假设/);
+});
+
+test("memory-inject: below the cap keeps the continuation nudge", () => {
+  const cwd = tempCwd();
+  seedCapLedger(cwd, 13, 15);
+  const ctx = memoryInjectContext(cwd);
+  assert.match(ctx, /已跑 13\/15/);
+  assert.match(ctx, /请基于上述进度选择下一个假设并继续 run_experiment/);
+  assert.doesNotMatch(ctx, /迭代上限已到/);
+});
+
 test("memory-inject warns on doom loop", () => {
   const cwd = tempCwd();
   seedLedger(cwd, [
