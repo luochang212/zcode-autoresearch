@@ -206,9 +206,9 @@ test("unwrapMeasureCommand rejects shell injection after the script (whitelist)"
     unwrapMeasureCommand("bash .auto/measure.sh \recho PWNED", "measure.sh"),
     null,
   );
-  // redirection
+  // redirection (relative fixture target — the repo keeps absolute-path literals out of its tree)
   assert.equal(
-    unwrapMeasureCommand("bash .auto/measure.sh > /tmp/x", "measure.sh"),
+    unwrapMeasureCommand("bash .auto/measure.sh > out.txt", "measure.sh"),
     null,
   );
   // backtick / dollar / quotes / glob

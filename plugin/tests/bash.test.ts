@@ -21,14 +21,16 @@ function expand(value: string): string {
 }
 
 test("quoteShellArg round-trips paths literally through bash -c", () => {
+  // Relative fixtures only: the quoting semantics do not depend on the path
+  // prefix, and the repo keeps absolute-path literals (even /tmp) out of its tree.
   for (const value of [
-    "/tmp/plain/.auto/checks.sh",
+    "scratch/plain/.auto/checks.sh",
     "project/.auto/checks.sh",
-    "/tmp/with space/.auto/checks.sh",
-    "/tmp/Alex's project/.auto/checks.sh",
-    "/tmp/$HOME/`id`/.auto/checks.sh",
-    '/tmp/double"quote/.auto/checks.sh',
-    "/tmp/x'; echo pwned; '/.auto/checks.sh",
+    "scratch/with space/.auto/checks.sh",
+    "scratch/Alex's project/.auto/checks.sh",
+    "scratch/$HOME/`id`/.auto/checks.sh",
+    'scratch/double"quote/.auto/checks.sh',
+    "scratch/x'; echo pwned; '/.auto/checks.sh",
   ]) {
     assert.equal(expand(value), value);
   }
