@@ -8,9 +8,9 @@ The complete, unambiguous contract for one experiment iteration and its failure 
 2. **Hypothesis**: state it in one line. Prefer `asi.next_action_hint` from the previous `log_experiment` when present.
 3. **Modify**: exactly one logical change, inside the agreed scope. No unrelated edits: a mixed diff makes keep/discard meaningless.
 4. **Run**: `run_experiment`. Only `.auto/measure.sh` runs when it exists. Timeout default 600s.
-5. **Decide**: compare the returned `metric` against the segment `baseline`:
-   - **improved** → `log_experiment` `status:"keep"`. The tool auto-commits (`experiment: <desc>` + Result JSON).
-   - **equal or worse** → `status:"discard"`. Working tree is reverted, `.auto/` survives.
+5. **Decide**: compare the returned `metric` against the **current best** (the `best` field in the log result — the ratchet line; the segment `baseline` only seeds it before the first keep):
+   - **improved (beats the current best)** → `log_experiment` `status:"keep"`. The tool auto-commits (`experiment: <desc>` + Result JSON). The audit enforces this exactly: a keep that does not beat the current best is rejected, and so is a discard whose metric beats it.
+   - **equal or worse** → `status:"discard"`. Working tree is reverted, `.auto/` survives. A run between the baseline and the current best is still a discard — it improves on the baseline but not on the champion.
    - **exit_code ≠ 0 / timed_out with nothing measured** → `status:"crash"` (metric null). Same revert. If the benchmark printed a valid `METRIC` line before dying, the tool rejects `crash` ("measured something") — log the observed value as `discard`/`keep` instead.
    - **checks.failed** → `status:"checks_failed"`. Same revert; never keep.
    - **no actual change made** (e.g. only measured) → `status:"noop"` if you want it recorded, else skip logging.

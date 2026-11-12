@@ -125,7 +125,7 @@ export function validateLedger(
         push(
           "keep_without_improvement",
           r.run,
-          `keep metric ${metric} does not beat retained ${retained} (${direction})`,
+          `keep metric ${metric} does not beat retained ${retained} (${direction}); a keep must improve on the current best — beating the baseline alone is not enough (log this run as discard instead)`,
         );
       } else {
         retained = metric;
