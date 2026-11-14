@@ -8,6 +8,8 @@
 
 `init_experiment` 工具 SHALL 接受会话名、主度量名、可选度量单位与方向（lower/higher，默认 lower），并在 `.auto/log.jsonl` 追加一条 config 记录；重复调用时 SHALL 递增 segment，使新目标的数据不污染旧 baseline。当 `.auto/config.json` 含 `workingDir` 时，工具 SHALL 将该目录解析为**研究目录**：此后 init/run/log、git 操作、迭代钩子与 dashboard 全部作用于该目录（config 文件本身留在项目目录）。工具 SHALL 将**冻结文件哈希**写入 `.auto/config.json` 的 `benchmarkHashes`（`measure.sh` 与 `checks.sh` 存在时的 sha256；文件不存在时为 null，遵循"首见即基准"，在首次运行时记录）；config 账本记录本身 SHALL NOT 包含哈希（账本 append-only，无法回填首见值）。研究目录不是 git 仓库时，工具 SHALL 拒绝初始化并返回明确错误；是 git 仓库但没有任何 commit（unborn HEAD）时，工具 SHALL 同样拒绝并提示先提交 baseline（实验循环的 keep/discard 依赖 git 提交与回滚语义，空仓库上的首次回滚必然失败）。初始化 SHALL 清除 `autoresearchOff` 标记，使显式新建/重开实验会话即恢复续跑语义。
 
+`init_experiment` 另 SHALL 接受可选布尔 `foundingCommit`：为 true 且研究目录工作树脏（脏判定与会话状态豁免口径同 crash 门禁与 keep 暂存，单一事实源）时，工具 SHALL 把既有脏工作按 keep 同款暂存纪律提交为一个**段首提交**（message 带 `segment:` 前缀），返回携带该提交短 hash；暂存为空（脏文件全为 gitignored）时 SHALL 静默跳过并说明无需折入。为 true 且工作树干净时 SHALL 为 no-op。该不变量的目的：keep 的暂存与 discard 的回滚均以「init 后树 = HEAD」为前提，段首提交使换座位/换指标类开段配置免于被 keep 夹带（提交信息失真）或被 discard 打回（基线行孤儿化）。缺省（未传参）时行为 SHALL 不变：树脏只发 ADR-11 警告（advisory），不自动提交。
+
 #### Scenario: 首次初始化
 
 - **WHEN** agent 调用 `init_experiment` 并给出 name/metric_name/direction
@@ -32,6 +34,26 @@
 
 - **WHEN** 研究目录是 git 仓库但 `git rev-parse --verify HEAD` 失败（尚无 commit）
 - **THEN** `init_experiment` 返回 `ok: false`，提示先提交 baseline，不追加 config 记录
+
+#### Scenario: 脏树折入段首提交
+
+- **WHEN** `init_experiment` 以 `foundingCommit: true` 开段且研究目录有未提交改动（tracked 修改与 untracked 新文件，不含会话状态）
+- **THEN** 产生一个 `segment:` 前缀的段首提交，返回携带其短 hash；此后的 keep 提交 diff 只含实验改动，discard 回滚后段首内容幸存（基线行可复现）
+
+#### Scenario: 干净树 foundingCommit no-op
+
+- **WHEN** `init_experiment` 以 `foundingCommit: true` 开段且工作树干净
+- **THEN** 不产生提交，返回说明无需折入
+
+#### Scenario: 脏文件全为 gitignored 时跳过
+
+- **WHEN** `init_experiment` 以 `foundingCommit: true` 开段且唯一脏内容为 gitignored 文件
+- **THEN** 暂存集为空，不产生空提交，返回说明无需折入
+
+#### Scenario: 缺省保持警告不变
+
+- **WHEN** `init_experiment` 遇脏树但未传 `foundingCommit`
+- **THEN** 行为与既有版本逐字一致：初始化成功，返回携带 ADR-11 脏树警告，不自动提交
 
 ### Requirement: run_experiment 运行基准并解析度量
 
@@ -278,7 +300,7 @@
 
 ### Requirement: log_experiment 报告平台期与置信度
 
-`log_experiment` 工具 SHALL 在返回中包含 `plateau` 标志：当前 segment 最近 `window`（默认 5）轮的有效度量中，相对窗口起点度量的最佳改善比例低于 `min_improvement`（默认 1%，即 0.01）时为 true（窗口不足时不判定）。`window` 与 `min_improvement` SHALL 可由 `init_experiment` 的可选参数 `plateau_window`（整数 ≥2）与 `plateau_min_improvement`（有限数 ≥0）指定，并持久化进 `.auto/config.json`（键 `plateauWindow` / `plateauMinImprovement`）；未传参时不覆盖既有配置值，非法值 SHALL 回退默认而非报错。状态重建（server 与 Stop hook）SHALL 消费同一配置，保证判定与提示口径一致。`init_experiment` 另 SHALL 接受可选布尔 `deterministic`（持久化为 config 键 `deterministic`）：基准为确定性（逐位可复现）时，plateau 提示 SHALL 不建议 repeat 复测；提示文案 SHALL 反映配置的窗口与阈值（阈值以百分比呈现），未配置时文案与既有默认逐字一致。`confidence`（MAD 校准）SHALL 作为返回的显著字段置于 delta 之后、next_action_hint 之前，返回值 SHALL 含 `unit: "× noise"`（`value` 为 best−baseline 与 MAD 之比的倍数）。本次计算出的 `confidence` SHALL 同时快照写入账本 run 行（`confidence: {level, value}`，不含 unit），使事后分析无需重算即可回溯记录时刻的置信度；快照值与返回值 SHALL 同源一致（同一次计算）。返回 SHALL 含 `runs_left`（`maxIterations − 当前 segment 已跑数`；上限未显式配置时按默认 20 计）；`runs_left` 为 1 或 2 且上限存在时，next_action_hint SHALL 提示接近迭代上限（上限已到时的既有提示不变）。
+`log_experiment` 工具 SHALL 在返回中包含 `plateau` 标志，判据按基准性质二分。默认（非确定性基准）沿用幅度语义：当前 segment 最近 `window`（默认 5）轮的有效度量中，相对窗口起点度量的最佳改善比例低于 `min_improvement`（默认 1%，即 0.01）时为 true（窗口不足时不判定）。`init_experiment` 以 `deterministic: true` 开段时，`plateau` SHALL 改用**无进展计数语义**：确定性基准逐位可复现，任何度量变化都是真实信号，幅度阈值失去意义；此时窗口内存在严格优于窗口起点前 segment 全局 best 的度量即为 false，否则为 true（窗口不足不判定；crash 行与幅度语义同口径排除，noop 行同口径计入）。`window` 与 `min_improvement` SHALL 可由 `init_experiment` 的可选参数 `plateau_window`（整数 ≥2）与 `plateau_min_improvement`（有限数 ≥0）指定，并持久化进 `.auto/config.json`（键 `plateauWindow` / `plateauMinImprovement`）；未传参时不覆盖既有配置值，非法值 SHALL 回退默认而非报错。状态重建（server 与 Stop hook）SHALL 消费同一配置，保证判定与提示口径一致。`init_experiment` 另 SHALL 接受可选布尔 `deterministic`（持久化为 config 键 `deterministic`）：基准为确定性（逐位可复现）时，plateau 提示 SHALL 不建议 repeat 复测；提示文案 SHALL 反映配置的窗口与阈值（阈值以百分比呈现），未配置时文案与既有默认逐字一致。`confidence`（MAD 校准）SHALL 作为返回的显著字段置于 delta 之后、next_action_hint 之前，返回值 SHALL 含 `unit: "× noise"`（`value` 为 best−baseline 与 MAD 之比的倍数）。本次计算出的 `confidence` SHALL 同时快照写入账本 run 行（`confidence: {level, value}`，不含 unit），使事后分析无需重算即可回溯记录时刻的置信度；快照值与返回值 SHALL 同源一致（同一次计算）。返回 SHALL 含 `runs_left`（`maxIterations − 当前 segment 已跑数`；上限未显式配置时按默认 20 计）；`runs_left` 为 1 或 2 且上限存在时，next_action_hint SHALL 提示接近迭代上限（上限已到时的既有提示不变）。
 
 #### Scenario: 平台期检测
 
@@ -294,6 +316,16 @@
 
 - **WHEN** `init_experiment` 以 `deterministic: true` 开段且 plateau 触发
 - **THEN** next_action_hint 不含 "repeat:3" 建议；未设置时建议保留
+
+#### Scenario: deterministic 窗口内有进展不计平台期
+
+- **WHEN** `init_experiment` 以 `deterministic: true` 开段，窗口 5 轮中存在一轮 keep 严格优于窗口起点前的 segment best（如 0.82922/0.828402/0.824887/0.83017/0.826868，窗口前 best 0.82922）
+- **THEN** `plateau: false`（幅度语义下同一序列因最佳改善 0.11% < 1% 而误报 true，此为确定性细步长基准的既有缺陷）
+
+#### Scenario: deterministic 连续无进展计平台期
+
+- **WHEN** `init_experiment` 以 `deterministic: true` 开段，窗口 5 轮全部未超过窗口前 best
+- **THEN** `plateau: true`（确定性下连续无进展即停滞的实证）
 
 #### Scenario: 未传参不覆盖既有校准
 
